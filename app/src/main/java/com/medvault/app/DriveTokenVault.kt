@@ -2,6 +2,8 @@ package com.medvault.app
 
 import android.content.Context
 import android.util.Base64
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -14,29 +16,35 @@ object DriveTokenVault {
     private const val PREFS = "medvault_secure_storage"
     private const val TOKEN_KEY = "drive_access_token"
 
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val TRANSFORMATION = "AES/GCM/NoPadding"
+    private const val IV_LENGTH = 12
+    private const val TAG_LENGTH = 128
+
     private fun getKey(): SecretKey {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
         keyStore.load(null)
 
-        val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
-        if (existing != null) return existing
+        val existingKey = keyStore.getKey(KEY_ALIAS, null)
+        if (existingKey is SecretKey) {
+            return existingKey
+        }
 
         val generator = KeyGenerator.getInstance(
-            android.security.keystore.KeyProperties.KEY_ALGORITHM_AES,
-            "AndroidKeyStore"
+            KeyProperties.KEY_ALGORITHM_AES,
+            ANDROID_KEYSTORE
         )
 
-        val spec = android.security.keystore.KeyGenParameterSpec.Builder(
+        val spec = KeyGenParameterSpec.Builder(
             KEY_ALIAS,
-            android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or
-                android.security.keystore.KeyProperties.PURPOSE_DECRYPT
+            KeyProperties.PURPOSE_ENCRYPT or
+                KeyProperties.PURPOSE_DECRYPT
         )
-            .setBlockModes(
-                android.security.keystore.KeyProperties.BLOCK_MODE_GCM
-            )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(
-                android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE
+                KeyProperties.ENCRYPTION_PADDING_NONE
             )
+            .setKeySize(256)
             .setRandomizedEncryptionRequired(true)
             .build()
 
@@ -44,50 +52,85 @@ object DriveTokenVault {
         return generator.generateKey()
     }
 
+    /**
+     * Encrypt and save the Google Drive access token.
+     */
+    @Synchronized
     fun save(context: Context, token: String) {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        require(token.isNotBlank()) {
+            "Access token cannot be empty."
+        }
+
+        val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getKey())
 
-        val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
-        val iv = cipher.iv
+        val encrypted = cipher.doFinal(
+            token.toByteArray(Charsets.UTF_8)
+        )
 
         val stored = Base64.encodeToString(
-            iv + encrypted,
+            cipher.iv + encrypted,
             Base64.NO_WRAP
         )
 
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(TOKEN_KEY, stored)
             .apply()
     }
 
+    /**
+     * Decrypt and retrieve the saved access token.
+     */
+    @Synchronized
     fun get(context: Context): String? {
-        val stored = context.getSharedPreferences(
-            PREFS,
-            Context.MODE_PRIVATE
-        ).getString(TOKEN_KEY, null) ?: return null
+        val preferences = context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        val stored = preferences.getString(TOKEN_KEY, null)
+            ?: return null
 
         return try {
-            val combined = Base64.decode(stored, Base64.NO_WRAP)
-            val iv = combined.copyOfRange(0, 12)
-            val encrypted = combined.copyOfRange(12, combined.size)
+            val combined = Base64.decode(
+                stored,
+                Base64.NO_WRAP
+            )
 
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            if (combined.size <= IV_LENGTH) {
+                return null
+            }
+
+            val iv = combined.copyOfRange(0, IV_LENGTH)
+            val encrypted = combined.copyOfRange(
+                IV_LENGTH,
+                combined.size
+            )
+
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+
             cipher.init(
                 Cipher.DECRYPT_MODE,
                 getKey(),
-                GCMParameterSpec(128, iv)
+                GCMParameterSpec(TAG_LENGTH, iv)
             )
 
-            String(cipher.doFinal(encrypted), Charsets.UTF_8)
+            String(
+                cipher.doFinal(encrypted),
+                Charsets.UTF_8
+            )
         } catch (_: Exception) {
             null
         }
     }
 
+    /**
+     * Remove the saved token.
+     */
+    @Synchronized
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .remove(TOKEN_KEY)
             .apply()
