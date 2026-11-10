@@ -191,7 +191,12 @@ class WatchHistorySync(context: Context) {
         val connection = url.openConnection() as HttpURLConnection
 
         try {
-            connection.requestMethod = method
+            if (method == "PATCH") {
+    connection.requestMethod = "POST"
+    connection.setRequestProperty("X-HTTP-Method-Override", "PATCH")
+} else {
+    connection.requestMethod = method
+            }
             connection.setRequestProperty(
                 "Authorization",
                 "Bearer $token"
