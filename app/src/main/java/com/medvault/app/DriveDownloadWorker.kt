@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.Data
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -37,6 +38,7 @@ class DriveDownloadWorker(
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+
         val fileId = inputData.getString(KEY_FILE_ID)
             ?: return@withContext Result.failure()
 
@@ -55,8 +57,8 @@ class DriveDownloadWorker(
             "downloads"
         )
 
-        if (!downloadDirectory.exists()) {
-            downloadDirectory.mkdirs()
+        if (!downloadDirectory.exists() && !downloadDirectory.mkdirs()) {
+            return@withContext Result.failure()
         }
 
         val safeName = fileName
@@ -64,14 +66,38 @@ class DriveDownloadWorker(
             .trim()
             .ifBlank { "lecture_$fileId.mp4" }
 
-        val finalFile = File(downloadDirectory, "${fileId}_$safeName")
-        val partialFile = File(downloadDirectory, "${fileId}_$safeName.part")
+        val finalFile = File(
+            downloadDirectory,
+            "${fileId}_$safeName"
+        )
 
+        val partialFile = File(
+            downloadDirectory,
+            "${fileId}_$safeName.part"
+        )
+
+        fun registerDownload(file: File) {
+            DownloadStore.save(
+                applicationContext,
+                DownloadedLecture(
+                    fileId = fileId,
+                    name = safeName,
+                    localPath = file.absolutePath,
+                    downloadId = 0L,
+                    downloadedAt = System.currentTimeMillis()
+                )
+            )
+        }
+
+        // Register an already completed file.
         if (finalFile.exists() && finalFile.length() > 0L) {
+            registerDownload(finalFile)
+
             return@withContext Result.success(
                 Data.Builder()
                     .putString("file_path", finalFile.absolutePath)
                     .putString("file_name", safeName)
+                    .putLong("file_size", finalFile.length())
                     .build()
             )
         }
@@ -79,16 +105,14 @@ class DriveDownloadWorker(
         createNotificationChannel()
 
         setForeground(
-            createForegroundInfo(
-                "Preparing download",
-                0
-            )
+            createForegroundInfo("Preparing download", 0)
         )
 
         var connection: HttpURLConnection? = null
 
         try {
-            val existingBytes = partialFile.takeIf { it.exists() }
+            val existingBytes = partialFile
+                .takeIf { it.exists() }
                 ?.length() ?: 0L
 
             val url = URL(
@@ -103,7 +127,10 @@ class DriveDownloadWorker(
                 readTimeout = 30000
 
                 if (existingBytes > 0L) {
-                    setRequestProperty("Range", "bytes=$existingBytes-")
+                    setRequestProperty(
+                        "Range",
+                        "bytes=$existingBytes-"
+                    )
                 }
             }
 
@@ -120,19 +147,34 @@ class DriveDownloadWorker(
                 )
             }
 
+            if (responseCode == 403 || responseCode == 404) {
+                return@withContext Result.failure(
+                    Data.Builder()
+                        .putString(
+                            "error",
+                            "Google Drive denied access or the file was not found."
+                        )
+                        .build()
+                )
+            }
+
             if (responseCode !in listOf(200, 206)) {
                 return@withContext Result.retry()
             }
 
+            // If the server ignores Range and returns 200,
+            // restart the partial file instead of appending.
             val append = responseCode == 206
             val startBytes = if (append) existingBytes else 0L
 
             val contentRange = connection.getHeaderField("Content-Range")
+
             val rangeTotal = contentRange
                 ?.substringAfterLast("/")
                 ?.toLongOrNull()
 
             val responseLength = connection.contentLengthLong
+
             val totalBytes = rangeTotal
                 ?: if (responseLength > 0L) {
                     startBytes + responseLength
@@ -145,6 +187,7 @@ class DriveDownloadWorker(
 
             connection.inputStream.use { input ->
                 FileOutputStream(partialFile, append).use { output ->
+
                     val buffer = ByteArray(64 * 1024)
 
                     while (true) {
@@ -173,6 +216,7 @@ class DriveDownloadWorker(
                         )
 
                         val now = System.currentTimeMillis()
+
                         if (now - lastNotificationUpdate >= 1000L) {
                             setForeground(
                                 createForegroundInfo(
@@ -188,7 +232,10 @@ class DriveDownloadWorker(
                 }
             }
 
-            if (totalBytes > 0L && partialFile.length() != totalBytes) {
+            if (
+                totalBytes > 0L &&
+                partialFile.length() != totalBytes
+            ) {
                 return@withContext Result.retry()
             }
 
@@ -196,6 +243,9 @@ class DriveDownloadWorker(
                 partialFile.copyTo(finalFile, overwrite = true)
                 partialFile.delete()
             }
+
+            // Register only after the complete file is available.
+            registerDownload(finalFile)
 
             setProgress(
                 Data.Builder()
@@ -213,7 +263,7 @@ class DriveDownloadWorker(
                     .build()
             )
 
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Result.retry()
@@ -244,6 +294,7 @@ class DriveDownloadWorker(
         message: String,
         progress: Int
     ): ForegroundInfo {
+
         val notification = NotificationCompat.Builder(
             applicationContext,
             CHANNEL_ID
