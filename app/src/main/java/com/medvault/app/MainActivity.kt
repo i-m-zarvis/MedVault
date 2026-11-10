@@ -2,9 +2,14 @@
 package com.medvault.app
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -22,14 +27,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -43,16 +46,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
-private val Background = Color(0xFF0B1020)
-private val Panel = Color(0xFF151E30)
-private val Accent = Color(0xFF78AFFF)
-private val Muted = Color(0xFF9EABC0)
+private val AppBg = Color(0xFF0B1020)
+private val AppPanel = Color(0xFF151E30)
+private val AppAccent = Color(0xFF78AFFF)
+private val AppMuted = Color(0xFF9EABC0)
 
 private const val DRIVE_SCOPE =
     "https://www.googleapis.com/auth/drive.readonly"
 
-private const val AUTH_REQUEST = 7001
-
+private const val AUTH_REQUEST_CODE = 7001
 private const val FOLDER_MIME =
     "application/vnd.google-apps.folder"
 
@@ -69,30 +71,31 @@ data class FolderLocation(
 
 class MainActivity : ComponentActivity() {
 
-    private val executor =
-        Executors.newSingleThreadExecutor()
+    private val io = Executors.newSingleThreadExecutor()
 
     private var accessToken by mutableStateOf<String?>(null)
-
     private var connected by mutableStateOf(false)
+    private var authBusy by mutableStateOf(false)
     private var loading by mutableStateOf(false)
 
     private var status by mutableStateOf(
-        "Connect Google Drive to begin."
+        "Checking Google Drive access…"
     )
 
-    private val driveItems =
-        mutableStateListOf<DriveItem>()
+    private val driveItems = mutableStateListOf<DriveItem>()
+    private val folderStack = mutableStateListOf<FolderLocation>()
 
-    private val folderStack =
-        mutableStateListOf<FolderLocation>()
-
-    private var currentFolderId by mutableStateOf("root")
-    private var currentFolderName by mutableStateOf("My Drive")
+    private var folderId by mutableStateOf("root")
+    private var folderName by mutableStateOf("My Drive")
 
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
+    private var screen by mutableStateOf("home")
+    private var accountMenu by mutableStateOf(false)
+    private var pipMode by mutableStateOf(false)
+    private var fullscreen by mutableStateOf(false)
 
-    private var requestVersion = 0
+    private var player: ExoPlayer? = null
+    private var requestSerial = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,83 +103,101 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    background = Background,
-                    surface = Panel,
-                    primary = Accent
+                    background = AppBg,
+                    surface = AppPanel,
+                    primary = AppAccent,
+                    onBackground = Color.White,
+                    onSurface = Color.White
                 )
             ) {
-                MedVaultHome(
+                MedVaultRoot(
                     connected = connected,
+                    authBusy = authBusy,
                     loading = loading,
                     status = status,
                     items = driveItems.toList(),
-                    folderName = currentFolderName,
+                    folderName = folderName,
                     canGoBack = folderStack.isNotEmpty(),
                     selectedVideo = selectedVideo,
-                    accessToken = accessToken.orEmpty(),
-                    onConnect = { connectGoogleDrive() },
-                    onBrowse = { browseDrive() },
-                    onBack = { goBack() },
-                    onFolderClick = { openFolder(it) },
-                    onFileClick = { openFile(it) },
-                    onCloseVideo = {
-                        selectedVideo = null
-                    }
+                    screen = screen,
+                    accountMenu = accountMenu,
+                    pipMode = pipMode,
+                    fullscreen = fullscreen,
+                    player = player,
+                    onAccountMenu = { accountMenu = it },
+                    onConnect = { authorizeDrive() },
+                    onDisconnect = { disconnectDrive() },
+                    onBrowse = {
+                        screen = "drive"
+                        browseDrive()
+                    },
+                    onHome = {
+                        leavePlayer()
+                        screen = "home"
+                    },
+                    onFolderBack = { goBackFolder() },
+                    onRefresh = { loadFolder(folderId) },
+                    onFolder = { openFolder(it) },
+                    onFile = { openFile(it) },
+                    onFullscreen = { toggleFullscreen() },
+                    onPip = { enterPip() }
                 )
             }
         }
+
+        // Reuses the existing Google permission silently where possible.
+        authorizeDrive()
     }
 
-    private fun connectGoogleDrive() {
-        if (loading) return
+    private fun authorizeDrive() {
+        if (authBusy) return
 
-        status = "Requesting Google authorization..."
+        authBusy = true
+        status = "Checking Google Drive access…"
 
-        try {
-            val request = AuthorizationRequest.builder()
-                .setRequestedScopes(
-                    listOf(Scope(DRIVE_SCOPE))
-                )
-                .build()
+        val request = AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(Scope(DRIVE_SCOPE)))
+            .build()
 
-            Identity.getAuthorizationClient(this)
-                .authorize(request)
-                .addOnSuccessListener { result ->
-                    if (result.hasResolution()) {
-                        try {
-                            val pendingIntent =
-                                result.pendingIntent
-                                    ?: throw IllegalStateException(
-                                        "Authorization resolution unavailable"
-                                    )
+        Identity.getAuthorizationClient(this)
+            .authorize(request)
+            .addOnSuccessListener { result ->
+                authBusy = false
 
-                            @Suppress("DEPRECATION")
-                            startIntentSenderForResult(
-                                pendingIntent.intentSender,
-                                AUTH_REQUEST,
-                                null,
-                                0,
-                                0,
-                                0
+                if (result.hasResolution()) {
+                    try {
+                        val pending = result.pendingIntent
+                            ?: throw IllegalStateException(
+                                "Google authorization prompt unavailable"
                             )
-                        } catch (e: Exception) {
-                            status =
-                                "Authorization error: ${e.message}"
-                        }
-                    } else {
-                        handleAuthorization(result.accessToken)
+
+                        @Suppress("DEPRECATION")
+                        startIntentSenderForResult(
+                            pending.intentSender,
+                            AUTH_REQUEST_CODE,
+                            null,
+                            0,
+                            0,
+                            0
+                        )
+                    } catch (e: Exception) {
+                        connected = false
+                        status =
+                            "Google authorization error: ${e.message}"
                     }
+                } else {
+                    acceptAccessToken(result.accessToken)
                 }
-                .addOnFailureListener { error ->
-                    status =
-                        "Google authorization failed: ${error.message}"
-                }
-        } catch (e: Exception) {
-            status = "Authorization error: ${e.message}"
-        }
+            }
+            .addOnFailureListener {
+                authBusy = false
+                connected = false
+                status =
+                    "Google Drive is not connected. Open account settings to connect."
+            }
     }
 
-    @Deprecated("Google authorization resolution")
+    @Deprecated("Google authorization resolution callback")
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -184,7 +205,7 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        if (requestCode != AUTH_REQUEST) return
+        if (requestCode != AUTH_REQUEST_CODE) return
 
         if (resultCode == Activity.RESULT_OK && data != null) {
             try {
@@ -192,65 +213,81 @@ class MainActivity : ComponentActivity() {
                     Identity.getAuthorizationClient(this)
                         .getAuthorizationResultFromIntent(data)
 
-                handleAuthorization(result.accessToken)
+                acceptAccessToken(result.accessToken)
             } catch (e: Exception) {
-                status = "Authorization failed: ${e.message}"
+                connected = false
+                status = "Google authorization failed: ${e.message}"
             }
         } else {
-            status = "Google authorization cancelled."
+            connected = false
+            status = "Google authorization was cancelled."
         }
     }
 
-    private fun handleAuthorization(token: String?) {
+    private fun acceptAccessToken(token: String?) {
         if (token.isNullOrBlank()) {
+            connected = false
             status = "Google did not return an access token."
             return
         }
 
-        requestVersion++
         accessToken = token
         connected = true
-        selectedVideo = null
-
-        currentFolderId = "root"
-        currentFolderName = "My Drive"
-
-        folderStack.clear()
-        driveItems.clear()
-
         status = "Google Drive connected."
 
-        loadDriveFolder("root")
+        if (screen == "drive") {
+            loadFolder(folderId)
+        }
+    }
+
+    private fun disconnectDrive() {
+        accessToken = null
+        connected = false
+
+        driveItems.clear()
+        folderStack.clear()
+
+        folderId = "root"
+        folderName = "My Drive"
+
+        leavePlayer()
+        screen = "home"
+
+        status =
+            "Google Drive disconnected. Reconnect from account settings."
     }
 
     private fun browseDrive() {
         if (accessToken.isNullOrBlank()) {
-            connectGoogleDrive()
+            authorizeDrive()
         } else {
-            loadDriveFolder(currentFolderId)
+            loadFolder(folderId)
         }
     }
 
-    private fun loadDriveFolder(folderId: String) {
-        val token = accessToken ?: run {
-            status = "Reconnect Google Drive."
+    private fun loadFolder(targetFolderId: String) {
+        val token = accessToken
+
+        if (token.isNullOrBlank()) {
+            status = "Connect Google Drive from account settings."
+            authorizeDrive()
             return
         }
 
-        val version = ++requestVersion
+        val serial = ++requestSerial
 
         loading = true
-        status = "Loading $currentFolderName..."
+        status = "Loading $folderName…"
         driveItems.clear()
 
-        executor.execute {
+        io.execute {
             try {
-                val allFiles = mutableListOf<DriveItem>()
+                val found = mutableListOf<DriveItem>()
                 var pageToken: String? = null
 
                 do {
                     val query =
-                        "'${folderId.replace("'", "\\'")}' in parents and trashed=false"
+                        "'${targetFolderId.replace("'", "\\'")}' in parents and trashed=false"
 
                     val builder = Uri.parse(
                         "https://www.googleapis.com/drive/v3/files"
@@ -258,16 +295,13 @@ class MainActivity : ComponentActivity() {
                         .appendQueryParameter("q", query)
                         .appendQueryParameter(
                             "fields",
-                            "nextPageToken,files(id,name,mimeType,size)"
+                            "nextPageToken,files(id,name,mimeType)"
                         )
                         .appendQueryParameter("pageSize", "100")
                         .appendQueryParameter("orderBy", "folder,name")
 
-                    if (pageToken != null) {
-                        builder.appendQueryParameter(
-                            "pageToken",
-                            pageToken
-                        )
+                    pageToken?.let {
+                        builder.appendQueryParameter("pageToken", it)
                     }
 
                     val connection =
@@ -283,30 +317,31 @@ class MainActivity : ComponentActivity() {
                             "Bearer $token"
                         )
                         connection.connectTimeout = 15000
-                        connection.readTimeout = 15000
+                        connection.readTimeout = 20000
 
                         val code = connection.responseCode
 
                         if (code !in 200..299) {
-                            val error = connection.errorStream
+                            val detail = connection.errorStream
                                 ?.bufferedReader()
                                 ?.use { it.readText() }
                                 ?: "HTTP $code"
 
                             if (code == 401) {
                                 throw SecurityException(
-                                    "Google session expired. Reconnect Drive."
+                                    "Google access expired. Reconnect from account settings."
                                 )
                             }
 
                             throw IllegalStateException(
-                                "Drive request failed ($code): $error"
+                                "Drive request failed ($code): $detail"
                             )
                         }
 
                         response = connection.inputStream
                             .bufferedReader()
                             .use { it.readText() }
+
                     } finally {
                         connection.disconnect()
                     }
@@ -315,15 +350,13 @@ class MainActivity : ComponentActivity() {
                     val files = json.optJSONArray("files")
 
                     if (files != null) {
-                        for (i in 0 until files.length()) {
-                            val item = files.getJSONObject(i)
+                        for (index in 0 until files.length()) {
+                            val file = files.getJSONObject(index)
 
-                            allFiles.add(
-                                DriveItem(
-                                    id = item.getString("id"),
-                                    name = item.getString("name"),
-                                    mimeType = item.getString("mimeType")
-                                )
+                            found += DriveItem(
+                                file.getString("id"),
+                                file.getString("name"),
+                                file.getString("mimeType")
                             )
                         }
                     }
@@ -335,20 +368,24 @@ class MainActivity : ComponentActivity() {
                 } while (pageToken != null)
 
                 runOnUiThread {
-                    if (version == requestVersion && !isFinishing) {
+                    if (serial == requestSerial && !isFinishing) {
                         driveItems.clear()
-                        driveItems.addAll(allFiles)
+                        driveItems.addAll(found)
                         loading = false
-                        status = "${allFiles.size} items found."
+                        status = "${found.size} items"
                     }
                 }
-            } catch (e: Exception) {
+
+            } catch (error: Exception) {
                 runOnUiThread {
-                    if (version == requestVersion && !isFinishing) {
+                    if (serial == requestSerial && !isFinishing) {
                         loading = false
-                        status = when (e) {
-                            is SecurityException -> e.message.orEmpty()
-                            else -> "Drive error: ${e.message ?: "Unknown error"}"
+                        status = error.message
+                            ?: "Could not load Drive."
+
+                        if (error is SecurityException) {
+                            connected = false
+                            accessToken = null
                         }
                     }
                 }
@@ -356,615 +393,913 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun openFolder(folder: DriveItem) {
-        if (loading || folder.mimeType != FOLDER_MIME) return
+    private fun openFolder(item: DriveItem) {
+        if (loading || item.mimeType != FOLDER_MIME) return
 
         folderStack.add(
-            FolderLocation(
-                currentFolderId,
-                currentFolderName
-            )
+            FolderLocation(folderId, folderName)
         )
 
-        currentFolderId = folder.id
-        currentFolderName = folder.name
+        folderId = item.id
+        folderName = item.name
 
-        loadDriveFolder(folder.id)
+        loadFolder(item.id)
     }
 
-    private fun goBack() {
-        if (folderStack.isEmpty()) return
+    private fun goBackFolder() {
+        if (folderStack.isEmpty()) {
+            screen = "home"
+            return
+        }
 
         val previous = folderStack.removeAt(
             folderStack.lastIndex
         )
 
-        currentFolderId = previous.id
-        currentFolderName = previous.name
+        folderId = previous.id
+        folderName = previous.name
 
-        loadDriveFolder(previous.id)
+        loadFolder(previous.id)
     }
 
-    private fun openFile(file: DriveItem) {
-        if (loading) return
+    private fun openFile(item: DriveItem) {
+        val supported =
+            item.mimeType.startsWith("video/") ||
+            listOf(".mp4", ".mkv", ".webm", ".mov")
+                .any { item.name.endsWith(it, true) }
 
-        val isVideo =
-            file.mimeType.startsWith("video/") ||
-            file.name.endsWith(".mp4", ignoreCase = true) ||
-            file.name.endsWith(".mkv", ignoreCase = true) ||
-            file.name.endsWith(".webm", ignoreCase = true)
-
-        if (isVideo) {
-            if (accessToken.isNullOrBlank()) {
-                Toast.makeText(
-                    this,
-                    "Reconnect Google Drive first.",
-                    Toast.LENGTH_LONG
-                ).show()
-                return
-            }
-
-            selectedVideo = file
-        } else {
+        if (!supported) {
             Toast.makeText(
                 this,
                 "This file type is not supported yet.",
                 Toast.LENGTH_SHORT
             ).show()
+            return
+        }
+
+        val token = accessToken
+
+        if (token.isNullOrBlank()) {
+            authorizeDrive()
+            Toast.makeText(
+                this,
+                "Reconnecting Google Drive. Try again when connected.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        startVideo(item, token)
+    }
+
+    private fun startVideo(item: DriveItem, token: String) {
+        player?.release()
+
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setDefaultRequestProperties(
+                mapOf("Authorization" to "Bearer $token")
+            )
+            .setConnectTimeoutMs(20000)
+            .setReadTimeoutMs(30000)
+            .setAllowCrossProtocolRedirects(false)
+
+        player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(httpFactory)
+            )
+            .build()
+            .apply {
+                val url =
+                    "https://www.googleapis.com/drive/v3/files/${Uri.encode(item.id)}?alt=media"
+
+                setMediaItem(MediaItem.fromUri(url))
+                prepare()
+                playWhenReady = true
+            }
+
+        selectedVideo = item
+        screen = "player"
+    }
+
+    private fun leavePlayer() {
+        selectedVideo = null
+
+        player?.release()
+        player = null
+
+        if (fullscreen) {
+            fullscreen = false
+            requestedOrientation =
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
+    private fun toggleFullscreen() {
+        fullscreen = !fullscreen
+
+        requestedOrientation =
+            if (fullscreen) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+    }
+
+    private fun enterPip() {
+        if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            selectedVideo == null
+        ) return
+
+        try {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+
+            enterPictureInPictureMode(params)
+
+        } catch (_: Exception) {
+            Toast.makeText(
+                this,
+                "Picture-in-Picture is unavailable on this device.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+
+        if (selectedVideo != null && player?.isPlaying == true) {
+            enterPip()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(
+            isInPictureInPictureMode,
+            newConfig
+        )
+
+        pipMode = isInPictureInPictureMode
+    }
+
     override fun onDestroy() {
-        requestVersion++
-        executor.shutdownNow()
+        requestSerial++
+        io.shutdownNow()
+
+        player?.release()
+        player = null
+
         super.onDestroy()
     }
 }
 
 @Composable
-fun MedVaultHome(
+private fun MedVaultRoot(
     connected: Boolean,
+    authBusy: Boolean,
     loading: Boolean,
     status: String,
     items: List<DriveItem>,
     folderName: String,
     canGoBack: Boolean,
     selectedVideo: DriveItem?,
-    accessToken: String,
+    screen: String,
+    accountMenu: Boolean,
+    pipMode: Boolean,
+    fullscreen: Boolean,
+    player: ExoPlayer?,
+    onAccountMenu: (Boolean) -> Unit,
     onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
     onBrowse: () -> Unit,
-    onBack: () -> Unit,
-    onFolderClick: (DriveItem) -> Unit,
-    onFileClick: (DriveItem) -> Unit,
-    onCloseVideo: () -> Unit
+    onHome: () -> Unit,
+    onFolderBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onFolder: (DriveItem) -> Unit,
+    onFile: (DriveItem) -> Unit,
+    onFullscreen: () -> Unit,
+    onPip: () -> Unit
 ) {
-    BackHandler(
-        enabled = selectedVideo != null ||
-            (connected && canGoBack)
-    ) {
-        if (selectedVideo != null) {
-            onCloseVideo()
-        } else {
-            onBack()
+    BackHandler(enabled = screen != "home" && !pipMode) {
+        when (screen) {
+            "player" -> onHome()
+            "drive" -> onFolderBack()
         }
     }
 
     Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Background
+        Modifier.fillMaxSize(),
+        color = AppBg
     ) {
-        if (selectedVideo != null) {
-            VideoPlayerScreen(
-                file = selectedVideo,
-                accessToken = accessToken,
-                onClose = onCloseVideo
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            "MEDVAULT",
-                            color = Accent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            "Your study library",
-                            fontSize = 25.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+        when {
+            screen == "player" &&
+            selectedVideo != null &&
+            player != null -> {
+                VideoScreen(
+                    selectedVideo,
+                    player,
+                    fullscreen,
+                    pipMode,
+                    onHome,
+                    onFullscreen,
+                    onPip
+                )
+            }
 
+            screen == "drive" -> {
+                DriveBrowser(
+                    items,
+                    folderName,
+                    canGoBack,
+                    loading,
+                    status,
+                    onFolderBack,
+                    onRefresh,
+                    onFolder,
+                    onFile,
+                    onHome
+                )
+            }
+
+            else -> {
+                Dashboard(
+                    connected,
+                    authBusy,
+                    status,
+                    accountMenu,
+                    onAccountMenu,
+                    onConnect,
+                    onDisconnect,
+                    onBrowse
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Dashboard(
+    connected: Boolean,
+    authBusy: Boolean,
+    status: String,
+    menu: Boolean,
+    onMenu: (Boolean) -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+    onBrowse: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().padding(20.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "MEDVAULT",
+                    color = AppAccent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+
+                Text(
+                    "Your study library",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Box {
+                IconButton(onClick = { onMenu(true) }) {
                     Icon(
-                        Icons.Default.Cloud,
-                        contentDescription = "Cloud",
-                        tint = Accent
+                        Icons.Default.AccountCircle,
+                        "Account settings",
+                        tint = AppAccent,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
-
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Panel
-                    ),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
+                DropdownMenu(
+                    expanded = menu,
+                    onDismissRequest = { onMenu(false) }
                 ) {
-                    Column(Modifier.padding(18.dp)) {
-                        Text(
-                            "YOUR NEET PG LIBRARY",
-                            color = Accent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Spacer(Modifier.height(10.dp))
-
-                        Text(
-                            if (connected)
-                                "Google Drive connected."
-                            else
-                                "Pick up where you left off.",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Spacer(Modifier.height(6.dp))
-
-                        Text(
-                            status,
-                            color = Muted,
-                            fontSize = 13.sp
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        Button(
-                            onClick = onConnect,
-                            enabled = !loading,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                Icons.Default.Cloud,
-                                contentDescription = null
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (connected)
+                                    "Google Drive connected"
+                                else
+                                    "Google Drive not connected"
                             )
-                            Spacer(Modifier.width(8.dp))
+                        },
+                        onClick = { onMenu(false) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Cloud, null)
+                        }
+                    )
+
+                    DropdownMenuItem(
+                        text = {
                             Text(
                                 if (connected)
                                     "Reconnect Google Drive"
                                 else
                                     "Connect Google Drive"
                             )
+                        },
+                        onClick = {
+                            onMenu(false)
+                            onConnect()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Sync, null)
                         }
-                    }
-                }
+                    )
 
-                Spacer(Modifier.height(20.dp))
-
-                if (connected) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (canGoBack) {
-                            IconButton(
-                                onClick = onBack,
-                                enabled = !loading
-                            ) {
-                                Icon(
-                                    Icons.Default.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = Accent
-                                )
+                    if (connected) {
+                        DropdownMenuItem(
+                            text = {
+                                Text("Disconnect Google account")
+                            },
+                            onClick = {
+                                onMenu(false)
+                                onDisconnect()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Logout, null)
                             }
-                        }
-
-                        Text(
-                            folderName,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-
-                        IconButton(
-                            onClick = onBrowse,
-                            enabled = !loading
-                        ) {
-                            Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = "Refresh",
-                                tint = Accent
-                            )
-                        }
-                    }
-
-                    if (loading) {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Accent
                         )
                     }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(items, key = { it.id }) { item ->
-                            val isFolder =
-                                item.mimeType == FOLDER_MIME
-
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(enabled = !loading) {
-                                        if (isFolder) {
-                                            onFolderClick(item)
-                                        } else {
-                                            onFileClick(item)
-                                        }
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = Panel
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        if (isFolder)
-                                            Icons.Default.Folder
-                                        else
-                                            Icons.Default.InsertDriveFile,
-                                        contentDescription = null,
-                                        tint = Accent
-                                    )
-
-                                    Text(
-                                        item.name,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(start = 14.dp),
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-
-                                    Icon(
-                                        if (isFolder)
-                                            Icons.Default.ChevronRight
-                                        else
-                                            Icons.Default.PlayCircle,
-                                        contentDescription = null,
-                                        tint = Color.Gray
-                                    )
-                                }
-                            }
-                        }
-
-                        if (!loading && items.isEmpty()) {
-                            item {
-                                Text(
-                                    if (status.startsWith("Drive error") ||
-                                        status.contains("expired"))
-                                        status
-                                    else
-                                        "This folder is empty.",
-                                    color = Muted,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Text(
-                        "YOUR LIBRARY",
-                        color = Muted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Feature(
-                        Icons.Default.Folder,
-                        "Browse subjects",
-                        "Explore your Drive folders",
-                        onBrowse
-                    )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Feature(
-                        Icons.Default.PlayCircle,
-                        "Continue watching",
-                        "Connect Drive to access lectures",
-                        onBrowse
-                    )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Feature(
-                        Icons.Default.Search,
-                        "Search lectures",
-                        "Search will be added later",
-                        onBrowse
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun VideoPlayerScreen(
-    file: DriveItem,
-    accessToken: String,
-    onClose: () -> Unit
-) {
-    val context = LocalContext.current
-
-    var playerError by remember(file.id) {
-        mutableStateOf<String?>(null)
-    }
-
-    var buffering by remember(file.id) {
-        mutableStateOf(true)
-    }
-
-    val exoPlayer = remember(file.id, accessToken) {
-        val httpFactory = DefaultHttpDataSource.Factory()
-            .setDefaultRequestProperties(
-                mapOf(
-                    "Authorization" to "Bearer $accessToken"
-                )
-            )
-            .setConnectTimeoutMs(20000)
-            .setReadTimeoutMs(20000)
-            .setAllowCrossProtocolRedirects(false)
-
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(httpFactory)
-            )
-            .build()
-            .apply {
-                val encodedId = Uri.encode(file.id)
-                val videoUrl =
-                    "https://www.googleapis.com/drive/v3/files/$encodedId?alt=media"
-
-                setMediaItem(MediaItem.fromUri(videoUrl))
-                playWhenReady = true
-            }
-    }
-
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                buffering = state == Player.STATE_BUFFERING
-                if (state == Player.STATE_READY) {
-                    buffering = false
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                buffering = false
-                playerError = when {
-                    error.cause?.message?.contains("401") == true ->
-                        "Google authorization expired. Reconnect Drive."
-                    error.cause?.message?.contains("403") == true ->
-                        "Google Drive denied access to this video."
-                    else ->
-                        "Playback failed: ${error.message}"
                 }
             }
         }
 
-        exoPlayer.addListener(listener)
+        Spacer(Modifier.height(26.dp))
 
-        try {
-            exoPlayer.prepare()
-        } catch (e: Exception) {
-            buffering = false
-            playerError = "Unable to prepare video: ${e.message}"
-        }
-
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-            .padding(16.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = AppPanel
+            ),
+            shape = RoundedCornerShape(20.dp)
         ) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Accent
+            Column(Modifier.padding(20.dp)) {
+                Text(
+                    "YOUR NEET PG LIBRARY",
+                    color = AppAccent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            }
 
-            Text(
-                file.name,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+                Spacer(Modifier.height(8.dp))
 
-        Spacer(Modifier.height(20.dp))
+                Text(
+                    "Your lectures, in one place",
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
 
-        AndroidView(
-            factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    player = exoPlayer
-                    useController = true
-                    setShowBuffering(
-                        PlayerView.SHOW_BUFFERING_ALWAYS
-                    )
-                }
-            },
-            update = { view ->
-                view.player = exoPlayer
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .background(Color.Black)
-        )
+                Spacer(Modifier.height(6.dp))
 
-        if (buffering && playerError == null) {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(),
-                color = Accent
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        if (playerError != null) {
-            Text(
-                playerError.orEmpty(),
-                color = MaterialTheme.colorScheme.error,
-                fontSize = 13.sp
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Button(
-                onClick = {
-                    playerError = null
-                    buffering = true
-                    exoPlayer.prepare()
-                    exoPlayer.play()
-                }
-            ) {
-                Text("Retry playback")
-            }
-        }
-
-        Text(
-            "NOW PLAYING",
-            color = Accent,
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp
-        )
-
-        Spacer(Modifier.height(6.dp))
-
-        Text(
-            file.name,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
-
-        Spacer(Modifier.height(6.dp))
-
-        Text(
-            "Streaming from Google Drive",
-            color = Muted,
-            fontSize = 12.sp
-        )
-
-        Spacer(Modifier.height(20.dp))
-
-        var selectedSpeed by remember {
-            mutableFloatStateOf(1f)
-        }
-
-        Text(
-            "Playback speed",
-            color = Muted,
-            fontSize = 13.sp
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(0.5f, 1f, 1.5f, 2f).forEach { speed ->
-                FilterChip(
-                    selected = selectedSpeed == speed,
-                    onClick = {
-                        selectedSpeed = speed
-                        exoPlayer.setPlaybackSpeed(speed)
+                Text(
+                    when {
+                        connected ->
+                            "Google Drive is connected."
+                        authBusy ->
+                            "Checking Google account access…"
+                        else ->
+                            "Connect Google Drive from the account menu to browse lectures."
                     },
-                    label = {
-                        Text(
-                            "${speed}x",
-                            fontSize = 11.sp
-                        )
-                    }
+                    color = AppMuted,
+                    fontSize = 13.sp
                 )
+
+                Spacer(Modifier.height(14.dp))
+
+                Button(
+                    onClick = onBrowse,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.FolderOpen, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Browse subjects")
+                }
             }
         }
+
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            "LIBRARY",
+            color = AppMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        DashboardTile(
+            Icons.Default.Folder,
+            "Browse subjects",
+            "Explore folders and lectures",
+            onBrowse
+        )
+
+        DashboardTile(
+            Icons.Default.PlayCircle,
+            "Continue watching",
+            "Playback history is a planned next feature",
+            onBrowse
+        )
+
+        DashboardTile(
+            Icons.Default.Search,
+            "Search lectures",
+            "Search across your Drive library",
+            onBrowse
+        )
+
+        DashboardTile(
+            Icons.Default.History,
+            "Watch history",
+            "Recently played lectures",
+            onBrowse
+        )
     }
 }
 
 @Composable
-fun Feature(
+private fun DashboardTile(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Panel
-        ),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .padding(bottom = 9.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = AppPanel
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Row(
-            modifier = Modifier.padding(17.dp),
+            Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 icon,
-                contentDescription = null,
-                tint = Accent
+                null,
+                tint = AppAccent,
+                modifier = Modifier.size(25.dp)
             )
 
             Column(
-                modifier = Modifier.padding(start = 14.dp)
+                Modifier
+                    .padding(start = 14.dp)
+                    .weight(1f)
             ) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, color = AppMuted, fontSize = 12.sp)
+            }
+
+            Icon(
+                Icons.Default.ChevronRight,
+                null,
+                tint = AppMuted
+            )
+        }
+    }
+}
+
+@Composable
+private fun DriveBrowser(
+    items: List<DriveItem>,
+    folderName: String,
+    canGoBack: Boolean,
+    loading: Boolean,
+    status: String,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onFolder: (DriveItem) -> Unit,
+    onFile: (DriveItem) -> Unit,
+    onHome: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onHome) {
+                Icon(Icons.Default.Home, "Dashboard", tint = AppAccent)
+            }
+
+            if (canGoBack) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, "Parent folder", tint = AppAccent)
+                }
+            }
+
+            Text(
+                folderName,
+                Modifier.weight(1f),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            IconButton(
+                onClick = onRefresh,
+                enabled = !loading
+            ) {
+                Icon(Icons.Default.Refresh, "Refresh", tint = AppAccent)
+            }
+        }
+
+        Text(
+            status,
+            color = AppMuted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+        )
+
+        if (loading) {
+            LinearProgressIndicator(
+                Modifier.fillMaxWidth(),
+                color = AppAccent
+            )
+        }
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(items, key = { it.id }) { item ->
+                val folder = item.mimeType == FOLDER_MIME
+
+                Card(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !loading) {
+                            if (folder) onFolder(item)
+                            else onFile(item)
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppPanel
+                    )
+                ) {
+                    Row(
+                        Modifier.padding(15.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (folder)
+                                Icons.Default.Folder
+                            else
+                                Icons.Default.VideoFile,
+                            null,
+                            tint = AppAccent
+                        )
+
+                        Text(
+                            item.name,
+                            Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            null,
+                            tint = AppMuted
+                        )
+                    }
+                }
+            }
+
+            if (!loading && items.isEmpty()) {
+                item {
+                    Text(
+                        "No items found. $status",
+                        color = AppMuted,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoScreen(
+    file: DriveItem,
+    player: ExoPlayer,
+    fullscreen: Boolean,
+    pipMode: Boolean,
+    onClose: () -> Unit,
+    onFullscreen: () -> Unit,
+    onPip: () -> Unit
+) {
+    var playing by remember { mutableStateOf(player.isPlaying) }
+    var position by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
+    var speed by remember { mutableFloatStateOf(1f) }
+    var controlsVisible by remember { mutableStateOf(true) }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playing = isPlaying
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                duration = player.duration.takeIf { it > 0 } ?: 0L
+            }
+        }
+
+        player.addListener(listener)
+
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            position = player.currentPosition.coerceAtLeast(0L)
+            duration = player.duration.takeIf { it > 0 } ?: 0L
+            kotlinx.coroutines.delay(500)
+        }
+    }
+
+    if (pipMode) {
+        AndroidView(
+            factory = { context ->
+                PlayerView(context).apply {
+                    this.player = player
+                    useController = false
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                }
+            },
+            update = { it.player = player },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        )
+    } else {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(if (fullscreen) Color.Black else AppBg)
+        ) {
+            if (!fullscreen) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.ArrowBack, "Back", tint = AppAccent)
+                    }
+
+                    Text(
+                        file.name,
+                        Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    IconButton(onClick = onPip) {
+                        Icon(
+                            Icons.Default.PictureInPictureAlt,
+                            "Picture in picture",
+                            tint = AppAccent
+                        )
+                    }
+                }
+            }
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (fullscreen) Modifier.fillMaxHeight()
+                        else Modifier.aspectRatio(16f / 9f)
+                    )
+                    .background(Color.Black)
+                    .clickable {
+                        controlsVisible = !controlsVisible
+                    }
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        PlayerView(context).apply {
+                            this.player = player
+                            useController = false
+                            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                        }
+                    },
+                    update = { it.player = player },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (controlsVisible) {
+                    Column(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .background(Color(0x99000000))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                formatTime(position),
+                                color = Color.White,
+                                fontSize = 11.sp
+                            )
+
+                            Slider(
+                                value = if (duration > 0)
+                                    position.toFloat().coerceIn(0f, duration.toFloat())
+                                else 0f,
+                                onValueChange = {
+                                    position = it.toLong()
+                                },
+                                onValueChangeFinished = {
+                                    player.seekTo(position)
+                                },
+                                valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(28.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = AppAccent,
+                                    activeTrackColor = AppAccent,
+                                    inactiveTrackColor = Color.Gray
+                                )
+                            )
+
+                            Text(
+                                formatTime(duration),
+                                color = Color.White,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    player.seekTo(
+                                        (player.currentPosition - 10000L)
+                                            .coerceAtLeast(0L)
+                                    )
+                                }
+                            ) {
+                                Icon(Icons.Default.Replay10, "Back 10 seconds", tint = Color.White)
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (player.isPlaying) player.pause()
+                                    else player.play()
+                                }
+                            ) {
+                                Icon(
+                                    if (playing)
+                                        Icons.Default.PauseCircleFilled
+                                    else
+                                        Icons.Default.PlayCircleFilled,
+                                    if (playing) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(38.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    player.seekTo(player.currentPosition + 10000L)
+                                }
+                            ) {
+                                Icon(Icons.Default.Forward10, "Forward 10 seconds", tint = Color.White)
+                            }
+
+                            IconButton(onClick = onPip) {
+                                Icon(
+                                    Icons.Default.PictureInPictureAlt,
+                                    "Picture in picture",
+                                    tint = Color.White
+                                )
+                            }
+
+                            IconButton(onClick = onFullscreen) {
+                                Icon(
+                                    if (fullscreen)
+                                        Icons.Default.FullscreenExit
+                                    else
+                                        Icons.Default.Fullscreen,
+                                    "Toggle fullscreen",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("SPEED", color = Color.LightGray, fontSize = 10.sp)
+                            Spacer(Modifier.width(8.dp))
+
+                            listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+                                .forEach { rate ->
+                                    TextButton(
+                                        onClick = {
+                                            speed = rate
+                                            player.setPlaybackSpeed(rate)
+                                        },
+                                        contentPadding = PaddingValues(
+                                            horizontal = 7.dp,
+                                            vertical = 0.dp
+                                        )
+                                    ) {
+                                        Text(
+                                            "${rate}x",
+                                            color = if (speed == rate)
+                                                AppAccent
+                                            else Color.White,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                        }
+                    }
+                }
+
+                if (fullscreen) {
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                    ) {
+                        Icon(Icons.Default.Close, "Close player", tint = Color.White)
+                    }
+                }
+            }
+
+            if (!fullscreen) {
+                Spacer(Modifier.height(14.dp))
+
                 Text(
-                    title,
-                    fontWeight = FontWeight.SemiBold
+                    "NOW PLAYING",
+                    color = AppAccent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
 
                 Text(
-                    subtitle,
-                    color = Muted,
-                    fontSize = 12.sp
+                    file.name,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    "Streaming from Google Drive",
+                    color = AppMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
         }
+    }
+}
+
+private fun formatTime(ms: Long): String {
+    val seconds = ms.coerceAtLeast(0L) / 1000L
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val remainder = seconds % 60
+
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, remainder)
+    } else {
+        "%02d:%02d".format(minutes, remainder)
     }
 }
