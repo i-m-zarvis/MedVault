@@ -10,6 +10,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -25,11 +30,32 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p app
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/medvault-signing.p12
+          test -s app/medvault-signing.p12
+
+      - name: Verify signing keystore
+        run: |
+          keytool -list -keystore app/medvault-signing.p12 \
+            -storetype PKCS12 \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD"
+
       - name: Build debug APK
         run: gradle assembleDebug
 
-      - name: Upload APK
+      - name: Build signed release APK
+        run: gradle assembleRelease
+
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: MedVault-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: MedVault-Android
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
