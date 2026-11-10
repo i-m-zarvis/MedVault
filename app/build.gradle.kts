@@ -61,6 +61,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+implementation("com.google.android.gms:play-services-auth:22.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
