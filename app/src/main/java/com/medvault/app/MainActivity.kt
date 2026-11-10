@@ -58,17 +58,6 @@ private const val AUTH_REQUEST_CODE = 7001
 private const val FOLDER_MIME =
     "application/vnd.google-apps.folder"
 
-data class DriveItem(
-    val id: String,
-    val name: String,
-    val mimeType: String
-)
-
-data class FolderLocation(
-    val id: String,
-    val name: String
-)
-
 class MainActivity : ComponentActivity() {
 
     private val io = Executors.newSingleThreadExecutor()
@@ -145,7 +134,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Reuses the existing Google permission silently where possible.
         authorizeDrive()
     }
 
