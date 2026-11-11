@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 
 class DownloadRepository(context: Context) {
@@ -18,22 +19,34 @@ class DownloadRepository(context: Context) {
     companion object {
         private const val DOWNLOAD_TAG = "medvault_download"
         private const val UNIQUE_WORK_PREFIX = "medvault_download_"
+        private const val ACCOUNT_TAG_PREFIX = "medvault_account_"
         private const val PREFS = "medvault_download_controls"
         private const val PAUSED_IDS = "paused_file_ids"
 
+        fun accountKey(accountId: String): String {
+            val bytes = MessageDigest.getInstance("SHA-256")
+                .digest(accountId.toByteArray(Charsets.UTF_8))
+            return bytes.take(8).joinToString("") { "%02x".format(it) }
+        }
+
+        private fun workName(file: DriveItem) =
+            "$UNIQUE_WORK_PREFIX" + accountKey(file.accountId) + "_" + file.id
+
+        private fun pausedKey(fileId: String, accountId: String) =
+            accountKey(accountId) + ":" + fileId
+
         fun pausedIds(context: Context): Set<String> =
-            context.applicationContext
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getStringSet(PAUSED_IDS, emptySet())
-                ?.toSet() ?: emptySet()
+            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getStringSet(PAUSED_IDS, emptySet())?.toSet() ?: emptySet()
 
-        fun isPaused(context: Context, fileId: String): Boolean =
-            fileId in pausedIds(context)
+        fun isPaused(context: Context, fileId: String, accountId: String = "default"): Boolean =
+            pausedKey(fileId, accountId) in pausedIds(context)
 
-        private fun setPaused(context: Context, fileId: String, paused: Boolean) {
+        private fun setPaused(context: Context, fileId: String, accountId: String, paused: Boolean) {
             val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val ids = prefs.getStringSet(PAUSED_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
-            if (paused) ids.add(fileId) else ids.remove(fileId)
+            val key = pausedKey(fileId, accountId)
+            if (paused) ids.add(key) else ids.remove(key)
             prefs.edit().putStringSet(PAUSED_IDS, ids).apply()
         }
 
@@ -53,62 +66,50 @@ class DownloadRepository(context: Context) {
                 Data.Builder()
                     .putString(DriveDownloadWorker.KEY_FILE_ID, file.id)
                     .putString(DriveDownloadWorker.KEY_FILE_NAME, file.name)
+                    .putString(DriveDownloadWorker.KEY_ACCOUNT_ID, file.accountId)
                     .build()
             )
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            )
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .addTag(DOWNLOAD_TAG)
-            .addTag("$UNIQUE_WORK_PREFIX${file.id}")
+            .addTag("$UNIQUE_WORK_PREFIX" + file.id)
+            .addTag(ACCOUNT_TAG_PREFIX + accountKey(file.accountId))
             .build()
 
     fun enqueue(file: DriveItem): UUID {
-        setPaused(appContext, file.id, false)
+        setPaused(appContext, file.id, file.accountId, false)
         val request = request(file)
-        workManager.enqueueUniqueWork(
-            "$UNIQUE_WORK_PREFIX${file.id}",
-            ExistingWorkPolicy.KEEP,
-            request
-        )
+        workManager.enqueueUniqueWork(workName(file), ExistingWorkPolicy.KEEP, request)
         return request.id
     }
 
     fun observeAll() = workManager.getWorkInfosByTagLiveData(DOWNLOAD_TAG)
     fun observe(id: UUID) = workManager.getWorkInfoByIdLiveData(id)
 
-    fun pause(id: UUID, fileId: String) {
-        setPaused(appContext, fileId, true)
+    fun pause(id: UUID, fileId: String, accountId: String = "default") {
+        setPaused(appContext, fileId, accountId, true)
         workManager.cancelWorkById(id)
     }
 
     fun resume(file: DriveItem): UUID {
-        setPaused(appContext, file.id, false)
+        setPaused(appContext, file.id, file.accountId, false)
         val request = request(file)
-        workManager.enqueueUniqueWork(
-            "$UNIQUE_WORK_PREFIX${file.id}",
-            ExistingWorkPolicy.REPLACE,
-            request
-        )
+        workManager.enqueueUniqueWork(workName(file), ExistingWorkPolicy.REPLACE, request)
         return request.id
     }
 
-    fun cancel(id: UUID, fileId: String) {
-        setPaused(appContext, fileId, false)
+    fun cancel(id: UUID, fileId: String, accountId: String = "default") {
+        setPaused(appContext, fileId, accountId, false)
         workManager.cancelWorkById(id)
+        val prefix = accountKey(accountId) + "_" + fileId + "_"
         File(appContext.filesDir, "downloads").listFiles()
-            ?.filter { it.name.startsWith("${fileId}_") && it.name.endsWith(".part") }
+            ?.filter { it.name.startsWith(prefix) && it.name.endsWith(".part") }
             ?.forEach { it.delete() }
     }
 
     fun cancelAll() {
-        pausedIds(appContext).forEach { setPaused(appContext, it, false) }
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(PAUSED_IDS).apply()
         workManager.cancelAllWorkByTag(DOWNLOAD_TAG)
     }
-
-    fun findDownload(fileId: String) =
-        workManager.getWorkInfosByTagLiveData("$UNIQUE_WORK_PREFIX$fileId")
 
     fun pruneWork() = workManager.pruneWork()
 }
