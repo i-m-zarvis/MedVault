@@ -32,6 +32,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
@@ -66,7 +70,7 @@ fun DownloadManagerScreen(
     val storageFree = context.filesDir.usableSpace
     val storageTotal = storageUsed + storageFree
     val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
-    var libraryQuery by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var libraryQuery by remember { mutableStateOf("") }
     val filteredLectures = downloadedLectures
         .filter { it.name.contains(libraryQuery.trim(), ignoreCase = true) }
         .sortedByDescending { it.downloadedAt }
