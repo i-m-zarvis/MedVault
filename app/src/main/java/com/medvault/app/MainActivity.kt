@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
 
     private var accessToken by mutableStateOf<String?>(null)
     private var activeAccountId by mutableStateOf(DriveTokenVault.getActiveAccountId(this) ?: "default")
-    private var activeAccountEmail by mutableStateOf("Google Drive")
+    private var activeAccountEmail by mutableStateOf(DriveTokenVault.accounts(this).firstOrNull { it.id == activeAccountId }?.email ?: "Google Drive")
     private var currentSharedDriveId by mutableStateOf<String?>(null)
     private var connected by mutableStateOf(false)
     private var authBusy by mutableStateOf(false)
@@ -558,6 +558,7 @@ class MainActivity : ComponentActivity() {
     private fun disconnectDrive() {
         saveCurrentProgress()
         accessToken = null
+        try { DriveTokenVault.clear(applicationContext, activeAccountId) } catch (_: Exception) { }
         connected = false
         driveItems.clear()
         folderStack.clear()
