@@ -141,7 +141,7 @@ class WatchHistorySync(context: Context, private val accountId: String = "defaul
         token: String,
         records: Map<String, WatchRecord>
     ) {
-        val query = "name='$FILE_NAME' and trashed=false"
+        val query = "name='$fileName' and trashed=false"
 
         val listUrl = URL(
             "$APPDATA_URL?spaces=appDataFolder&q=" +
