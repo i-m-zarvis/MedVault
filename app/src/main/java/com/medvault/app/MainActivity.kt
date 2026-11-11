@@ -1,10 +1,12 @@
 package com.medvault.app
 
+import android.Manifest
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,18 +35,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import androidx.work.WorkInfo
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 import java.util.concurrent.Executors
 
 private val AppBg = Color(0xFF0B1020)
@@ -57,15 +66,17 @@ private const val DRIVE_APPDATA_SCOPE =
     "https://www.googleapis.com/auth/drive.appdata"
 
 private const val AUTH_REQUEST_CODE = 7001
-
 private const val FOLDER_MIME =
     "application/vnd.google-apps.folder"
+
+private const val DOWNLOAD_TAG_PREFIX = "medvault_download_"
 
 class MainActivity : ComponentActivity() {
 
     private val io = Executors.newSingleThreadExecutor()
 
     private lateinit var historySync: WatchHistorySync
+    private lateinit var downloadRepository: DownloadRepository
 
     private var accessToken by mutableStateOf<String?>(null)
     private var connected by mutableStateOf(false)
@@ -87,11 +98,27 @@ class MainActivity : ComponentActivity() {
 
     private var player: ExoPlayer? = null
     private var requestSerial = 0
+    private var pendingDownload by mutableStateOf<DriveItem?>(null)
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            val file = pendingDownload
+            pendingDownload = null
+
+            if (file != null) {
+                // Android may deny notification permission.
+                // WorkManager can still run its foreground worker.
+                enqueueDownload(file)
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         historySync = WatchHistorySync(this)
+        downloadRepository = DownloadRepository(this)
 
         io.execute {
             try {
@@ -109,6 +136,21 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            val downloadWorkItems by
+                downloadRepository.observeAll()
+                    .observeAsState(initial = emptyList())
+
+            var downloadedLectures by remember {
+                mutableStateOf(
+                    DownloadStore.getAll(this@MainActivity)
+                )
+            }
+
+            LaunchedEffect(downloadWorkItems) {
+                downloadedLectures =
+                    DownloadStore.getAll(this@MainActivity)
+            }
+
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     background = AppBg,
@@ -135,24 +177,34 @@ class MainActivity : ComponentActivity() {
                     history = watchRecords.values.sortedByDescending {
                         it.updatedAt
                     },
+                    downloadWorkItems = downloadWorkItems,
+                    downloadedLectures = downloadedLectures,
+
                     onAccountMenu = { accountMenu = it },
                     onConnect = { authorizeDrive() },
                     onDisconnect = { disconnectDrive() },
+
                     onBrowse = {
                         screen = "drive"
                         browseDrive()
                     },
+
                     onHome = {
                         saveCurrentProgress()
                         leavePlayer()
                         screen = "home"
                     },
+
                     onFolderBack = { goBackFolder() },
                     onRefresh = { loadFolder(folderId) },
                     onFolder = { openFolder(it) },
                     onFile = { openFile(it) },
+                    onDownload = { requestDownload(it) },
+
                     onHistory = { screen = "history" },
                     onContinue = { screen = "continue" },
+                    onDownloads = { screen = "downloads" },
+
                     onHistoryFile = { record ->
                         openFile(
                             DriveItem(
@@ -162,10 +214,38 @@ class MainActivity : ComponentActivity() {
                             )
                         )
                     },
+
                     onFullscreen = { toggleFullscreen() },
                     onPip = { enterPip() },
+
                     onProgress = { position, duration ->
                         saveProgress(position, duration)
+                    },
+
+                    onPauseDownload = { work ->
+                        downloadRepository.pause(work.id)
+                    },
+
+                    onResumeDownload = { work ->
+                        retryDownload(work)
+                    },
+
+                    onCancelDownload = { work ->
+                        downloadRepository.cancel(work.id)
+                    },
+
+                    onRetryDownload = { work ->
+                        retryDownload(work)
+                    },
+
+                    onPlayOffline = { lecture ->
+                        startOfflineVideo(lecture)
+                    },
+
+                    onDeleteOffline = { lecture ->
+                        deleteOfflineDownload(lecture)
+                        downloadedLectures =
+                            DownloadStore.getAll(this@MainActivity)
                     }
                 )
             }
@@ -173,6 +253,10 @@ class MainActivity : ComponentActivity() {
 
         authorizeDrive()
     }
+
+    // ---------------------------------------------------------
+    // GOOGLE DRIVE AUTHORIZATION
+    // ---------------------------------------------------------
 
     private fun authorizeDrive() {
         if (authBusy) return
@@ -263,7 +347,6 @@ class MainActivity : ComponentActivity() {
         accessToken = token
         connected = true
 
-        // Save the access token securely for background downloads.
         try {
             DriveTokenVault.save(applicationContext, token)
             status = "Google Drive connected."
@@ -278,6 +361,207 @@ class MainActivity : ComponentActivity() {
             loadFolder(folderId)
         }
     }
+
+    private fun disconnectDrive() {
+        saveCurrentProgress()
+
+        accessToken = null
+
+        try {
+            DriveTokenVault.clear(applicationContext)
+        } catch (_: Exception) {
+        }
+
+        connected = false
+        driveItems.clear()
+        folderStack.clear()
+        folderId = "root"
+        folderName = "My Drive"
+
+        leavePlayer()
+        screen = "home"
+
+        status =
+            "Google Drive disconnected. Local downloads and watch history are retained."
+    }
+
+    // ---------------------------------------------------------
+    // DOWNLOAD MANAGER
+    // ---------------------------------------------------------
+
+    private fun requestDownload(file: DriveItem) {
+        if (!connected || accessToken.isNullOrBlank()) {
+            Toast.makeText(
+                this,
+                "Connect Google Drive before downloading.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            authorizeDrive()
+            return
+        }
+
+        if (
+            Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingDownload = file
+
+            notificationPermissionLauncher.launch(
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+        } else {
+            enqueueDownload(file)
+        }
+    }
+
+    private fun enqueueDownload(file: DriveItem) {
+        val existing = DownloadStore.find(this, file.id)
+
+        if (
+            existing != null &&
+            File(existing.localPath).isFile
+        ) {
+            Toast.makeText(
+                this,
+                "Already available offline.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        try {
+            downloadRepository.enqueue(file)
+
+            Toast.makeText(
+                this,
+                "Added to download queue: ${file.name}",
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "Could not start download: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun retryDownload(work: WorkInfo) {
+        val fileId = work.tags
+            .firstOrNull {
+                it.startsWith(DOWNLOAD_TAG_PREFIX)
+            }
+            ?.removePrefix(DOWNLOAD_TAG_PREFIX)
+
+        if (fileId.isNullOrBlank()) {
+            Toast.makeText(
+                this,
+                "Could not identify this download.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val name =
+            work.progress.getString(
+                DriveDownloadWorker.KEY_FILE_NAME
+            )
+                ?: work.outputData.getString("file_name")
+                ?: "lecture_$fileId.mp4"
+
+        val file = DriveItem(
+            id = fileId,
+            name = name,
+            mimeType = "video/mp4"
+        )
+
+        if (accessToken.isNullOrBlank()) {
+            Toast.makeText(
+                this,
+                "Reconnect Google Drive before retrying.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            authorizeDrive()
+            return
+        }
+
+        try {
+            downloadRepository.resume(file)
+
+            Toast.makeText(
+                this,
+                "Download queued again.",
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "Retry failed: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun deleteOfflineDownload(
+        lecture: DownloadedLecture
+    ) {
+        val file = File(lecture.localPath)
+
+        if (file.exists() && !file.delete()) {
+            Toast.makeText(
+                this,
+                "Could not delete downloaded file.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        DownloadStore.delete(this, lecture.fileId)
+
+        Toast.makeText(
+            this,
+            "Offline lecture deleted.",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun startOfflineVideo(
+        lecture: DownloadedLecture
+    ) {
+        val file = File(lecture.localPath)
+
+        if (!file.isFile) {
+            DownloadStore.delete(this, lecture.fileId)
+
+            Toast.makeText(
+                this,
+                "Downloaded file is missing.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val item = DriveItem(
+            id = lecture.fileId,
+            name = lecture.name,
+            mimeType = "video/mp4"
+        )
+
+        startVideo(
+            item = item,
+            token = null,
+            localPath = file.absolutePath
+        )
+    }
+
+    // ---------------------------------------------------------
+    // WATCH HISTORY
+    // ---------------------------------------------------------
 
     private fun syncHistory(token: String) {
         val snapshot = watchRecords.toMap()
@@ -346,30 +630,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun disconnectDrive() {
-        saveCurrentProgress()
-
-        accessToken = null
-
-        // Remove the encrypted token when the user disconnects.
-        try {
-            DriveTokenVault.clear(applicationContext)
-        } catch (e: Exception) {
-            status = "Could not clear saved Google token: ${e.message}"
-        }
-
-        connected = false
-        driveItems.clear()
-        folderStack.clear()
-        folderId = "root"
-        folderName = "My Drive"
-
-        leavePlayer()
-        screen = "home"
-
-        status =
-            "Google Drive disconnected. Local watch history is retained."
-    }
+    // ---------------------------------------------------------
+    // DRIVE BROWSER
+    // ---------------------------------------------------------
 
     private fun browseDrive() {
         if (accessToken.isNullOrBlank()) {
@@ -426,12 +689,10 @@ class MainActivity : ComponentActivity() {
 
                     try {
                         connection.requestMethod = "GET"
-
                         connection.setRequestProperty(
                             "Authorization",
                             "Bearer $token"
                         )
-
                         connection.connectTimeout = 15000
                         connection.readTimeout = 20000
 
@@ -505,6 +766,11 @@ class MainActivity : ComponentActivity() {
                         if (error is SecurityException) {
                             connected = false
                             accessToken = null
+
+                            try {
+                                DriveTokenVault.clear(applicationContext)
+                            } catch (_: Exception) {
+                            }
                         }
                     }
                 }
@@ -572,9 +838,14 @@ class MainActivity : ComponentActivity() {
         startVideo(item, token)
     }
 
+    // ---------------------------------------------------------
+    // VIDEO PLAYER: ONLINE AND OFFLINE
+    // ---------------------------------------------------------
+
     private fun startVideo(
         item: DriveItem,
-        token: String
+        token: String?,
+        localPath: String? = null
     ) {
         saveCurrentProgress()
         player?.release()
@@ -584,20 +855,38 @@ class MainActivity : ComponentActivity() {
                 ?.takeIf { !it.completed }
                 ?.positionMs ?: 0L
 
-        val httpFactory =
-            DefaultHttpDataSource.Factory()
-                .setDefaultRequestProperties(
-                    mapOf("Authorization" to "Bearer $token")
+        val newPlayer = if (localPath != null) {
+            // Default player data source supports local file URIs.
+            ExoPlayer.Builder(this).build()
+        } else {
+            val validToken = token
+                ?: throw IllegalStateException(
+                    "Google Drive token is unavailable."
                 )
-                .setConnectTimeoutMs(20000)
-                .setReadTimeoutMs(30000)
-                .setAllowCrossProtocolRedirects(false)
 
-        val newPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(httpFactory)
-            )
-            .build()
+            val httpFactory =
+                DefaultHttpDataSource.Factory()
+                    .setDefaultRequestProperties(
+                        mapOf(
+                            "Authorization" to "Bearer $validToken"
+                        )
+                    )
+                    .setConnectTimeoutMs(20000)
+                    .setReadTimeoutMs(30000)
+                    .setAllowCrossProtocolRedirects(false)
+
+            val dataSourceFactory =
+                DefaultDataSource.Factory(
+                    this,
+                    httpFactory
+                )
+
+            ExoPlayer.Builder(this)
+                .setMediaSourceFactory(
+                    DefaultMediaSourceFactory(dataSourceFactory)
+                )
+                .build()
+        }
 
         player = newPlayer
         selectedVideo = item
@@ -635,10 +924,19 @@ class MainActivity : ComponentActivity() {
             }
         )
 
-        val url =
-            "https://www.googleapis.com/drive/v3/files/${Uri.encode(item.id)}?alt=media"
+        val mediaUri = if (localPath != null) {
+            Uri.fromFile(File(localPath))
+        } else {
+            Uri.parse(
+                "https://www.googleapis.com/drive/v3/files/" +
+                    "${Uri.encode(item.id)}?alt=media"
+            )
+        }
 
-        newPlayer.setMediaItem(MediaItem.fromUri(url))
+        newPlayer.setMediaItem(
+            MediaItem.fromUri(mediaUri)
+        )
+
         newPlayer.prepare()
         newPlayer.playWhenReady = true
     }
@@ -743,6 +1041,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// =============================================================
+// ROOT NAVIGATION
+// =============================================================
+
 @Composable
 private fun MedVaultRoot(
     connected: Boolean,
@@ -759,6 +1061,8 @@ private fun MedVaultRoot(
     fullscreen: Boolean,
     player: ExoPlayer?,
     history: List<WatchRecord>,
+    downloadWorkItems: List<WorkInfo>,
+    downloadedLectures: List<DownloadedLecture>,
     onAccountMenu: (Boolean) -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
@@ -768,12 +1072,20 @@ private fun MedVaultRoot(
     onRefresh: () -> Unit,
     onFolder: (DriveItem) -> Unit,
     onFile: (DriveItem) -> Unit,
+    onDownload: (DriveItem) -> Unit,
     onHistory: () -> Unit,
     onContinue: () -> Unit,
+    onDownloads: () -> Unit,
     onHistoryFile: (WatchRecord) -> Unit,
     onFullscreen: () -> Unit,
     onPip: () -> Unit,
-    onProgress: (Long, Long) -> Unit
+    onProgress: (Long, Long) -> Unit,
+    onPauseDownload: (WorkInfo) -> Unit,
+    onResumeDownload: (WorkInfo) -> Unit,
+    onCancelDownload: (WorkInfo) -> Unit,
+    onRetryDownload: (WorkInfo) -> Unit,
+    onPlayOffline: (DownloadedLecture) -> Unit,
+    onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     BackHandler(
         enabled = screen != "home" && !pipMode
@@ -781,7 +1093,7 @@ private fun MedVaultRoot(
         when (screen) {
             "player" -> onHome()
             "drive" -> onFolderBack()
-            "history", "continue" -> onHome()
+            "history", "continue", "downloads" -> onHome()
         }
     }
 
@@ -808,16 +1120,17 @@ private fun MedVaultRoot(
 
             screen == "drive" -> {
                 DriveBrowser(
-                    items,
-                    folderName,
-                    canGoBack,
-                    loading,
-                    status,
-                    onFolderBack,
-                    onRefresh,
-                    onFolder,
-                    onFile,
-                    onHome
+                    items = items,
+                    folderName = folderName,
+                    canGoBack = canGoBack,
+                    loading = loading,
+                    status = status,
+                    onBack = onFolderBack,
+                    onRefresh = onRefresh,
+                    onFolder = onFolder,
+                    onFile = onFile,
+                    onDownload = onDownload,
+                    onHome = onHome
                 )
             }
 
@@ -840,23 +1153,48 @@ private fun MedVaultRoot(
                 )
             }
 
+            screen == "downloads" -> {
+                DownloadManagerScreen(
+                    workItems = downloadWorkItems,
+                    downloadedLectures = downloadedLectures,
+                    onBack = onHome,
+                    onPause = onPauseDownload,
+                    onResume = onResumeDownload,
+                    onCancel = onCancelDownload,
+                    onRetry = onRetryDownload,
+                    onPlayOffline = onPlayOffline,
+                    onDeleteOffline = onDeleteOffline
+                )
+            }
+
             else -> {
                 Dashboard(
-                    connected,
-                    authBusy,
-                    status,
-                    accountMenu,
-                    onAccountMenu,
-                    onConnect,
-                    onDisconnect,
-                    onBrowse,
-                    onHistory,
-                    onContinue
+                    connected = connected,
+                    authBusy = authBusy,
+                    status = status,
+                    menu = accountMenu,
+                    onMenu = onAccountMenu,
+                    onConnect = onConnect,
+                    onDisconnect = onDisconnect,
+                    onBrowse = onBrowse,
+                    onHistory = onHistory,
+                    onContinue = onContinue,
+                    onDownloads = onDownloads,
+                    downloadCount = downloadedLectures.size,
+                    activeDownloadCount = downloadWorkItems.count {
+                        it.state == WorkInfo.State.RUNNING ||
+                            it.state == WorkInfo.State.ENQUEUED ||
+                            it.state == WorkInfo.State.BLOCKED
+                    }
                 )
             }
         }
     }
 }
+
+// =============================================================
+// DASHBOARD
+// =============================================================
 
 @Composable
 private fun Dashboard(
@@ -869,7 +1207,10 @@ private fun Dashboard(
     onDisconnect: () -> Unit,
     onBrowse: () -> Unit,
     onHistory: () -> Unit,
-    onContinue: () -> Unit
+    onContinue: () -> Unit,
+    onDownloads: () -> Unit,
+    downloadCount: Int,
+    activeDownloadCount: Int
 ) {
     Column(
         Modifier
@@ -1051,6 +1392,13 @@ private fun Dashboard(
             "Recently played lectures",
             onHistory
         )
+
+        DashboardTile(
+            Icons.Default.CloudDownload,
+            "Download Manager",
+            "$activeDownloadCount active · $downloadCount offline",
+            onDownloads
+        )
     }
 }
 
@@ -1107,6 +1455,10 @@ private fun DashboardTile(
         }
     }
 }
+
+// =============================================================
+// HISTORY SCREEN
+// =============================================================
 
 @Composable
 private fun HistoryScreen(
@@ -1227,6 +1579,10 @@ private fun HistoryScreen(
     }
 }
 
+// =============================================================
+// DRIVE BROWSER
+// =============================================================
+
 @Composable
 private fun DriveBrowser(
     items: List<DriveItem>,
@@ -1238,6 +1594,7 @@ private fun DriveBrowser(
     onRefresh: () -> Unit,
     onFolder: (DriveItem) -> Unit,
     onFile: (DriveItem) -> Unit,
+    onDownload: (DriveItem) -> Unit,
     onHome: () -> Unit
 ) {
     Column(
@@ -1317,48 +1674,89 @@ private fun DriveBrowser(
 
                 val folder = item.mimeType == FOLDER_MIME
 
-                Card(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = !loading) {
-                            if (folder) {
-                                onFolder(item)
-                            } else {
-                                onFile(item)
+                val supportedVideo =
+                    !folder && (
+                        item.mimeType.startsWith("video/") ||
+                            listOf(
+                                ".mp4",
+                                ".mkv",
+                                ".webm",
+                                ".mov"
+                            ).any {
+                                item.name.endsWith(it, true)
                             }
-                        },
+                        )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = AppPanel
-                    )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Row(
-                        Modifier.padding(15.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = 15.dp,
+                                end = 6.dp,
+                                top = 12.dp,
+                                bottom = 12.dp
+                            ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            if (folder) {
-                                Icons.Default.Folder
-                            } else {
-                                Icons.Default.VideoFile
-                            },
-                            null,
-                            tint = AppAccent
-                        )
-
-                        Text(
-                            item.name,
+                        Row(
                             Modifier
                                 .weight(1f)
-                                .padding(horizontal = 12.dp),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                                .clickable(enabled = !loading) {
+                                    if (folder) {
+                                        onFolder(item)
+                                    } else {
+                                        onFile(item)
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (folder) {
+                                    Icons.Default.Folder
+                                } else {
+                                    Icons.Default.VideoFile
+                                },
+                                null,
+                                tint = AppAccent
+                            )
 
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            null,
-                            tint = AppMuted
-                        )
+                            Text(
+                                item.name,
+                                Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 12.dp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                null,
+                                tint = AppMuted
+                            )
+                        }
+
+                        if (supportedVideo) {
+                            IconButton(
+                                onClick = {
+                                    onDownload(item)
+                                },
+                                enabled = !loading
+                            ) {
+                                Icon(
+                                    Icons.Default.Download,
+                                    contentDescription = "Download lecture",
+                                    tint = AppAccent
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1375,6 +1773,10 @@ private fun DriveBrowser(
         }
     }
 }
+
+// =============================================================
+// VIDEO PLAYER
+// =============================================================
 
 @Composable
 private fun VideoScreen(
@@ -1756,7 +2158,7 @@ private fun VideoScreen(
                 )
 
                 Text(
-                    "Streaming from Google Drive",
+                    "Streaming from Google Drive or local storage",
                     color = AppMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -1765,6 +2167,10 @@ private fun VideoScreen(
         }
     }
 }
+
+// =============================================================
+// HELPERS
+// =============================================================
 
 private fun formatTime(ms: Long): String {
     val seconds = ms.coerceAtLeast(0L) / 1000L
