@@ -48,6 +48,7 @@ private val DownloadPanel = Color(0xFF151E30)
 fun DownloadManagerScreen(
     workItems: List<WorkInfo>,
     downloadedLectures: List<DownloadedLecture>,
+    pausedIds: Set<String> = emptySet(),
     onBack: () -> Unit,
     onPause: (WorkInfo) -> Unit,
     onResume: (WorkInfo) -> Unit,
@@ -135,7 +136,9 @@ fun DownloadManagerScreen(
                         onPause = { onPause(work) },
                         onResume = { onResume(work) },
                         onCancel = { onCancel(work) },
-                        onRetry = { onRetry(work) }
+                        onRetry = { onRetry(work) },
+                        isPaused = work.tags.firstOrNull { it.startsWith("medvault_download_") }
+                            ?.removePrefix("medvault_download_") in pausedIds
                     )
                 }
             }
@@ -213,7 +216,8 @@ private fun DownloadWorkCard(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    isPaused: Boolean = false
 ) {
     val name =
         work.progress.getString(DriveDownloadWorker.KEY_FILE_NAME)
@@ -225,7 +229,7 @@ private fun DownloadWorkCard(
         0
     ).coerceIn(0, 100)
 
-    val stateText = when (work.state) {
+    val stateText = if (isPaused) "Paused · partial file retained" else when (work.state) {
         WorkInfo.State.ENQUEUED -> "Queued"
         WorkInfo.State.RUNNING -> "Downloading"
         WorkInfo.State.SUCCEEDED -> "Downloaded"
@@ -343,10 +347,10 @@ private fun DownloadWorkCard(
 
                     WorkInfo.State.FAILED,
                     WorkInfo.State.CANCELLED -> {
-                        IconButton(onClick = onRetry) {
+                        IconButton(onClick = if (isPaused) onResume else onRetry) {
                             Icon(
                                 Icons.Default.Refresh,
-                                contentDescription = "Retry",
+                                contentDescription = if (isPaused) "Resume" else "Retry",
                                 tint = DownloadAccent
                             )
                         }
