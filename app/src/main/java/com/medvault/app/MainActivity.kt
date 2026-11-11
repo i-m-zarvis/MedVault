@@ -50,6 +50,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -966,12 +967,39 @@ class MainActivity : ComponentActivity() {
                 override fun onPlayerError(
                     error: androidx.media3.common.PlaybackException
                 ) {
+                    var cause: Throwable? = error
+                    var authorizationExpired = false
+                    while (cause != null) {
+                        if (
+                            cause is HttpDataSource.InvalidResponseCodeException &&
+                            cause.responseCode == 401
+                        ) {
+                            authorizationExpired = true
+                            break
+                        }
+                        cause = cause.cause
+                    }
+
                     runOnUiThread {
-                        status = "Playback error: ${error.message}"
+                        if (authorizationExpired) {
+                            accessToken = null
+                            connected = false
+                            status = "Google access expired. Reconnect Google Drive to continue streaming."
+                            try {
+                                DriveTokenVault.clear(applicationContext)
+                            } catch (_: Exception) {
+                            }
+                        } else {
+                            status = "Playback error: ${error.message}"
+                        }
 
                         Toast.makeText(
                             this@MainActivity,
-                            "Playback failed: ${error.errorCodeName}",
+                            if (authorizationExpired) {
+                                "Google access expired. Reconnect Drive."
+                            } else {
+                                "Playback failed: ${error.errorCodeName}"
+                            },
                             Toast.LENGTH_LONG
                         ).show()
                     }
