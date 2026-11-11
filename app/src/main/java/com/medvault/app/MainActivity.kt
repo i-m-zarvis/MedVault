@@ -1553,7 +1553,7 @@ private fun VideosDashboard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(cyan)
-                .padding(horizontal = 16.dp, vertical = 13.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 42.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { onMenu(true) }) {
