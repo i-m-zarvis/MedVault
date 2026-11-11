@@ -875,6 +875,55 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Natural, human-readable ordering: folders first, then names with
+    // numeric runs compared by value (1, 2, 10 rather than 1, 10, 2).
+    private fun sortedDriveItems(items: List<DriveItem>): List<DriveItem> {
+        fun compareNatural(a: String, b: String): Int {
+            var i = 0
+            var j = 0
+            while (i < a.length && j < b.length) {
+                val aDigit = a[i].isDigit()
+                val bDigit = b[j].isDigit()
+                if (aDigit && bDigit) {
+                    var aEnd = i
+                    var bEnd = j
+                    while (aEnd < a.length && a[aEnd].isDigit()) aEnd++
+                    while (bEnd < b.length && b[bEnd].isDigit()) bEnd++
+                    val aRaw = a.substring(i, aEnd)
+                    val bRaw = b.substring(j, bEnd)
+                    val aNumber = aRaw.trimStart('0').ifEmpty { "0" }
+                    val bNumber = bRaw.trimStart('0').ifEmpty { "0" }
+                    val numberCompare = when {
+                        aNumber.length != bNumber.length -> aNumber.length.compareTo(bNumber.length)
+                        else -> aNumber.compareTo(bNumber)
+                    }
+                    if (numberCompare != 0) return numberCompare
+                    // Stable tie-break for names such as "01" and "1".
+                    val rawCompare = aRaw.length.compareTo(bRaw.length)
+                    if (rawCompare != 0) return rawCompare
+                    i = aEnd
+                    j = bEnd
+                } else {
+                    val charCompare = a[i].lowercaseChar().compareTo(b[j].lowercaseChar())
+                    if (charCompare != 0) return charCompare
+                    i++
+                    j++
+                }
+            }
+            return (a.length - i).compareTo(b.length - j)
+        }
+
+        return items.sortedWith { left, right ->
+            val leftIsFolder = left.mimeType == FOLDER_MIME || left.isSharedDriveRoot
+            val rightIsFolder = right.mimeType == FOLDER_MIME || right.isSharedDriveRoot
+            when {
+                leftIsFolder && !rightIsFolder -> -1
+                !leftIsFolder && rightIsFolder -> 1
+                else -> compareNatural(left.name, right.name)
+            }
+        }
+    }
+
     private fun loadFolder(targetFolderId: String) {
         driveSearchActive = false
         val token = accessToken
@@ -995,7 +1044,7 @@ class MainActivity : ComponentActivity() {
                         !isFinishing
                     ) {
                         driveItems.clear()
-                        driveItems.addAll(found)
+                        driveItems.addAll(sortedDriveItems(found))
                         loading = false
                         status = "${found.size} items"
                     }
@@ -1158,7 +1207,7 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread {
                     if (serial == requestSerial && !isFinishing) {
                         driveItems.clear()
-                        driveItems.addAll(found)
+                        driveItems.addAll(sortedDriveItems(found))
                         loading = false
                         status = "${found.size} results across Google Drive"
                     }
