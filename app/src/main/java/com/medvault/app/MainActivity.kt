@@ -1606,7 +1606,7 @@ private fun VideosDashboard(
                 ) {
                     Icon(Icons.Default.CloudDownload, null, tint = cyan)
                     Spacer(Modifier.width(7.dp))
-                    Text("Downloaded")
+                    Text("Downloaded ($downloadedCount)")
                 }
                 OutlinedButton(
                     onClick = onContinue,
@@ -1689,9 +1689,9 @@ private fun VideosDashboard(
                     ) {
                         gridItems(subjects, key = { it.id }) { subject ->
                             val icon = when {
-                                subject.name.contains("anatom", true) -> Icons.Default.FavoriteNew
+                                subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
                                 subject.name.contains("biochem", true) -> Icons.Default.Science
-                                subject.name.contains("physio", true) -> Icons.Default.Accessibility
+                                subject.name.contains("physio", true) -> Icons.Default.Favorite
                                 subject.name.contains("pharma", true) -> Icons.Default.Medication
                                 subject.name.contains("micro", true) -> Icons.Default.Biotech
                                 subject.name.contains("path", true) -> Icons.Default.BubbleChart
