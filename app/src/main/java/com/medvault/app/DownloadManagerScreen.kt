@@ -202,7 +202,9 @@ fun DownloadManagerScreen(
                         onPause = { onPause(work) },
                         onResume = { onResume(work) },
                         onCancel = { onCancel(work) },
-                        onRetry = { onRetry(work) }
+                        onRetry = { onRetry(work) },
+                        isPaused = work.tags.firstOrNull { it.startsWith("medvault_download_") }
+                            ?.removePrefix("medvault_download_") in pausedIds
                     )
                 }
             }
