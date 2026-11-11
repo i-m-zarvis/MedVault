@@ -259,6 +259,7 @@ class MainActivity : ComponentActivity() {
                     canGoBack = folderStack.isNotEmpty(),
                     selectedVideo = selectedVideo,
                     screen = screen,
+                    activeAccountEmail = activeAccountEmail,
                     accountMenu = accountMenu,
                     pipMode = pipMode,
                     fullscreen = fullscreen,
@@ -271,7 +272,7 @@ class MainActivity : ComponentActivity() {
                     pausedDownloadIds = pausedDownloadIds,
 
                     onAccountMenu = { accountMenu = it },
-                    onConnect = { authorizeDrive() },
+                    onConnect = { authorizeDrive(true) },
                     onDisconnect = { disconnectDrive() },
 
                     onBrowse = {
@@ -1313,7 +1314,7 @@ class MainActivity : ComponentActivity() {
         } else {
             Uri.parse(
                 "https://www.googleapis.com/drive/v3/files/" +
-                    "${Uri.encode(item.id)}?alt=media"
+                    "${Uri.encode(item.id)}?alt=media&supportsAllDrives=true"
             )
         }
 
@@ -1440,6 +1441,7 @@ private fun MedVaultRoot(
     canGoBack: Boolean,
     selectedVideo: DriveItem?,
     screen: String,
+    activeAccountEmail: String,
     accountMenu: Boolean,
     pipMode: Boolean,
     fullscreen: Boolean,
@@ -1525,6 +1527,7 @@ private fun MedVaultRoot(
                     history = history,
                     downloadedCount = downloadedLectures.size,
                     connected = connected,
+                    activeAccountEmail = activeAccountEmail,
                     menu = accountMenu,
                     onMenu = onAccountMenu,
                     onConnect = onConnect,
@@ -1627,6 +1630,7 @@ private fun VideosDashboard(
     history: List<WatchRecord>,
     downloadedCount: Int,
     connected: Boolean,
+    activeAccountEmail: String,
     menu: Boolean,
     onMenu: (Boolean) -> Unit,
     onConnect: () -> Unit,
@@ -1689,12 +1693,12 @@ private fun VideosDashboard(
                 onDismissRequest = { onMenu(false) }
             ) {
                 DropdownMenuItem(
-                    text = { Text(if (connected) "Google Drive connected" else "Google Drive not connected") },
+                    text = { Text(if (connected) activeAccountEmail else "No Google account connected") },
                     onClick = { onMenu(false) },
-                    leadingIcon = { Icon(Icons.Default.Cloud, null) }
+                    leadingIcon = { Icon(Icons.Default.AccountCircle, null) }
                 )
                 DropdownMenuItem(
-                    text = { Text(if (connected) "Reconnect Google Drive" else "Connect Google Drive") },
+                    text = { Text("Add / switch Google account") },
                     onClick = { onMenu(false); onConnect() },
                     leadingIcon = { Icon(Icons.Default.Sync, null) }
                 )
