@@ -16,6 +16,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -167,6 +171,7 @@ class MainActivity : ComponentActivity() {
                     onSurface = Color.White
                 )
             ) {
+                Box(Modifier.fillMaxSize()) {
                 MedVaultRoot(
                     connected = connected,
                     authBusy = authBusy,
@@ -268,6 +273,14 @@ class MainActivity : ComponentActivity() {
                             DownloadStore.getAll(this@MainActivity)
                     }
                 )
+                AnimatedVisibility(
+                    visible = showBrandSplash,
+                    enter = fadeIn() + scaleIn(initialScale = 0.96f),
+                    exit = fadeOut()
+                ) {
+                    MedVaultBrandSplash()
+                }
+                }
             }
         }
 
@@ -2212,5 +2225,58 @@ private fun formatTime(ms: Long): String {
             minutes,
             remainder
         )
+    }
+}
+
+
+@Composable
+private fun MedVaultBrandSplash() {
+    var pulse by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            pulse = !pulse
+            kotlinx.coroutines.delay(650)
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            androidx.compose.material3.Surface(
+                modifier = Modifier.size(if (pulse) 92.dp else 84.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF172B49),
+                shadowElevation = 18.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = AppAccent,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Text(
+                "MEDVAULT",
+                color = Color.White,
+                fontSize = 27.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 3.sp
+            )
+            Spacer(Modifier.height(7.dp))
+            Text(
+                "by Aftab",
+                color = AppMuted,
+                fontSize = 13.sp,
+                letterSpacing = 1.5.sp
+            )
+        }
     }
 }
