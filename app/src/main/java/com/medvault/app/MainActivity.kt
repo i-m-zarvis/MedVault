@@ -234,7 +234,14 @@ class MainActivity : ComponentActivity() {
                         screen = "videos"
                         browseDrive()
                     },
-                    onRawDrive = { screen = "drive" },
+                    onRawDrive = {
+                        folderStack.clear()
+                        folderId = "root"
+                        folderName = "My Drive"
+                        driveSearchActive = false
+                        screen = "drive"
+                        loadFolder("root")
+                    },
 
                     onHome = {
                         saveCurrentProgress()
@@ -834,6 +841,24 @@ class MainActivity : ComponentActivity() {
                         serial == requestSerial &&
                         !isFinishing
                     ) {
+                        val onlyFolder = found
+                            .filter { it.mimeType == FOLDER_MIME }
+                            .singleOrNull()
+
+                        if (
+                            screen == "videos" &&
+                            targetFolderId == "root" &&
+                            found.size == 1 &&
+                            onlyFolder?.name?.equals("NEET PG", ignoreCase = true) == true
+                        ) {
+                            folderStack.clear()
+                            folderStack.add(FolderLocation("root", "My Drive"))
+                            folderId = onlyFolder.id
+                            folderName = onlyFolder.name
+                            loadFolder(onlyFolder.id)
+                            return@runOnUiThread
+                        }
+
                         driveItems.clear()
                         driveItems.addAll(found)
                         loading = false
