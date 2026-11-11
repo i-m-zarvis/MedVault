@@ -7,7 +7,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class WatchHistorySync(context: Context, private val accountId: String = "default") {
+class WatchHistorySync(
+    context: Context,
+    private val accountId: String = "default",
+    private val migrateLegacy: Boolean = false
+) {
 
     private val fileName = if (accountId == "default") {
         "medvault_watch_history.json"
@@ -17,7 +21,7 @@ class WatchHistorySync(context: Context, private val accountId: String = "defaul
     private val historyFile = File(context.filesDir, fileName)
 
     companion object {
-        private const val LEGACY_fileName = "medvault_watch_history.json"
+        private const val LEGACY_FILE_NAME = "medvault_watch_history.json"
         private const val APPDATA_URL =
             "https://www.googleapis.com/drive/v3/files"
         private const val UPLOAD_URL =
@@ -119,8 +123,17 @@ class WatchHistorySync(context: Context, private val accountId: String = "defaul
         )
 
         val response = request(url, "GET", token)
-        val files = JSONObject(response).optJSONArray("files")
-            ?: JSONArray()
+        var files = JSONObject(response).optJSONArray("files") ?: JSONArray()
+
+        if (files.length() == 0 && migrateLegacy && accountId != "default") {
+            val legacyQuery = "name='$LEGACY_FILE_NAME' and trashed=false"
+            val legacyUrl = URL(
+                "$APPDATA_URL?spaces=appDataFolder&q=" +
+                    java.net.URLEncoder.encode(legacyQuery, "UTF-8") +
+                    "&fields=files(id,name)"
+            )
+            files = JSONObject(request(legacyUrl, "GET", token)).optJSONArray("files") ?: JSONArray()
+        }
 
         if (files.length() == 0) return mutableMapOf()
 
