@@ -26,6 +26,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -108,7 +110,7 @@ class MainActivity : ComponentActivity() {
     private var folderIdBeforeSearch = "root"
     private var folderNameBeforeSearch = "My Drive"
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
-    private var screen by mutableStateOf("home")
+    private var screen by mutableStateOf("videos")
     private var accountMenu by mutableStateOf(false)
     private var pipMode by mutableStateOf(false)
     private var fullscreen by mutableStateOf(false)
@@ -246,7 +248,7 @@ class MainActivity : ComponentActivity() {
                     onHome = {
                         saveCurrentProgress()
                         leavePlayer()
-                        screen = "home"
+                        screen = "videos"
                     },
 
                     onFolderBack = {
@@ -1335,7 +1337,7 @@ private fun MedVaultRoot(
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     BackHandler(
-        enabled = screen != "home" && !pipMode
+        enabled = screen != "home" && screen != "videos" && !pipMode
     ) {
         when (screen) {
             "player" -> onHome()
@@ -1377,13 +1379,18 @@ private fun MedVaultRoot(
                 )
             }
 
-            targetScreen == "videos" -> {
+            targetScreen == "videos" || targetScreen == "home" -> {
                 VideosDashboard(
                     subjectFolders = items.filter { it.mimeType == FOLDER_MIME },
                     loading = loading,
                     status = status,
                     history = history,
                     downloadedCount = downloadedLectures.size,
+                    connected = connected,
+                    menu = accountMenu,
+                    onMenu = onAccountMenu,
+                    onConnect = onConnect,
+                    onDisconnect = onDisconnect,
                     onSearch = onGlobalSearch,
                     onOpenSubject = onFolder,
                     onRawDrive = onRawDrive,
@@ -1481,6 +1488,11 @@ private fun VideosDashboard(
     status: String,
     history: List<WatchRecord>,
     downloadedCount: Int,
+    connected: Boolean,
+    menu: Boolean,
+    onMenu: (Boolean) -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
     onSearch: (String) -> Unit,
     onOpenSubject: (DriveItem) -> Unit,
     onRawDrive: () -> Unit,
@@ -1489,151 +1501,180 @@ private fun VideosDashboard(
     onHistory: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    var searchExpanded by remember { mutableStateOf(false) }
     val subjects = remember(subjectFolders) {
         subjectFolders.sortedBy { it.name.lowercase() }
     }
+    val lightBg = Color(0xFFF4F5F5)
+    val cyan = Color(0xFF62C5D5)
+    val ink = Color(0xFF62686A)
+    val muted = Color(0xFF858B8D)
 
     Column(
         Modifier
             .fillMaxSize()
-            .background(AppBg)
+            .background(lightBg)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF35AFC4))
-                .padding(horizontal = 18.dp, vertical = 17.dp),
+                .background(cyan)
+                .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.MenuBook,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(27.dp)
+            IconButton(onClick = { onMenu(true) }) {
+                Icon(Icons.Default.Menu, "Account menu", tint = Color.White, modifier = Modifier.size(29.dp))
+            }
+            Text(
+                "Videos Edition 8.5",
+                modifier = Modifier.weight(1f),
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "MEDVAULT VIDEOS",
-                    color = Color.White,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold
+            IconButton(onClick = { searchExpanded = !searchExpanded }) {
+                Icon(Icons.Default.Search, "Search Google Drive", tint = Color.White, modifier = Modifier.size(30.dp))
+            }
+            DropdownMenu(
+                expanded = menu,
+                onDismissRequest = { onMenu(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (connected) "Google Drive connected" else "Google Drive not connected") },
+                    onClick = { onMenu(false) },
+                    leadingIcon = { Icon(Icons.Default.Cloud, null) }
                 )
-                Text(
-                    "Your lecture library",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 11.sp
+                DropdownMenuItem(
+                    text = { Text(if (connected) "Reconnect Google Drive" else "Connect Google Drive") },
+                    onClick = { onMenu(false); onConnect() },
+                    leadingIcon = { Icon(Icons.Default.Sync, null) }
+                )
+                if (connected) {
+                    DropdownMenuItem(
+                        text = { Text("Disconnect Google account") },
+                        onClick = { onMenu(false); onDisconnect() },
+                        leadingIcon = { Icon(Icons.Default.Logout, null) }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Browse raw Drive") },
+                    onClick = { onMenu(false); onRawDrive() },
+                    leadingIcon = { Icon(Icons.Default.FolderOpen, null) }
                 )
             }
-            IconButton(onClick = onRawDrive) {
-                Icon(Icons.Default.FolderOpen, "Browse raw Drive", tint = Color.White)
+        }
+
+        if (searchExpanded) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Search all Google Drive") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    shape = RoundedCornerShape(14.dp)
+                )
+                IconButton(
+                    onClick = { if (query.isNotBlank()) onSearch(query.trim()) },
+                    enabled = query.isNotBlank()
+                ) {
+                    Icon(Icons.Default.ArrowForward, "Search")
+                }
             }
         }
 
         Column(
             Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp)
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
         ) {
             Spacer(Modifier.height(14.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Search all Google Drive") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                trailingIcon = {
-                    if (query.isNotBlank()) {
-                        IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, "Clear search")
-                        }
-                    }
-                },
-                shape = RoundedCornerShape(14.dp)
-            )
-            Spacer(Modifier.height(10.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
                     onClick = onDownloads,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
                 ) {
-                    Icon(Icons.Default.CloudDownload, null, tint = AppAccent)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Downloaded ($downloadedCount)")
+                    Icon(Icons.Default.DownloadDone, null, tint = cyan)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Downloaded")
                 }
                 OutlinedButton(
                     onClick = onContinue,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
                 ) {
-                    Icon(Icons.Default.PlayCircle, null, tint = AppAccent)
-                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Default.VideoLibrary, null, tint = cyan)
+                    Spacer(Modifier.width(7.dp))
                     Text("Continue")
                 }
             }
 
-            if (history.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onHistory),
-                    colors = CardDefaults.cardColors(containerColor = AppPanel),
-                    shape = RoundedCornerShape(15.dp)
+            Spacer(Modifier.height(12.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onHistory),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFCEB)),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.History, null, tint = AppAccent)
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Recently watched", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                history.firstOrNull()?.name ?: "Watch history",
-                                color = AppMuted,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
+                    Icon(Icons.Default.History, null, tint = Color(0xFFD47770), modifier = Modifier.size(27.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("World of Revision", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(
+                            history.firstOrNull()?.name ?: "Recently watched lectures",
+                            color = muted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    Icon(Icons.Default.ChevronRight, null, tint = muted)
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "SUBJECTS",
-                    color = AppMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp
-                )
+                Text("SUBJECTS", color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onRawDrive) {
-                    Text("Browse Drive")
-                    Icon(Icons.Default.ChevronRight, null)
+                    Text("Browse Drive", color = ink)
+                    Icon(Icons.Default.ArrowDropDown, null, tint = muted)
                 }
             }
 
             when {
                 loading && subjects.isEmpty() -> {
                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = AppAccent)
+                        CircularProgressIndicator(color = cyan)
                     }
                 }
                 subjects.isEmpty() -> {
                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.CloudOff, null, tint = AppMuted, modifier = Modifier.size(42.dp))
+                            Icon(Icons.Default.CloudOff, null, tint = muted, modifier = Modifier.size(42.dp))
                             Spacer(Modifier.height(10.dp))
-                            Text(status, color = AppMuted)
+                            Text(status, color = ink)
                             Spacer(Modifier.height(8.dp))
                             Button(onClick = onRawDrive) { Text("Open Google Drive") }
                         }
@@ -1643,64 +1684,75 @@ private fun VideosDashboard(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(bottom = 20.dp),
+                        contentPadding = PaddingValues(bottom = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         gridItems(subjects, key = { it.id }) { subject ->
                             val icon = when {
                                 subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
                                 subject.name.contains("biochem", true) -> Icons.Default.Science
-                                subject.name.contains("physio", true) -> Icons.Default.Favorite
+                                subject.name.contains("physio", true) -> Icons.Default.Accessibility
                                 subject.name.contains("pharma", true) -> Icons.Default.Medication
                                 subject.name.contains("micro", true) -> Icons.Default.Biotech
                                 subject.name.contains("path", true) -> Icons.Default.BubbleChart
                                 subject.name.contains("medicine", true) -> Icons.Default.MedicalServices
                                 subject.name.contains("surgery", true) -> Icons.Default.MedicalInformation
+                                subject.name.contains("ophthalm", true) -> Icons.Default.Visibility
+                                subject.name.contains("ent", true) -> Icons.Default.Hearing
+                                subject.name.contains("psychi", true) -> Icons.Default.Psychology
+                                subject.name.contains("radiol", true) -> Icons.Default.MonitorHeart
                                 else -> Icons.Default.VideoLibrary
                             }
+                            var pressed by remember { mutableStateOf(false) }
+                            val scale by animateFloatAsState(
+                                targetValue = if (pressed) 0.97f else 1f,
+                                label = "subject_card_press"
+                            )
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateContentSize()
                                     .clickable { onOpenSubject(subject) },
-                                shape = RoundedCornerShape(15.dp),
-                                colors = CardDefaults.cardColors(containerColor = AppPanel),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                             ) {
                                 Column {
                                     Box(
                                         Modifier
                                             .fillMaxWidth()
-                                            .height(108.dp)
-                                            .background(Color(0xFF1E2A3C)),
+                                            .height(112.dp)
+                                            .background(Color(0xFFE5E7E7)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Box(
                                             Modifier
-                                                .size(66.dp)
-                                                .background(Color(0xFF243A50), RoundedCornerShape(50)),
+                                                .size(76.dp)
+                                                .background(Color(0xFFEFFAFF), RoundedCornerShape(50)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(icon, null, tint = Color(0xFF56C0D0), modifier = Modifier.size(34.dp))
+                                            Icon(icon, null, tint = cyan, modifier = Modifier.size(38.dp))
                                         }
                                     }
                                     Column(Modifier.padding(12.dp)) {
                                         Text(
                                             subject.name,
+                                            color = ink,
                                             fontWeight = FontWeight.SemiBold,
-                                            fontSize = 15.sp,
+                                            fontSize = 16.sp,
                                             maxLines = 2,
-                                            minLines = 2,
+                                            minLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.height(5.dp))
-                                        Text("Open subject", color = AppMuted, fontSize = 12.sp)
-                                        Spacer(Modifier.height(9.dp))
+                                        Text("Open subject", color = muted, fontSize = 12.sp)
+                                        Spacer(Modifier.height(10.dp))
                                         Box(
                                             Modifier
                                                 .fillMaxWidth()
-                                                .height(4.dp)
-                                                .background(Color(0xFF294153), RoundedCornerShape(4.dp))
+                                                .height(5.dp)
+                                                .background(Color(0xFFEAF5F7), RoundedCornerShape(5.dp))
                                         )
                                     }
                                 }
@@ -1710,10 +1762,24 @@ private fun VideosDashboard(
                 }
             }
         }
+
+        NavigationBar(
+            containerColor = Color.White,
+            contentColor = cyan,
+            tonalElevation = 8.dp
+        ) {
+            NavigationBarItem(
+                selected = true,
+                onClick = { },
+                icon = { Icon(Icons.Default.VideoLibrary, contentDescription = null) },
+                label = { Text("Videos") },
+                alwaysShowLabel = true
+            )
+        }
     }
 
-    androidx.activity.compose.BackHandler {
-        onRawDrive()
+    BackHandler(enabled = true) {
+        // Videos is the only bottom-level destination.
     }
 }
 
