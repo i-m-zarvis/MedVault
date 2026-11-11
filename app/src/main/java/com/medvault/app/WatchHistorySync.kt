@@ -23,39 +23,56 @@ class WatchHistorySync(context: Context) {
     }
 
     fun loadLocal(): MutableMap<String, WatchRecord> {
-        val result = mutableMapOf<String, WatchRecord>()
-
-        if (!historyFile.exists()) return result
+        if (!historyFile.exists()) return mutableMapOf()
 
         val json = JSONObject(historyFile.readText())
         val records = json.optJSONArray("records") ?: JSONArray()
-
-        for (i in 0 until records.length()) {
-            val obj = records.getJSONObject(i)
-            val record = WatchRecord(
-                fileId = obj.getString("fileId"),
-                name = obj.getString("name"),
-                positionMs = obj.optLong("positionMs"),
-                durationMs = obj.optLong("durationMs"),
-                updatedAt = obj.optLong("updatedAt"),
-                completed = obj.optBoolean("completed")
-            )
-            result[record.fileId] = record
-        }
-
-        return result
+        return parseRecords(records)
     }
 
     fun saveLocal(records: Map<String, WatchRecord>) {
         val root = JSONObject()
         val array = JSONArray()
 
-        records.values.forEach { record ->
-            array.put(record.toJson())
-        }
+        records.values
+            .distinctBy { it.fileId }
+            .forEach { record -> array.put(record.toJson()) }
 
         root.put("records", array)
-        historyFile.writeText(root.toString())
+        val temporaryFile = File(historyFile.parentFile, "${historyFile.name}.tmp")
+        temporaryFile.writeText(root.toString())
+
+        if (historyFile.exists() && !historyFile.delete()) {
+            throw IllegalStateException("Could not replace local watch history.")
+        }
+        if (!temporaryFile.renameTo(historyFile)) {
+            temporaryFile.delete()
+            throw IllegalStateException("Could not save local watch history.")
+        }
+    }
+
+    private fun parseRecords(array: JSONArray): MutableMap<String, WatchRecord> {
+        val result = mutableMapOf<String, WatchRecord>()
+
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val fileId = obj.optString("fileId").takeIf { it.isNotBlank() } ?: continue
+            val record = WatchRecord(
+                fileId = fileId,
+                name = obj.optString("name", "Untitled lecture"),
+                positionMs = obj.optLong("positionMs").coerceAtLeast(0L),
+                durationMs = obj.optLong("durationMs").coerceAtLeast(0L),
+                updatedAt = obj.optLong("updatedAt").coerceAtLeast(0L),
+                completed = obj.optBoolean("completed")
+            )
+
+            val existing = result[fileId]
+            if (existing == null || record.updatedAt > existing.updatedAt) {
+                result[fileId] = record
+            }
+        }
+
+        return result
     }
 
     fun sync(token: String, local: Map<String, WatchRecord>): Map<String, WatchRecord> {
@@ -107,22 +124,7 @@ class WatchHistorySync(context: Context) {
         val array = JSONObject(content).optJSONArray("records")
             ?: JSONArray()
 
-        val result = mutableMapOf<String, WatchRecord>()
-
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val record = WatchRecord(
-                fileId = obj.getString("fileId"),
-                name = obj.getString("name"),
-                positionMs = obj.optLong("positionMs"),
-                durationMs = obj.optLong("durationMs"),
-                updatedAt = obj.optLong("updatedAt"),
-                completed = obj.optBoolean("completed")
-            )
-            result[record.fileId] = record
-        }
-
-        return result
+        return parseRecords(array)
     }
 
     private fun uploadRemote(
