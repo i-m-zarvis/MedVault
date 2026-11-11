@@ -1736,9 +1736,9 @@ private fun VideosDashboard(
                                         .fillMaxWidth()
                                         .animateContentSize()
                                         .clickable { onOpenSubject(subject) },
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(18.dp),
                                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                                 ) {
                                     Column {
                                     Box(
@@ -2343,7 +2343,8 @@ private fun DriveBrowser(
                     colors = CardDefaults.cardColors(
                         containerColor = AppPanel
                     ),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(18.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Row(
                         Modifier
