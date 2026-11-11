@@ -20,6 +20,15 @@ class WatchHistorySync(
     }
     private val historyFile = File(context.filesDir, fileName)
 
+    init {
+        if (migrateLegacy && accountId != "default" && !historyFile.exists()) {
+            val legacy = File(context.filesDir, LEGACY_FILE_NAME)
+            if (legacy.isFile) {
+                try { legacy.copyTo(historyFile, overwrite = false) } catch (_: Exception) { }
+            }
+        }
+    }
+
     companion object {
         private const val LEGACY_FILE_NAME = "medvault_watch_history.json"
         private const val APPDATA_URL =
