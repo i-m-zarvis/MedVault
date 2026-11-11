@@ -1879,6 +1879,7 @@ private fun VideosDashboard(
                     ) {
                         gridItems(subjects, key = { it.id }) { subject ->
                             val icon = when {
+                                subject.isSharedDriveRoot -> Icons.Default.Cloud
                                 subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
                                 subject.name.contains("biochem", true) -> Icons.Default.Science
                                 subject.name.contains("physio", true) -> Icons.Default.Favorite
@@ -1934,7 +1935,7 @@ private fun VideosDashboard(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.height(5.dp))
-                                        Text("Open subject", color = muted, fontSize = 12.sp)
+                                        Text(if (subject.isSharedDriveRoot) "Open Shared Drive" else "Open subject", color = muted, fontSize = 12.sp)
                                         Spacer(Modifier.height(10.dp))
                                         Box(
                                             Modifier
