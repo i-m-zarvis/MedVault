@@ -1036,6 +1036,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val serial = ++requestSerial
+        val accountId = activeAccountId
         if (!driveSearchActive) {
             folderIdBeforeSearch = folderId
             folderNameBeforeSearch = folderName
@@ -1058,9 +1059,12 @@ class MainActivity : ComponentActivity() {
                         "https://www.googleapis.com/drive/v3/files"
                     ).buildUpon()
                         .appendQueryParameter("q", driveQuery)
-                        .appendQueryParameter("fields", "nextPageToken,files(id,name,mimeType)")
+                        .appendQueryParameter("fields", "nextPageToken,files(id,name,mimeType,driveId,size)")
                         .appendQueryParameter("pageSize", "100")
                         .appendQueryParameter("orderBy", "folder,name")
+                        .appendQueryParameter("supportsAllDrives", "true")
+                        .appendQueryParameter("includeItemsFromAllDrives", "true")
+                        .appendQueryParameter("corpora", "user")
 
                     pageToken?.let { builder.appendQueryParameter("pageToken", it) }
                     val connection = URL(builder.build().toString())
@@ -1094,7 +1098,7 @@ class MainActivity : ComponentActivity() {
                             file.getString("id"),
                             file.getString("name"),
                             file.getString("mimeType"),
-                            accountId = activeAccountId,
+                            accountId = accountId,
                             sharedDriveId = file.optString("driveId").takeIf { it.isNotBlank() }
                         )
                     }
