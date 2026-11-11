@@ -1775,10 +1775,6 @@ private fun VideosDashboard(
             )
         }
     }
-
-    BackHandler(enabled = true) {
-        // Videos is the only bottom-level destination.
-    }
 }
 
 // =============================================================
