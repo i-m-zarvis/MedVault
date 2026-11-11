@@ -141,9 +141,16 @@ class MainActivity : ComponentActivity() {
                     .observeAsState(initial = emptyList())
 
             var downloadedLectures by remember {
-                mutableStateOf(
-                    DownloadStore.getAll(this@MainActivity)
-                )
+                mutableStateOf(DownloadStore.getAll(this@MainActivity))
+            }
+            var pausedDownloadIds by remember {
+                mutableStateOf(DownloadRepository.pausedIds(this@MainActivity))
+            }
+            var showBrandSplash by remember { mutableStateOf(true) }
+
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(1900)
+                showBrandSplash = false
             }
 
             LaunchedEffect(downloadWorkItems) {
@@ -179,6 +186,7 @@ class MainActivity : ComponentActivity() {
                     },
                     downloadWorkItems = downloadWorkItems,
                     downloadedLectures = downloadedLectures,
+                    pausedDownloadIds = pausedDownloadIds,
 
                     onAccountMenu = { accountMenu = it },
                     onConnect = { authorizeDrive() },
@@ -223,19 +231,31 @@ class MainActivity : ComponentActivity() {
                     },
 
                     onPauseDownload = { work ->
-                        downloadRepository.pause(work.id)
+                        val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
+                            ?.removePrefix(DOWNLOAD_TAG_PREFIX)
+                        if (!fileId.isNullOrBlank()) {
+                            downloadRepository.pause(work.id, fileId)
+                            pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
+                        }
                     },
 
                     onResumeDownload = { work ->
                         retryDownload(work)
+                        pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                     },
 
                     onCancelDownload = { work ->
-                        downloadRepository.cancel(work.id)
+                        val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
+                            ?.removePrefix(DOWNLOAD_TAG_PREFIX)
+                        if (!fileId.isNullOrBlank()) {
+                            downloadRepository.cancel(work.id, fileId)
+                            pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
+                        }
                     },
 
                     onRetryDownload = { work ->
                         retryDownload(work)
+                        pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                     },
 
                     onPlayOffline = { lecture ->
@@ -1063,6 +1083,7 @@ private fun MedVaultRoot(
     history: List<WatchRecord>,
     downloadWorkItems: List<WorkInfo>,
     downloadedLectures: List<DownloadedLecture>,
+    pausedDownloadIds: Set<String>,
     onAccountMenu: (Boolean) -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
@@ -1157,6 +1178,7 @@ private fun MedVaultRoot(
                 DownloadManagerScreen(
                     workItems = downloadWorkItems,
                     downloadedLectures = downloadedLectures,
+                    pausedIds = pausedDownloadIds,
                     onBack = onHome,
                     onPause = onPauseDownload,
                     onResume = onResumeDownload,
