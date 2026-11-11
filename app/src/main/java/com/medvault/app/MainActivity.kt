@@ -1549,7 +1549,7 @@ private fun VideosDashboard(
                 Icon(Icons.Default.Menu, "Account menu", tint = Color.White, modifier = Modifier.size(29.dp))
             }
             Text(
-                "Videos Edition 8.5",
+                "MedVault Videos",
                 modifier = Modifier.weight(1f),
                 color = Color.White,
                 fontSize = 22.sp,
@@ -2209,221 +2209,230 @@ private fun DriveBrowser(
     onHome: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    val lightBg = Color(0xFFF4F5F5)
+    val cyan = Color(0xFF62C5D5)
+    val ink = Color(0xFF62686A)
+    val muted = Color(0xFF858B8D)
 
     Column(
         Modifier
             .fillMaxSize()
-            .padding(
-                horizontal = 16.dp,
-                vertical = 12.dp
-            )
+            .background(lightBg)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onHome) {
-                Icon(
-                    Icons.Default.Home,
-                    "Dashboard",
-                    tint = AppAccent
-                )
+                Icon(Icons.Default.Home, "Videos home", tint = cyan)
             }
-
             if (canGoBack) {
                 IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.Default.ArrowBack,
-                        "Parent folder",
-                        tint = AppAccent
-                    )
+                    Icon(Icons.Default.ArrowBack, "Parent folder", tint = cyan)
                 }
             }
-
-            Text(
-                folderName,
-                Modifier.weight(1f),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            IconButton(
-                onClick = onRefresh,
-                enabled = !loading
-            ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    "Refresh",
-                    tint = AppAccent
+            Column(Modifier.weight(1f)) {
+                Text(
+                    folderName,
+                    color = ink,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "Version 1.0 by Aftab",
+                    color = muted,
+                    fontSize = 11.sp
                 )
             }
+            IconButton(onClick = onRefresh, enabled = !loading) {
+                Icon(Icons.Default.Refresh, "Refresh", tint = cyan)
+            }
         }
-
-        Text(
-            status,
-            color = AppMuted,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(
-                start = 8.dp,
-                bottom = 8.dp
-            )
-        )
 
         if (loading) {
             LinearProgressIndicator(
                 Modifier.fillMaxWidth(),
-                color = AppAccent
+                color = cyan
             )
         }
 
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
             singleLine = true,
-            placeholder = { Text("Search all Google Drive…") },
+            placeholder = { Text("Search all Google Drive") },
             leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = AppMuted)
+                Icon(Icons.Default.Search, contentDescription = null, tint = muted)
             },
             trailingIcon = {
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = {
                             searchQuery = ""
                             onRefresh()
                         }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            Icon(Icons.Default.Close, "Clear search", tint = muted)
                         }
                     }
                     IconButton(
-                        onClick = { onGlobalSearch(searchQuery) },
+                        onClick = { if (searchQuery.isNotBlank()) onGlobalSearch(searchQuery.trim()) },
                         enabled = searchQuery.isNotBlank() && !loading
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = "Search all Google Drive")
+                        Icon(Icons.Default.Search, "Search all Google Drive", tint = cyan)
                     }
                 }
             },
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = ink,
+                unfocusedTextColor = ink,
+                focusedBorderColor = cyan,
+                unfocusedBorderColor = Color(0xFFB8BEC0),
+                focusedPlaceholderColor = muted,
+                unfocusedPlaceholderColor = muted
+            )
         )
 
         Text(
             if (folderName == "Drive search") "${items.size} results across Drive"
             else "${items.size} items in this folder",
-            color = AppMuted,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 4.dp)
+            color = muted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 8.dp)
         )
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(
-                items,
-                key = { it.id }
-            ) { item ->
-
-                val folder = item.mimeType == FOLDER_MIME
-
-                val supportedVideo =
-                    !folder && (
+        if (!loading && items.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.FolderOff, null, tint = muted, modifier = Modifier.size(44.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (folderName == "Drive search") "No matching files found across Google Drive." else "No items found.",
+                        color = ink
+                    )
+                    Text(status, color = muted, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                gridItems(items, key = { it.id }) { item ->
+                    val folder = item.mimeType == FOLDER_MIME
+                    val isVideo = !folder && (
                         item.mimeType.startsWith("video/") ||
-                            listOf(
-                                ".mp4",
-                                ".mkv",
-                                ".webm",
-                                ".mov"
-                            ).any {
+                            listOf(".mp4", ".mkv", ".webm", ".mov").any {
                                 item.name.endsWith(it, true)
                             }
                         )
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = AppPanel
-                    ),
-                    shape = RoundedCornerShape(18.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        Modifier
+                    val tileIcon = when {
+                        folder -> Icons.Default.Folder
+                        isVideo -> Icons.Default.VideoLibrary
+                        item.mimeType.contains("pdf", true) -> Icons.Default.PictureAsPdf
+                        item.mimeType.contains("audio", true) -> Icons.Default.AudioFile
+                        else -> Icons.Default.InsertDriveFile
+                    }
+                    Card(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(
-                                start = 15.dp,
-                                end = 6.dp,
-                                top = 12.dp,
-                                bottom = 12.dp
-                            ),
-                        verticalAlignment = Alignment.CenterVertically
+                            .animateContentSize()
+                            .clickable(enabled = !loading) {
+                                if (folder) onFolder(item) else onFile(item)
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                     ) {
-                        Row(
-                            Modifier
-                                .weight(1f)
-                                .clickable(enabled = !loading) {
-                                    if (folder) {
-                                        onFolder(item)
-                                    } else {
-                                        onFile(item)
-                                    }
-                                },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (folder) {
-                                    Icons.Default.Folder
-                                } else {
-                                    Icons.Default.VideoFile
-                                },
-                                null,
-                                tint = AppAccent
-                            )
-
-                            Text(
-                                item.name,
+                        Column {
+                            Box(
                                 Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 12.dp),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                null,
-                                tint = AppMuted
-                            )
-                        }
-
-                        if (supportedVideo) {
-                            IconButton(
-                                onClick = {
-                                    onDownload(item)
-                                },
-                                enabled = !loading
+                                    .fillMaxWidth()
+                                    .height(112.dp)
+                                    .background(Color(0xFFE5E7E7)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.Download,
-                                    contentDescription = "Download lecture",
-                                    tint = AppAccent
+                                Box(
+                                    Modifier
+                                        .size(76.dp)
+                                        .background(Color(0xFFEFFAFF), RoundedCornerShape(50)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(tileIcon, null, tint = cyan, modifier = Modifier.size(40.dp))
+                                }
+                            }
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    item.name,
+                                    color = ink,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    maxLines = 2,
+                                    minLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
+                                Spacer(Modifier.height(5.dp))
+                                Text(
+                                    when {
+                                        folder -> "Open folder"
+                                        item.size != null -> "${if (isVideo) "Video" else "File"} · ${formatDriveSize(item.size)}"
+                                        isVideo -> "Video lecture"
+                                        else -> "Open file"
+                                    },
+                                    color = muted,
+                                    fontSize = 12.sp,
+                                    maxLines = 1
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        Modifier
+                                            .weight(1f)
+                                            .height(5.dp)
+                                            .background(Color(0xFFEAF5F7), RoundedCornerShape(5.dp))
+                                    )
+                                    if (isVideo) {
+                                        IconButton(
+                                            onClick = { onDownload(item) },
+                                            enabled = !loading,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Download,
+                                                contentDescription = "Download ${item.name}",
+                                                tint = cyan
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-
-            if (!loading && items.isEmpty()) {
-                item {
-                    Text(
-                        if (folderName == "Drive search") "No matching files found across Google Drive." else "No items found. $status",
-                        color = AppMuted,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
         }
     }
+}
+
+private fun formatDriveSize(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024.0) return String.format(java.util.Locale.US, "%.1f KB", kb)
+    val mb = kb / 1024.0
+    if (mb < 1024.0) return String.format(java.util.Locale.US, "%.1f MB", mb)
+    return String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0)
 }
 
 // =============================================================
