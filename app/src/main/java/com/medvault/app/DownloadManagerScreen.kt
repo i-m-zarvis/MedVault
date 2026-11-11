@@ -1,5 +1,6 @@
 package com.medvault.app
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +59,13 @@ fun DownloadManagerScreen(
     onPlayOffline: (DownloadedLecture) -> Unit,
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
+    val context = LocalContext.current
+    val downloadDirectory = File(context.filesDir, "downloads")
+    val storageUsed = downloadDirectory.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
+    val storageFree = context.filesDir.usableSpace
+    val storageTotal = storageUsed + storageFree
+    val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
+
     val activeItems = workItems.filter {
         it.state == WorkInfo.State.ENQUEUED ||
             it.state == WorkInfo.State.RUNNING ||
@@ -107,6 +116,28 @@ fun DownloadManagerScreen(
                 tint = DownloadAccent,
                 modifier = Modifier.size(28.dp)
             )
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth().animateContentSize(),
+            colors = CardDefaults.cardColors(containerColor = DownloadPanel),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("OFFLINE STORAGE", color = DownloadAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text(formatDownloadSize(storageUsed), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.size(8.dp))
+                LinearProgressIndicator(
+                    progress = { storageFraction.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = DownloadAccent
+                )
+                Spacer(Modifier.size(5.dp))
+                Text("${formatDownloadSize(storageFree)} available on device · app-private storage", color = DownloadMuted, fontSize = 11.sp)
+            }
         }
 
         Spacer(Modifier.size(18.dp))
@@ -165,7 +196,7 @@ fun DownloadManagerScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(
-                    downloadedLectures,
+                    downloadedLectures.sortedByDescending { it.downloadedAt },
                     key = { it.fileId }
                 ) { lecture ->
                     OfflineLectureCard(
@@ -248,7 +279,7 @@ private fun DownloadWorkCard(
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(14.dp).animateContentSize()
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
