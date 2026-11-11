@@ -29,6 +29,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -65,6 +66,10 @@ fun DownloadManagerScreen(
     val storageFree = context.filesDir.usableSpace
     val storageTotal = storageUsed + storageFree
     val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
+    var libraryQuery by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    val filteredLectures = downloadedLectures
+        .filter { it.name.contains(libraryQuery.trim(), ignoreCase = true) }
+        .sortedByDescending { it.downloadedAt }
 
     val activeItems = workItems.filter {
         it.state == WorkInfo.State.ENQUEUED ||
@@ -186,17 +191,31 @@ fun DownloadManagerScreen(
 
         Spacer(Modifier.size(8.dp))
 
+        if (downloadedLectures.isNotEmpty()) {
+            OutlinedTextField(
+                value = libraryQuery,
+                onValueChange = { libraryQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Search offline lectures…") },
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.size(6.dp))
+        }
+
         if (downloadedLectures.isEmpty()) {
             EmptyDownloadMessage(
                 "Downloaded lectures will appear here."
             )
+        } else if (filteredLectures.isEmpty()) {
+            EmptyDownloadMessage("No offline lectures match your search.")
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(
-                    downloadedLectures.sortedByDescending { it.downloadedAt },
+                    filteredLectures,
                     key = { it.fileId }
                 ) { lecture ->
                     OfflineLectureCard(
