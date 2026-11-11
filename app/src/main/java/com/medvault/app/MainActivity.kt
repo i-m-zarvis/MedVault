@@ -31,6 +31,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -224,7 +227,11 @@ class MainActivity : ComponentActivity() {
                     onDisconnect = { disconnectDrive() },
 
                     onBrowse = {
-                        screen = "drive"
+                        folderId = "root"
+                        folderName = "My Drive"
+                        folderStack.clear()
+                        driveSearchActive = false
+                        screen = "videos"
                         browseDrive()
                     },
 
@@ -248,8 +255,14 @@ class MainActivity : ComponentActivity() {
                             loadFolder(folderIdBeforeSearch)
                         } else loadFolder(folderId)
                     },
-                    onGlobalSearch = { searchDrive(it) },
-                    onFolder = { openFolder(it) },
+                    onGlobalSearch = {
+                        screen = "drive"
+                        searchDrive(it)
+                    },
+                    onFolder = {
+                        screen = "drive"
+                        openFolder(it)
+                    },
                     onFile = { openFile(it) },
                     onDownload = { requestDownload(it) },
 
@@ -1300,7 +1313,7 @@ private fun MedVaultRoot(
         when (screen) {
             "player" -> onHome()
             "drive" -> onFolderBack()
-            "history", "continue", "downloads" -> onHome()
+            "videos", "history", "continue", "downloads" -> onHome()
         }
     }
 
@@ -1334,6 +1347,24 @@ private fun MedVaultRoot(
                     onFullscreen,
                     onPip,
                     onProgress
+                )
+            }
+
+            targetScreen == "videos" -> {
+                VideosDashboard(
+                    subjectFolders = items.filter { it.mimeType == FOLDER_MIME },
+                    loading = loading,
+                    status = status,
+                    history = history,
+                    downloadedCount = downloadedLectures.size,
+                    onSearch = onGlobalSearch,
+                    onOpenSubject = onFolder,
+                    onRawDrive = {
+                        screen = "drive"
+                    },
+                    onDownloads = onDownloads,
+                    onContinue = onContinue,
+                    onHistory = onHistory
                 )
             }
 
@@ -1411,6 +1442,253 @@ private fun MedVaultRoot(
             }
         }
     }
+    }
+}
+
+// =============================================================
+// VIDEOS SUBJECT DASHBOARD
+// =============================================================
+
+@Composable
+private fun VideosDashboard(
+    subjectFolders: List<DriveItem>,
+    loading: Boolean,
+    status: String,
+    history: List<WatchRecord>,
+    downloadedCount: Int,
+    onSearch: (String) -> Unit,
+    onOpenSubject: (DriveItem) -> Unit,
+    onRawDrive: () -> Unit,
+    onDownloads: () -> Unit,
+    onContinue: () -> Unit,
+    onHistory: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val subjects = remember(subjectFolders) {
+        subjectFolders.sortedBy { it.name.lowercase() }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(AppBg)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF35AFC4))
+                .padding(horizontal = 18.dp, vertical = 17.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.MenuBook,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(27.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "MEDVAULT VIDEOS",
+                    color = Color.White,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Your lecture library",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp
+                )
+            }
+            IconButton(onClick = onRawDrive) {
+                Icon(Icons.Default.FolderOpen, "Browse raw Drive", tint = Color.White)
+            }
+        }
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp)
+        ) {
+            Spacer(Modifier.height(14.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Search all Google Drive") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Default.Close, "Clear search")
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.height(10.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onDownloads,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.CloudDownload, null, tint = AppAccent)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Downloaded ($downloadedCount)")
+                }
+                OutlinedButton(
+                    onClick = onContinue,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.PlayCircle, null, tint = AppAccent)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Continue")
+                }
+            }
+
+            if (history.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onHistory),
+                    colors = CardDefaults.cardColors(containerColor = AppPanel),
+                    shape = RoundedCornerShape(15.dp)
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.History, null, tint = AppAccent)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Recently watched", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                history.firstOrNull()?.name ?: "Watch history",
+                                color = AppMuted,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "SUBJECTS",
+                    color = AppMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onRawDrive) {
+                    Text("Browse Drive")
+                    Icon(Icons.Default.ChevronRight, null)
+                }
+            }
+
+            when {
+                loading && subjects.isEmpty() -> {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = AppAccent)
+                    }
+                }
+                subjects.isEmpty() -> {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.CloudOff, null, tint = AppMuted, modifier = Modifier.size(42.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text(status, color = AppMuted)
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = onRawDrive) { Text("Open Google Drive") }
+                        }
+                    }
+                }
+                else -> {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(bottom = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        gridItems(subjects, key = { it.id }) { subject ->
+                            val icon = when {
+                                subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
+                                subject.name.contains("biochem", true) -> Icons.Default.Science
+                                subject.name.contains("physio", true) -> Icons.Default.Favorite
+                                subject.name.contains("pharma", true) -> Icons.Default.Medication
+                                subject.name.contains("micro", true) -> Icons.Default.Biotech
+                                subject.name.contains("path", true) -> Icons.Default.BubbleChart
+                                subject.name.contains("medicine", true) -> Icons.Default.MedicalServices
+                                subject.name.contains("surgery", true) -> Icons.Default.MedicalInformation
+                                else -> Icons.Default.VideoLibrary
+                            }
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenSubject(subject) },
+                                shape = RoundedCornerShape(15.dp),
+                                colors = CardDefaults.cardColors(containerColor = AppPanel),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                            ) {
+                                Column {
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(108.dp)
+                                            .background(Color(0xFF1E2A3C)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(
+                                            Modifier
+                                                .size(66.dp)
+                                                .background(Color(0xFF243A50), RoundedCornerShape(50)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(icon, null, tint = Color(0xFF56C0D0), modifier = Modifier.size(34.dp))
+                                        }
+                                    }
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(
+                                            subject.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp,
+                                            maxLines = 2,
+                                            minLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.height(5.dp))
+                                        Text("Open subject", color = AppMuted, fontSize = 12.sp)
+                                        Spacer(Modifier.height(9.dp))
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .height(4.dp)
+                                                .background(Color(0xFF294153), RoundedCornerShape(4.dp))
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    androidx.activity.compose.BackHandler {
+        onRawDrive()
     }
 }
 
