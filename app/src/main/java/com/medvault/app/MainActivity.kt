@@ -17,6 +17,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -160,6 +164,22 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(downloadWorkItems) {
                 downloadedLectures =
                     DownloadStore.getAll(this@MainActivity)
+
+                val authExpired = downloadWorkItems.any { work ->
+                    work.state == WorkInfo.State.FAILED &&
+                        work.outputData.getString("error")
+                            ?.contains("Google access expired", ignoreCase = true) == true
+                }
+
+                if (authExpired) {
+                    accessToken = null
+                    connected = false
+                    status = "Google access expired. Reconnect Google Drive before retrying downloads."
+                    try {
+                        DriveTokenVault.clear(applicationContext)
+                    } catch (_: Exception) {
+                    }
+                }
             }
 
             MaterialTheme(
@@ -1131,12 +1151,20 @@ private fun MedVaultRoot(
         }
     }
 
-    Surface(
-        Modifier.fillMaxSize(),
-        color = AppBg
-    ) {
-        when {
-            screen == "player" &&
+    AnimatedContent(
+        targetState = screen,
+        transitionSpec = {
+            (fadeIn() + slideInHorizontally { it / 14 }) togetherWith
+                (fadeOut() + slideOutHorizontally { -it / 14 })
+        },
+        label = "medvault_navigation"
+    ) { targetScreen ->
+        Surface(
+            Modifier.fillMaxSize(),
+            color = AppBg
+        ) {
+            when {
+            targetScreen == "player" &&
                 selectedVideo != null &&
                 player != null -> {
 
@@ -1152,7 +1180,7 @@ private fun MedVaultRoot(
                 )
             }
 
-            screen == "drive" -> {
+            targetScreen == "drive" -> {
                 DriveBrowser(
                     items = items,
                     folderName = folderName,
@@ -1168,14 +1196,14 @@ private fun MedVaultRoot(
                 )
             }
 
-            screen == "history" || screen == "continue" -> {
+            targetScreen == "history" || targetScreen == "continue" -> {
                 HistoryScreen(
-                    title = if (screen == "history") {
+                    title = if (targetScreen == "history") {
                         "Watch history"
                     } else {
                         "Continue watching"
                     },
-                    records = if (screen == "continue") {
+                    records = if (targetScreen == "continue") {
                         history.filter {
                             !it.completed && it.positionMs > 0L
                         }
@@ -1187,7 +1215,7 @@ private fun MedVaultRoot(
                 )
             }
 
-            screen == "downloads" -> {
+            targetScreen == "downloads" -> {
                 DownloadManagerScreen(
                     workItems = downloadWorkItems,
                     downloadedLectures = downloadedLectures,
