@@ -351,6 +351,10 @@ class DriveDownloadWorker(
             Result.success(resultData(finalFile))
 
         } catch (e: CancellationException) {
+            // Pause keeps the partial file; explicit cancel removes it in the repository.
+            if (!DownloadRepository.isPaused(applicationContext, fileId)) {
+                partialFile.delete()
+            }
             throw e
         } catch (e: Exception) {
             Result.retry()
