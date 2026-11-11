@@ -1,6 +1,7 @@
 package com.medvault.app
 
 import android.Manifest
+import android.accounts.Account
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
@@ -83,6 +84,8 @@ private const val DRIVE_SCOPE =
 
 private const val DRIVE_APPDATA_SCOPE =
     "https://www.googleapis.com/auth/drive.appdata"
+private const val DRIVE_EMAIL_SCOPE =
+    "https://www.googleapis.com/auth/userinfo.email"
 
 private const val AUTH_REQUEST_CODE = 7001
 private const val FOLDER_MIME =
@@ -98,6 +101,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var downloadRepository: DownloadRepository
 
     private var accessToken by mutableStateOf<String?>(null)
+    private var activeAccountId by mutableStateOf(DriveTokenVault.getActiveAccountId(this) ?: "default")
+    private var activeAccountEmail by mutableStateOf("Google Drive")
+    private var currentSharedDriveId by mutableStateOf<String?>(null)
     private var connected by mutableStateOf(false)
     private var authBusy by mutableStateOf(false)
     private var loading by mutableStateOf(false)
@@ -341,7 +347,7 @@ class MainActivity : ComponentActivity() {
                         val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
                             ?.removePrefix(DOWNLOAD_TAG_PREFIX)
                         if (!fileId.isNullOrBlank()) {
-                            downloadRepository.pause(work.id, fileId)
+                            downloadRepository.pause(work.id, fileId, activeAccountId)
                             pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                         }
                     },
@@ -355,7 +361,7 @@ class MainActivity : ComponentActivity() {
                         val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
                             ?.removePrefix(DOWNLOAD_TAG_PREFIX)
                         if (!fileId.isNullOrBlank()) {
-                            downloadRepository.cancel(work.id, fileId)
+                            downloadRepository.cancel(work.id, fileId, activeAccountId)
                             pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                         }
                     },
@@ -393,7 +399,7 @@ class MainActivity : ComponentActivity() {
     // GOOGLE DRIVE AUTHORIZATION
     // ---------------------------------------------------------
 
-    private fun authorizeDrive() {
+    private fun authorizeDrive(forceAccountPicker: Boolean = false) {
         if (authBusy) return
 
         authBusy = true
@@ -403,9 +409,16 @@ class MainActivity : ComponentActivity() {
             .setRequestedScopes(
                 listOf(
                     Scope(DRIVE_SCOPE),
-                    Scope(DRIVE_APPDATA_SCOPE)
+                    Scope(DRIVE_APPDATA_SCOPE),
+                    Scope(DRIVE_EMAIL_SCOPE)
                 )
             )
+            .apply {
+                if (forceAccountPicker) setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT)
+                else if (activeAccountId != "default" && activeAccountId.contains("@")) {
+                    setAccount(Account(activeAccountId, "com.google"))
+                }
+            }
             .build()
 
         Identity.getAuthorizationClient(this)
@@ -479,34 +492,60 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        accessToken = token
-        connected = true
+        status = "Identifying Google account…"
+        io.execute {
+            try {
+                val connection = URL("https://www.googleapis.com/oauth2/v2/userinfo")
+                    .openConnection() as HttpURLConnection
+                val email: String
+                val displayName: String
+                try {
+                    connection.requestMethod = "GET"
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    connection.connectTimeout = 12000
+                    connection.readTimeout = 12000
+                    if (connection.responseCode !in 200..299) {
+                        throw IllegalStateException("Could not identify the selected Google account.")
+                    }
+                    val profile = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    email = profile.optString("email").trim()
+                    displayName = profile.optString("name", email).ifBlank { email }
+                } finally {
+                    connection.disconnect()
+                }
+                if (email.isBlank()) throw IllegalStateException("Google did not return an account email.")
 
-        try {
-            DriveTokenVault.save(applicationContext, token)
-            status = "Google Drive connected."
-        } catch (e: Exception) {
-            status =
-                "Google Drive connected, but secure token storage failed: ${e.message}"
-        }
+                DriveTokenVault.save(applicationContext, email, token)
+                DriveTokenVault.saveAccount(applicationContext, DriveAccount(email, email, displayName))
+                DriveTokenVault.setActiveAccountId(applicationContext, email)
 
-        syncHistory(token)
-
-        if (screen == "drive") {
-            loadFolder(folderId)
+                runOnUiThread {
+                    activeAccountId = email
+                    activeAccountEmail = email
+                    accessToken = token
+                    connected = true
+                    status = "Connected: $email"
+                    syncHistory(token)
+                    if (screen == "drive" || screen == "videos") {
+                        folderStack.clear()
+                        currentSharedDriveId = null
+                        folderId = "root"
+                        folderName = "My Drive"
+                        loadFolder("root")
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    connected = false
+                    status = "Google account setup failed: ${e.message}"
+                }
+            }
         }
     }
 
     private fun disconnectDrive() {
         saveCurrentProgress()
-
         accessToken = null
-
-        try {
-            DriveTokenVault.clear(applicationContext)
-        } catch (_: Exception) {
-        }
-
         connected = false
         driveItems.clear()
         folderStack.clear()
@@ -517,7 +556,7 @@ class MainActivity : ComponentActivity() {
         screen = "videos"
 
         status =
-            "Google Drive disconnected. Local downloads and watch history are retained."
+            "Google Drive disconnected. Saved accounts, local downloads and watch history are retained."
     }
 
     // ---------------------------------------------------------
@@ -554,7 +593,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueDownload(file: DriveItem) {
-        val existing = DownloadStore.find(this, file.id)
+        val existing = DownloadStore.find(this, file.id, file.accountId)
 
         if (
             existing != null &&
@@ -608,10 +647,15 @@ class MainActivity : ComponentActivity() {
                 ?: work.outputData.getString("file_name")
                 ?: "lecture_$fileId.mp4"
 
+        val accountId = work.tags.firstOrNull { it.startsWith("medvault_account_") }
+            ?.removePrefix("medvault_account_")
+            ?.let { tag -> DriveTokenVault.accounts(this).firstOrNull { DownloadRepository.accountKey(it.id) == tag }?.id }
+            ?: activeAccountId
         val file = DriveItem(
             id = fileId,
             name = name,
-            mimeType = "video/mp4"
+            mimeType = "video/mp4",
+            accountId = accountId
         )
 
         if (accessToken.isNullOrBlank()) {
@@ -656,7 +700,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        DownloadStore.delete(this, lecture.fileId)
+        DownloadStore.delete(this, lecture.fileId, lecture.accountId)
 
         Toast.makeText(
             this,
@@ -684,7 +728,8 @@ class MainActivity : ComponentActivity() {
         val item = DriveItem(
             id = lecture.fileId,
             name = lecture.name,
-            mimeType = "video/mp4"
+            mimeType = "video/mp4",
+            accountId = lecture.accountId
         )
 
         startVideo(
