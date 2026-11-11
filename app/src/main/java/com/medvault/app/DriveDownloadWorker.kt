@@ -6,9 +6,9 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
-import androidx.work.Data
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -35,6 +35,12 @@ class DriveDownloadWorker(
 
         private const val CHANNEL_ID = "medvault_downloads"
         private const val NOTIFICATION_ID = 4101
+
+        // Avoid flooding WorkManager's database with progress updates.
+        private const val PROGRESS_UPDATE_INTERVAL = 1000L
+        private const val NOTIFICATION_UPDATE_INTERVAL = 2000L
+
+        private const val BUFFER_SIZE = 128 * 1024
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -45,10 +51,19 @@ class DriveDownloadWorker(
         val fileName = inputData.getString(KEY_FILE_NAME)
             ?: "lecture_$fileId.mp4"
 
+        val safeName = fileName
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .trim()
+            .ifBlank { "lecture_$fileId.mp4" }
+
         val token = DriveTokenVault.get(applicationContext)
             ?: return@withContext Result.failure(
                 Data.Builder()
-                    .putString("error", "Reconnect Google Drive and retry.")
+                    .putString(
+                        "error",
+                        "Reconnect Google Drive and retry."
+                    )
+                    .putString(KEY_FILE_NAME, safeName)
                     .build()
             )
 
@@ -57,14 +72,12 @@ class DriveDownloadWorker(
             "downloads"
         )
 
-        if (!downloadDirectory.exists() && !downloadDirectory.mkdirs()) {
+        if (
+            !downloadDirectory.exists() &&
+            !downloadDirectory.mkdirs()
+        ) {
             return@withContext Result.failure()
         }
-
-        val safeName = fileName
-            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            .trim()
-            .ifBlank { "lecture_$fileId.mp4" }
 
         val finalFile = File(
             downloadDirectory,
@@ -75,6 +88,18 @@ class DriveDownloadWorker(
             downloadDirectory,
             "${fileId}_$safeName.part"
         )
+
+        fun resultData(file: File): Data {
+            return Data.Builder()
+                .putString("file_path", file.absolutePath)
+                .putString("file_name", safeName)
+                .putLong("file_size", file.length())
+                .putString(KEY_FILE_NAME, safeName)
+                .putInt(KEY_PROGRESS, 100)
+                .putLong(KEY_DOWNLOADED, file.length())
+                .putLong(KEY_TOTAL, file.length())
+                .build()
+        }
 
         fun registerDownload(file: File) {
             DownloadStore.save(
@@ -89,42 +114,52 @@ class DriveDownloadWorker(
             )
         }
 
-        // Register an already completed file.
-        if (finalFile.exists() && finalFile.length() > 0L) {
+        // Already downloaded: register it and finish.
+        if (finalFile.isFile && finalFile.length() > 0L) {
             registerDownload(finalFile)
 
             return@withContext Result.success(
-                Data.Builder()
-                    .putString("file_path", finalFile.absolutePath)
-                    .putString("file_name", safeName)
-                    .putLong("file_size", finalFile.length())
-                    .build()
+                resultData(finalFile)
             )
         }
 
         createNotificationChannel()
 
         setForeground(
-            createForegroundInfo("Preparing download", 0)
+            createForegroundInfo(
+                "Preparing $safeName",
+                0
+            )
         )
 
         var connection: HttpURLConnection? = null
 
         try {
-            val existingBytes = partialFile
-                .takeIf { it.exists() }
-                ?.length() ?: 0L
+            val existingBytes = if (partialFile.isFile) {
+                partialFile.length()
+            } else {
+                0L
+            }
+
+            val encodedId = URLEncoder.encode(
+                fileId,
+                "UTF-8"
+            )
 
             val url = URL(
                 "https://www.googleapis.com/drive/v3/files/" +
-                    "${URLEncoder.encode(fileId, "UTF-8")}?alt=media"
+                    "$encodedId?alt=media"
             )
 
             connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty(
+                    "Authorization",
+                    "Bearer $token"
+                )
                 connectTimeout = 20000
-                readTimeout = 30000
+                readTimeout = 60000
+                instanceFollowRedirects = true
 
                 if (existingBytes > 0L) {
                     setRequestProperty(
@@ -143,6 +178,7 @@ class DriveDownloadWorker(
                             "error",
                             "Google access expired. Reconnect Drive and retry."
                         )
+                        .putString(KEY_FILE_NAME, safeName)
                         .build()
                 )
             }
@@ -154,6 +190,7 @@ class DriveDownloadWorker(
                             "error",
                             "Google Drive denied access or the file was not found."
                         )
+                        .putString(KEY_FILE_NAME, safeName)
                         .build()
                 )
             }
@@ -162,12 +199,12 @@ class DriveDownloadWorker(
                 return@withContext Result.retry()
             }
 
-            // If the server ignores Range and returns 200,
-            // restart the partial file instead of appending.
+            // Append only when the server confirms a partial response.
             val append = responseCode == 206
             val startBytes = if (append) existingBytes else 0L
 
-            val contentRange = connection.getHeaderField("Content-Range")
+            val contentRange =
+                connection.getHeaderField("Content-Range")
 
             val rangeTotal = contentRange
                 ?.substringAfterLast("/")
@@ -183,51 +220,95 @@ class DriveDownloadWorker(
                 }
 
             var downloadedBytes = startBytes
+            var lastProgressUpdate = System.currentTimeMillis()
             var lastNotificationUpdate = 0L
 
-            connection.inputStream.use { input ->
-                FileOutputStream(partialFile, append).use { output ->
+            // Publish the lecture name immediately.
+            setProgress(
+                Data.Builder()
+                    .putString(KEY_FILE_NAME, safeName)
+                    .putInt(KEY_PROGRESS, 0)
+                    .putLong(KEY_DOWNLOADED, downloadedBytes)
+                    .putLong(KEY_TOTAL, totalBytes)
+                    .build()
+            )
 
-                    val buffer = ByteArray(64 * 1024)
+            connection.inputStream.use { input ->
+
+                FileOutputStream(
+                    partialFile,
+                    append
+                ).use { output ->
+
+                    val buffer = ByteArray(BUFFER_SIZE)
 
                     while (true) {
                         coroutineContext.ensureActive()
 
                         val count = input.read(buffer)
+
                         if (count == -1) break
 
                         output.write(buffer, 0, count)
                         downloadedBytes += count
 
+                        val now = System.currentTimeMillis()
+
                         val progress = if (totalBytes > 0L) {
-                            ((downloadedBytes * 100L) / totalBytes)
-                                .toInt()
-                                .coerceIn(0, 100)
+                            (
+                                downloadedBytes * 100L /
+                                    totalBytes
+                                ).toInt().coerceIn(0, 100)
                         } else {
                             0
                         }
 
-                        setProgress(
-                            Data.Builder()
-                                .putInt(KEY_PROGRESS, progress)
-                                .putLong(KEY_DOWNLOADED, downloadedBytes)
-                                .putLong(KEY_TOTAL, totalBytes)
-                                .build()
-                        )
+                        // Update WorkManager only once per second.
+                        if (
+                            now - lastProgressUpdate >=
+                                PROGRESS_UPDATE_INTERVAL
+                        ) {
+                            setProgress(
+                                Data.Builder()
+                                    .putString(
+                                        KEY_FILE_NAME,
+                                        safeName
+                                    )
+                                    .putInt(
+                                        KEY_PROGRESS,
+                                        progress
+                                    )
+                                    .putLong(
+                                        KEY_DOWNLOADED,
+                                        downloadedBytes
+                                    )
+                                    .putLong(
+                                        KEY_TOTAL,
+                                        totalBytes
+                                    )
+                                    .build()
+                            )
 
-                        val now = System.currentTimeMillis()
+                            lastProgressUpdate = now
+                        }
 
-                        if (now - lastNotificationUpdate >= 1000L) {
+                        // Notifications update less frequently.
+                        if (
+                            now - lastNotificationUpdate >=
+                                NOTIFICATION_UPDATE_INTERVAL
+                        ) {
                             setForeground(
                                 createForegroundInfo(
                                     "Downloading $safeName",
                                     progress
                                 )
                             )
+
                             lastNotificationUpdate = now
                         }
                     }
 
+                    output.flush()
                     output.fd.sync()
                 }
             }
@@ -239,29 +320,35 @@ class DriveDownloadWorker(
                 return@withContext Result.retry()
             }
 
-            if (!partialFile.renameTo(finalFile)) {
-                partialFile.copyTo(finalFile, overwrite = true)
+            if (
+                !partialFile.renameTo(finalFile)
+            ) {
+                partialFile.copyTo(
+                    finalFile,
+                    overwrite = true
+                )
                 partialFile.delete()
             }
 
-            // Register only after the complete file is available.
             registerDownload(finalFile)
 
+            // Final progress update.
             setProgress(
                 Data.Builder()
+                    .putString(KEY_FILE_NAME, safeName)
                     .putInt(KEY_PROGRESS, 100)
-                    .putLong(KEY_DOWNLOADED, finalFile.length())
-                    .putLong(KEY_TOTAL, finalFile.length())
+                    .putLong(
+                        KEY_DOWNLOADED,
+                        finalFile.length()
+                    )
+                    .putLong(
+                        KEY_TOTAL,
+                        finalFile.length()
+                    )
                     .build()
             )
 
-            Result.success(
-                Data.Builder()
-                    .putString("file_path", finalFile.absolutePath)
-                    .putString("file_name", safeName)
-                    .putLong("file_size", finalFile.length())
-                    .build()
-            )
+            Result.success(resultData(finalFile))
 
         } catch (e: CancellationException) {
             throw e
@@ -301,20 +388,30 @@ class DriveDownloadWorker(
         )
             .setContentTitle("MedVault")
             .setContentText(message)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(
+                android.R.drawable.stat_sys_download
+            )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setProgress(100, progress, progress == 0)
+            .setProgress(
+                100,
+                progress,
+                progress == 0
+            )
             .build()
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
                 NOTIFICATION_ID,
                 notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                android.content.pm.ServiceInfo
+                    .FOREGROUND_SERVICE_TYPE_DATA_SYNC
             )
         } else {
-            ForegroundInfo(NOTIFICATION_ID, notification)
+            ForegroundInfo(
+                NOTIFICATION_ID,
+                notification
+            )
         }
     }
 }
