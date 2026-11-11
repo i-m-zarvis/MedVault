@@ -1814,6 +1814,7 @@ private fun DriveBrowser(
     status: String,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onGlobalSearch: (String) -> Unit,
     onFolder: (DriveItem) -> Unit,
     onFile: (DriveItem) -> Unit,
     onDownload: (DriveItem) -> Unit,
