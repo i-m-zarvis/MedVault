@@ -1689,7 +1689,7 @@ private fun VideosDashboard(
                     ) {
                         gridItems(subjects, key = { it.id }) { subject ->
                             val icon = when {
-                                subject.name.contains("anatom", true) -> Icons.Default.FavoriteNew
+                                subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
                                 subject.name.contains("biochem", true) -> Icons.Default.Science
                                 subject.name.contains("physio", true) -> Icons.Default.Favorite
                                 subject.name.contains("pharma", true) -> Icons.Default.Medication
