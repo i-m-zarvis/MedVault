@@ -1695,6 +1695,12 @@ private fun DriveBrowser(
     onDownload: (DriveItem) -> Unit,
     onHome: () -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredItems = remember(items, searchQuery) {
+        if (searchQuery.isBlank()) items
+        else items.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -1762,11 +1768,38 @@ private fun DriveBrowser(
             )
         }
 
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("Search this Drive folder…") },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null, tint = AppMuted)
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(14.dp)
+        )
+
+        Text(
+            if (searchQuery.isBlank()) "${items.size} items in this folder"
+            else "${filteredItems.size} of ${items.size} items",
+            color = AppMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 4.dp)
+        )
+
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(
-                items,
+                filteredItems,
                 key = { it.id }
             ) { item ->
 
@@ -1859,10 +1892,10 @@ private fun DriveBrowser(
                 }
             }
 
-            if (!loading && items.isEmpty()) {
+            if (!loading && filteredItems.isEmpty()) {
                 item {
                     Text(
-                        "No items found. $status",
+                        if (searchQuery.isBlank()) "No items found. $status" else "No matching files in this folder.",
                         color = AppMuted,
                         modifier = Modifier.padding(16.dp)
                     )
