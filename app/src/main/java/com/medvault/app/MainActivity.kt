@@ -101,6 +101,7 @@ class MainActivity : ComponentActivity() {
 
     private var folderId by mutableStateOf("root")
     private var folderName by mutableStateOf("My Drive")
+    private var driveSearchActive by mutableStateOf(false)
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
     private var screen by mutableStateOf("home")
     private var accountMenu by mutableStateOf(false)
@@ -231,8 +232,14 @@ class MainActivity : ComponentActivity() {
                         screen = "home"
                     },
 
-                    onFolderBack = { goBackFolder() },
-                    onRefresh = { loadFolder(folderId) },
+                    onFolderBack = {
+                        if (driveSearchActive) {
+                            driveSearchActive = false
+                            loadFolder(folderId)
+                        } else goBackFolder()
+                    },
+                    onRefresh = { if (driveSearchActive) loadFolder(folderId) else loadFolder(folderId) },
+                    onGlobalSearch = { searchDrive(it) },
                     onFolder = { openFolder(it) },
                     onFile = { openFile(it) },
                     onDownload = { requestDownload(it) },
@@ -699,6 +706,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadFolder(targetFolderId: String) {
+        driveSearchActive = false
         val token = accessToken
 
         if (token.isNullOrBlank()) {
@@ -834,8 +842,108 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun searchDrive(rawQuery: String) {
+        val queryText = rawQuery.trim()
+        if (queryText.isBlank()) {
+            driveSearchActive = false
+            loadFolder(folderId)
+            return
+        }
+
+        val token = accessToken
+        if (token.isNullOrBlank()) {
+            status = "Connect Google Drive before searching."
+            authorizeDrive()
+            return
+        }
+
+        val serial = ++requestSerial
+        driveSearchActive = true
+        loading = true
+        folderName = "Drive search"
+        status = "Searching all of Google Drive…"
+        driveItems.clear()
+
+        io.execute {
+            try {
+                val found = mutableListOf<DriveItem>()
+                var pageToken: String? = null
+                val escaped = queryText.replace("\\", "\\\\").replace("'", "\\'")
+                val driveQuery = "name contains '$escaped' and trashed=false"
+
+                do {
+                    val builder = Uri.parse(
+                        "https://www.googleapis.com/drive/v3/files"
+                    ).buildUpon()
+                        .appendQueryParameter("q", driveQuery)
+                        .appendQueryParameter("fields", "nextPageToken,files(id,name,mimeType)")
+                        .appendQueryParameter("pageSize", "100")
+                        .appendQueryParameter("orderBy", "folder,name")
+
+                    pageToken?.let { builder.appendQueryParameter("pageToken", it) }
+                    val connection = URL(builder.build().toString())
+                        .openConnection() as HttpURLConnection
+
+                    val response: String
+                    try {
+                        connection.requestMethod = "GET"
+                        connection.setRequestProperty("Authorization", "Bearer $token")
+                        connection.connectTimeout = 15000
+                        connection.readTimeout = 20000
+                        val code = connection.responseCode
+                        if (code !in 200..299) {
+                            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                                ?: "HTTP $code"
+                            if (code == 401) {
+                                throw SecurityException("Google access expired. Reconnect from account settings.")
+                            }
+                            throw IllegalStateException("Drive search failed ($code): $detail")
+                        }
+                        response = connection.inputStream.bufferedReader().use { it.readText() }
+                    } finally {
+                        connection.disconnect()
+                    }
+
+                    val json = JSONObject(response)
+                    val files = json.optJSONArray("files") ?: org.json.JSONArray()
+                    for (index in 0 until files.length()) {
+                        val file = files.getJSONObject(index)
+                        found += DriveItem(
+                            file.getString("id"),
+                            file.getString("name"),
+                            file.getString("mimeType")
+                        )
+                    }
+                    pageToken = json.optString("nextPageToken").takeIf { it.isNotBlank() }
+                } while (pageToken != null)
+
+                runOnUiThread {
+                    if (serial == requestSerial && !isFinishing) {
+                        driveItems.clear()
+                        driveItems.addAll(found)
+                        loading = false
+                        status = "${found.size} results across Google Drive"
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    if (serial == requestSerial && !isFinishing) {
+                        loading = false
+                        status = error.message ?: "Could not search Google Drive."
+                        if (error is SecurityException) {
+                            connected = false
+                            accessToken = null
+                            try { DriveTokenVault.clear(applicationContext) } catch (_: Exception) { }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun openFolder(item: DriveItem) {
         if (loading || item.mimeType != FOLDER_MIME) return
+        driveSearchActive = false
 
         folderStack.add(
             FolderLocation(folderId, folderName)
@@ -1154,6 +1262,7 @@ private fun MedVaultRoot(
     onHome: () -> Unit,
     onFolderBack: () -> Unit,
     onRefresh: () -> Unit,
+    onGlobalSearch: (String) -> Unit,
     onFolder: (DriveItem) -> Unit,
     onFile: (DriveItem) -> Unit,
     onDownload: (DriveItem) -> Unit,
@@ -1223,6 +1332,7 @@ private fun MedVaultRoot(
                     status = status,
                     onBack = onFolderBack,
                     onRefresh = onRefresh,
+                    onGlobalSearch = onGlobalSearch,
                     onFolder = onFolder,
                     onFile = onFile,
                     onDownload = onDownload,
