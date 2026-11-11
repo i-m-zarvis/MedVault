@@ -523,6 +523,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (email.isBlank()) throw IllegalStateException("Google did not return an account email.")
 
+                val isFirstSavedAccount = DriveTokenVault.accounts(applicationContext).isEmpty()
                 DriveTokenVault.save(applicationContext, email, token)
                 DriveTokenVault.saveAccount(applicationContext, DriveAccount(email, email, displayName))
                 DriveTokenVault.setActiveAccountId(applicationContext, email)
@@ -533,7 +534,7 @@ class MainActivity : ComponentActivity() {
                     accessToken = token
                     connected = true
                     status = "Connected: $email"
-                    historySync = WatchHistorySync(this@MainActivity, email)
+                    historySync = WatchHistorySync(this@MainActivity, email, migrateLegacy = isFirstSavedAccount)
                     io.execute {
                         val savedHistory = try { historySync.loadLocal() } catch (_: Exception) { mutableMapOf() }
                         runOnUiThread {
@@ -681,6 +682,9 @@ class MainActivity : ComponentActivity() {
         )
 
         if (DriveTokenVault.get(this, accountId).isNullOrBlank()) {
+            activeAccountId = accountId
+            activeAccountEmail = DriveTokenVault.accounts(this).firstOrNull { it.id == accountId }?.email ?: accountId
+            DriveTokenVault.setActiveAccountId(this, accountId)
             Toast.makeText(
                 this,
                 "Reconnect the Google account that owns this download.",
