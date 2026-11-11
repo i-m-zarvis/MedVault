@@ -1805,11 +1805,7 @@ private fun DriveBrowser(
     onDownload: (DriveItem) -> Unit,
     onHome: () -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    val filteredItems = remember(items, searchQuery) {
-        if (searchQuery.isBlank()) items
-        else items.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
-    }
+    var searchQuery by remember(folderName) { mutableStateOf("") }
 
     Column(
         Modifier
@@ -1883,14 +1879,25 @@ private fun DriveBrowser(
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("Search this Drive folder…") },
+            placeholder = { Text("Search all Google Drive…") },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = null, tint = AppMuted)
             },
             trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                Row {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = {
+                            searchQuery = ""
+                            onRefresh()
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
+                    }
+                    IconButton(
+                        onClick = { onGlobalSearch(searchQuery) },
+                        enabled = searchQuery.isNotBlank() && !loading
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = "Search all Google Drive")
                     }
                 }
             },
@@ -1898,8 +1905,8 @@ private fun DriveBrowser(
         )
 
         Text(
-            if (searchQuery.isBlank()) "${items.size} items in this folder"
-            else "${filteredItems.size} of ${items.size} items",
+            if (folderName == "Drive search") "${items.size} results across Drive"
+            else "${items.size} items in this folder",
             color = AppMuted,
             fontSize = 11.sp,
             modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 4.dp)
@@ -1909,7 +1916,7 @@ private fun DriveBrowser(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(
-                filteredItems,
+                items,
                 key = { it.id }
             ) { item ->
 
@@ -2002,10 +2009,10 @@ private fun DriveBrowser(
                 }
             }
 
-            if (!loading && filteredItems.isEmpty()) {
+            if (!loading && items.isEmpty()) {
                 item {
                     Text(
-                        if (searchQuery.isBlank()) "No items found. $status" else "No matching files in this folder.",
+                        if (folderName == "Drive search") "No matching files found across Google Drive." else "No items found. $status",
                         color = AppMuted,
                         modifier = Modifier.padding(16.dp)
                     )
