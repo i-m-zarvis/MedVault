@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import android.widget.Toast
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -137,6 +138,16 @@ class MainActivity : ComponentActivity() {
 
     private fun applyImmersiveMode() {
         if (isInPictureInPictureMode) return
+
+        // Keep immersive content below the camera punch-hole/notch.
+        // System bars remain hidden; only the display cutout is respected.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
+            }
+        }
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
