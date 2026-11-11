@@ -2064,6 +2064,10 @@ private fun VideoScreen(
         mutableLongStateOf(0L)
     }
 
+    var isSeeking by remember {
+        mutableStateOf(false)
+    }
+
     var speed by remember {
         mutableFloatStateOf(1f)
     }
@@ -2096,12 +2100,15 @@ private fun VideoScreen(
         var lastSaved = 0L
 
         while (true) {
-            position = player.currentPosition.coerceAtLeast(0L)
+            if (!isSeeking) {
+                position = player.currentPosition.coerceAtLeast(0L)
+            }
 
             duration =
                 player.duration.takeIf { it > 0 } ?: 0L
 
             if (
+                !isSeeking &&
                 duration > 0L &&
                 position > 0L &&
                 System.currentTimeMillis() - lastSaved >= 5000L
@@ -2232,10 +2239,12 @@ private fun VideoScreen(
                                     0f
                                 },
                                 onValueChange = {
+                                    isSeeking = true
                                     position = it.toLong()
                                 },
                                 onValueChangeFinished = {
                                     player.seekTo(position)
+                                    isSeeking = false
                                 },
                                 valueRange = 0f..duration
                                     .coerceAtLeast(1L)
@@ -2302,8 +2311,10 @@ private fun VideoScreen(
 
                             IconButton(
                                 onClick = {
+                                    val target = player.currentPosition + 10000L
+                                    val total = player.duration
                                     player.seekTo(
-                                        player.currentPosition + 10000L
+                                        if (total > 0L) target.coerceAtMost(total) else target
                                     )
                                 }
                             ) {
