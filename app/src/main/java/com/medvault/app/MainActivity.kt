@@ -473,7 +473,7 @@ class MainActivity : ComponentActivity() {
         folderName = "My Drive"
 
         leavePlayer()
-        screen = "home"
+        screen = "videos"
 
         status =
             "Google Drive disconnected. Local downloads and watch history are retained."
