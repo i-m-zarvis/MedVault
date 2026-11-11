@@ -71,6 +71,14 @@ fun DownloadManagerScreen(
     val storageTotal = storageUsed + storageFree
     val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
     var libraryQuery by remember { mutableStateOf("") }
+    fun isPaused(work: WorkInfo): Boolean {
+        val fileId = work.tags.firstOrNull { it.startsWith("medvault_download_") }
+            ?.removePrefix("medvault_download_") ?: return false
+        val accountKey = work.tags.firstOrNull { it.startsWith("medvault_account_") }
+            ?.removePrefix("medvault_account_") ?: DownloadRepository.accountKey("default")
+        return "$accountKey:$fileId" in pausedIds
+    }
+
     val filteredLectures = downloadedLectures
         .filter { it.name.contains(libraryQuery.trim(), ignoreCase = true) }
         .sortedByDescending { it.downloadedAt }
@@ -177,8 +185,7 @@ fun DownloadManagerScreen(
                         onResume = { onResume(work) },
                         onCancel = { onCancel(work) },
                         onRetry = { onRetry(work) },
-                        isPaused = work.tags.firstOrNull { it.startsWith("medvault_download_") }
-                            ?.removePrefix("medvault_download_") in pausedIds
+                        isPaused = isPaused(work)
                     )
                 }
             }
@@ -220,7 +227,7 @@ fun DownloadManagerScreen(
             ) {
                 items(
                     filteredLectures,
-                    key = { it.fileId }
+                    key = { it.accountId + ":" + it.fileId }
                 ) { lecture ->
                     OfflineLectureCard(
                         lecture = lecture,
