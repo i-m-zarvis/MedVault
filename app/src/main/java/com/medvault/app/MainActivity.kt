@@ -218,19 +218,22 @@ class MainActivity : ComponentActivity() {
                 downloadedLectures =
                     DownloadStore.getAll(this@MainActivity)
 
-                val authExpired = downloadWorkItems.any { work ->
+                val expiredDownload = downloadWorkItems.firstOrNull { work ->
                     work.state == WorkInfo.State.FAILED &&
                         work.outputData.getString("error")
                             ?.contains("Google access expired", ignoreCase = true) == true
                 }
 
-                if (authExpired) {
-                    accessToken = null
-                    connected = false
-                    status = "Google access expired. Reconnect Google Drive before retrying downloads."
+                if (expiredDownload != null) {
+                    val expiredAccountId = accountIdForWork(expiredDownload)
                     try {
-                        DriveTokenVault.clear(applicationContext)
+                        DriveTokenVault.clear(applicationContext, expiredAccountId)
                     } catch (_: Exception) {
+                    }
+                    if (expiredAccountId == activeAccountId) {
+                        accessToken = null
+                        connected = false
+                        status = "Google access expired. Reconnect this Google account before retrying downloads."
                     }
                 }
             }
