@@ -151,8 +151,10 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
+            // Do not reveal system bars from ordinary side/back-edge swipes.
+            // Android's notification shade remains available from the top edge.
             systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
     }
 
@@ -236,7 +238,11 @@ class MainActivity : ComponentActivity() {
                     onSurface = Color.White
                 )
             ) {
-                Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = if (screen == "player" || fullscreen) 0.dp else 48.dp)
+                ) {
                 MedVaultRoot(
                     connected = connected,
                     authBusy = authBusy,
@@ -1553,7 +1559,7 @@ private fun VideosDashboard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(cyan)
-                .padding(start = 16.dp, end = 16.dp, top = 42.dp, bottom = 13.dp),
+                .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { onMenu(true) }) {
