@@ -23,14 +23,11 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -111,7 +108,7 @@ fun DownloadManagerScreen(
             )
         }
 
-        Spacer(Modifier.padding(top = 10.dp))
+        Spacer(Modifier.size(18.dp))
 
         Text(
             "ACTIVE DOWNLOADS (${activeItems.size})",
@@ -120,7 +117,7 @@ fun DownloadManagerScreen(
             fontWeight = FontWeight.Bold
         )
 
-        Spacer(Modifier.padding(top = 8.dp))
+        Spacer(Modifier.size(8.dp))
 
         if (activeItems.isEmpty()) {
             EmptyDownloadMessage("No active downloads.")
@@ -144,7 +141,7 @@ fun DownloadManagerScreen(
             }
         }
 
-        Spacer(Modifier.padding(top = 18.dp))
+        Spacer(Modifier.size(18.dp))
 
         Text(
             "OFFLINE LIBRARY (${downloadedLectures.size})",
@@ -153,7 +150,7 @@ fun DownloadManagerScreen(
             fontWeight = FontWeight.Bold
         )
 
-        Spacer(Modifier.padding(top = 8.dp))
+        Spacer(Modifier.size(8.dp))
 
         if (downloadedLectures.isEmpty()) {
             EmptyDownloadMessage(
@@ -178,7 +175,7 @@ fun DownloadManagerScreen(
         }
 
         if (finishedItems.isNotEmpty()) {
-            Spacer(Modifier.padding(top = 18.dp))
+            Spacer(Modifier.size(18.dp))
 
             Text(
                 "RECENT DOWNLOAD TASKS",
@@ -187,7 +184,7 @@ fun DownloadManagerScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(Modifier.padding(top = 8.dp))
+            Spacer(Modifier.size(8.dp))
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -218,9 +215,10 @@ private fun DownloadWorkCard(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val name = work.inputData.getString(
-        DriveDownloadWorker.KEY_FILE_NAME
-    ) ?: "Lecture download"
+    val name =
+        work.progress.getString(DriveDownloadWorker.KEY_FILE_NAME)
+            ?: work.outputData.getString(DriveDownloadWorker.KEY_FILE_NAME)
+            ?: "Lecture download"
 
     val progress = work.progress.getInt(
         "progress",
@@ -253,10 +251,13 @@ private fun DownloadWorkCard(
                     when (work.state) {
                         WorkInfo.State.SUCCEEDED ->
                             Icons.Default.CheckCircle
+
                         WorkInfo.State.FAILED ->
                             Icons.Default.Error
+
                         WorkInfo.State.CANCELLED ->
                             Icons.Default.Cancel
+
                         else ->
                             Icons.Default.Download
                     },
@@ -275,7 +276,7 @@ private fun DownloadWorkCard(
                 )
             }
 
-            Spacer(Modifier.padding(top = 9.dp))
+            Spacer(Modifier.size(9.dp))
 
             Text(
                 stateText,
@@ -287,7 +288,7 @@ private fun DownloadWorkCard(
                 work.state == WorkInfo.State.RUNNING ||
                 work.state == WorkInfo.State.ENQUEUED
             ) {
-                Spacer(Modifier.padding(top = 8.dp))
+                Spacer(Modifier.size(8.dp))
 
                 LinearProgressIndicator(
                     progress = { progress / 100f },
@@ -296,7 +297,11 @@ private fun DownloadWorkCard(
                 )
 
                 Text(
-                    if (progress > 0) "$progress%" else "Preparing download…",
+                    if (progress > 0) {
+                        "$progress%"
+                    } else {
+                        "Preparing download…"
+                    },
                     color = DownloadMuted,
                     fontSize = 11.sp
                 )
@@ -451,10 +456,14 @@ private fun formatDownloadSize(bytes: Long): String {
     if (bytes < 1024L) return "$bytes B"
 
     val kb = bytes / 1024.0
-    if (kb < 1024.0) return "%.1f KB".format(kb)
+    if (kb < 1024.0) {
+        return "%.1f KB".format(kb)
+    }
 
     val mb = kb / 1024.0
-    if (mb < 1024.0) return "%.1f MB".format(mb)
+    if (mb < 1024.0) {
+        return "%.1f MB".format(mb)
+    }
 
     val gb = mb / 1024.0
     return "%.2f GB".format(gb)
