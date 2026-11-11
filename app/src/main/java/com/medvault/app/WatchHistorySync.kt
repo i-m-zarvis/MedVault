@@ -42,12 +42,19 @@ class WatchHistorySync(context: Context) {
         val temporaryFile = File(historyFile.parentFile, "${historyFile.name}.tmp")
         temporaryFile.writeText(root.toString())
 
-        if (historyFile.exists() && !historyFile.delete()) {
-            throw IllegalStateException("Could not replace local watch history.")
-        }
-        if (!temporaryFile.renameTo(historyFile)) {
-            temporaryFile.delete()
-            throw IllegalStateException("Could not save local watch history.")
+        try {
+            java.nio.file.Files.move(
+                temporaryFile.toPath(),
+                historyFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            java.nio.file.Files.move(
+                temporaryFile.toPath(),
+                historyFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            )
         }
     }
 
