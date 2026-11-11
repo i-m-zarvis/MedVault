@@ -859,13 +859,10 @@ class MainActivity : ComponentActivity() {
                         .appendQueryParameter("q", query)
                         .appendQueryParameter(
                             "fields",
-                            "nextPageToken,files(id,name,mimeType)"
+                            "nextPageToken,files(id,name,mimeType,driveId,size)"
                         )
                         .appendQueryParameter("pageSize", "100")
                         .appendQueryParameter("orderBy", "folder,name")
-                        .appendQueryParameter("supportsAllDrives", "true")
-                        .appendQueryParameter("includeItemsFromAllDrives", "true")
-                        .appendQueryParameter("corpora", "user")
                         .appendQueryParameter("supportsAllDrives", "true")
                         .appendQueryParameter("includeItemsFromAllDrives", "true")
                         .appendQueryParameter("corpora", if (targetSharedDriveId != null) "drive" else "user")
