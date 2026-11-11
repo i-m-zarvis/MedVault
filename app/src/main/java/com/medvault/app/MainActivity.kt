@@ -234,6 +234,7 @@ class MainActivity : ComponentActivity() {
                         screen = "videos"
                         browseDrive()
                     },
+                    onRawDrive = { screen = "drive" },
 
                     onHome = {
                         saveCurrentProgress()
@@ -1286,6 +1287,7 @@ private fun MedVaultRoot(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onBrowse: () -> Unit,
+    onRawDrive: () -> Unit,
     onHome: () -> Unit,
     onFolderBack: () -> Unit,
     onRefresh: () -> Unit,
@@ -1359,9 +1361,7 @@ private fun MedVaultRoot(
                     downloadedCount = downloadedLectures.size,
                     onSearch = onGlobalSearch,
                     onOpenSubject = onFolder,
-                    onRawDrive = {
-                        screen = "drive"
-                    },
+                    onRawDrive = onRawDrive,
                     onDownloads = onDownloads,
                     onContinue = onContinue,
                     onHistory = onHistory
