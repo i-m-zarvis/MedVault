@@ -31,6 +31,7 @@ class DriveDownloadWorker(
     companion object {
         const val KEY_FILE_ID = "file_id"
         const val KEY_FILE_NAME = "file_name"
+        const val KEY_ACCOUNT_ID = "account_id"
 
         const val KEY_PROGRESS = "progress"
         const val KEY_DOWNLOADED = "downloaded"
@@ -50,6 +51,8 @@ class DriveDownloadWorker(
         val fileId = inputData.getString(KEY_FILE_ID)
             ?: return@withContext Result.failure()
 
+        val accountId = inputData.getString(KEY_ACCOUNT_ID) ?: "default"
+
         val fileName = inputData.getString(KEY_FILE_NAME)
             ?: "lecture_$fileId.mp4"
 
@@ -58,7 +61,7 @@ class DriveDownloadWorker(
             .trim()
             .ifBlank { "lecture_$fileId.mp4" }
 
-        val token = DriveTokenVault.get(applicationContext)
+        val token = DriveTokenVault.get(applicationContext, accountId)
             ?: return@withContext Result.failure(
                 Data.Builder()
                     .putString(
@@ -83,7 +86,7 @@ class DriveDownloadWorker(
 
         val finalFile = File(
             downloadDirectory,
-            "${fileId}_$safeName"
+            "${DownloadRepository.accountKey(accountId)}_${fileId}_$safeName"
         )
 
         val partialFile = File(
@@ -111,7 +114,8 @@ class DriveDownloadWorker(
                     name = safeName,
                     localPath = file.absolutePath,
                     downloadId = 0L,
-                    downloadedAt = System.currentTimeMillis()
+                    downloadedAt = System.currentTimeMillis(),
+                    accountId = accountId
                 )
             )
         }
@@ -150,7 +154,7 @@ class DriveDownloadWorker(
 
             val url = URL(
                 "https://www.googleapis.com/drive/v3/files/" +
-                    "$encodedId?alt=media"
+                    "$encodedId?alt=media&supportsAllDrives=true"
             )
 
             connection = (url.openConnection() as HttpURLConnection).apply {
@@ -366,7 +370,7 @@ class DriveDownloadWorker(
 
         } catch (e: CancellationException) {
             // Pause keeps the partial file; explicit cancel removes it in the repository.
-            if (!DownloadRepository.isPaused(applicationContext, fileId)) {
+            if (!DownloadRepository.isPaused(applicationContext, fileId, accountId)) {
                 partialFile.delete()
             }
             throw e
