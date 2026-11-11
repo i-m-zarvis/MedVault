@@ -18,6 +18,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -1154,8 +1156,12 @@ private fun MedVaultRoot(
     AnimatedContent(
         targetState = screen,
         transitionSpec = {
-            (fadeIn() + slideInHorizontally { it / 14 }) togetherWith
-                (fadeOut() + slideOutHorizontally { -it / 14 })
+            if (initialState == "player" || targetState == "player") {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                (fadeIn() + slideInHorizontally { it / 14 }) togetherWith
+                    (fadeOut() + slideOutHorizontally { -it / 14 })
+            }
         },
         label = "medvault_navigation"
     ) { targetScreen ->
