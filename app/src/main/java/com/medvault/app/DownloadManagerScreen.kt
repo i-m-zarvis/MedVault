@@ -321,6 +321,11 @@ private fun DownloadWorkCard(
                 fontSize = 12.sp
             )
 
+            work.outputData.getString("error")?.takeIf { it.isNotBlank() }?.let { message ->
+                Spacer(Modifier.size(5.dp))
+                Text(message, color = Color(0xFFFF9B91), fontSize = 11.sp)
+            }
+
             if (
                 work.state == WorkInfo.State.RUNNING ||
                 work.state == WorkInfo.State.ENQUEUED
