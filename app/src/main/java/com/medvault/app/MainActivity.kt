@@ -102,6 +102,8 @@ class MainActivity : ComponentActivity() {
     private var folderId by mutableStateOf("root")
     private var folderName by mutableStateOf("My Drive")
     private var driveSearchActive by mutableStateOf(false)
+    private var folderIdBeforeSearch = "root"
+    private var folderNameBeforeSearch = "My Drive"
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
     private var screen by mutableStateOf("home")
     private var accountMenu by mutableStateOf(false)
@@ -234,11 +236,18 @@ class MainActivity : ComponentActivity() {
 
                     onFolderBack = {
                         if (driveSearchActive) {
+                            folderId = folderIdBeforeSearch
+                            folderName = folderNameBeforeSearch
                             driveSearchActive = false
                             loadFolder(folderId)
                         } else goBackFolder()
                     },
-                    onRefresh = { if (driveSearchActive) loadFolder(folderId) else loadFolder(folderId) },
+                    onRefresh = {
+                        if (driveSearchActive) {
+                            folderName = folderNameBeforeSearch
+                            loadFolder(folderIdBeforeSearch)
+                        } else loadFolder(folderId)
+                    },
                     onGlobalSearch = { searchDrive(it) },
                     onFolder = { openFolder(it) },
                     onFile = { openFile(it) },
@@ -858,6 +867,10 @@ class MainActivity : ComponentActivity() {
         }
 
         val serial = ++requestSerial
+        if (!driveSearchActive) {
+            folderIdBeforeSearch = folderId
+            folderNameBeforeSearch = folderName
+        }
         driveSearchActive = true
         loading = true
         folderName = "Drive search"
@@ -943,11 +956,12 @@ class MainActivity : ComponentActivity() {
 
     private fun openFolder(item: DriveItem) {
         if (loading || item.mimeType != FOLDER_MIME) return
-        driveSearchActive = false
-
-        folderStack.add(
-            FolderLocation(folderId, folderName)
-        )
+        if (driveSearchActive) {
+            folderStack.add(FolderLocation(folderIdBeforeSearch, folderNameBeforeSearch))
+            driveSearchActive = false
+        } else {
+            folderStack.add(FolderLocation(folderId, folderName))
+        }
 
         folderId = item.id
         folderName = item.name
@@ -1805,7 +1819,7 @@ private fun DriveBrowser(
     onDownload: (DriveItem) -> Unit,
     onHome: () -> Unit
 ) {
-    var searchQuery by remember(folderName) { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
 
     Column(
         Modifier
