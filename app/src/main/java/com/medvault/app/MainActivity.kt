@@ -1183,7 +1183,7 @@ class MainActivity : ComponentActivity() {
             currentSharedDriveId = item.sharedDriveId
             folderId = "root"
         } else {
-            if (item.sharedDriveId != null) currentSharedDriveId = item.sharedDriveId
+            currentSharedDriveId = item.sharedDriveId
             folderId = item.id
         }
         folderName = item.name
