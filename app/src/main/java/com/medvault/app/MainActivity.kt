@@ -277,6 +277,7 @@ class MainActivity : ComponentActivity() {
                     onBrowse = {
                         folderId = "root"
                         folderName = "My Drive"
+                        currentSharedDriveId = null
                         folderStack.clear()
                         driveSearchActive = false
                         screen = "videos"
@@ -286,6 +287,7 @@ class MainActivity : ComponentActivity() {
                         folderStack.clear()
                         folderId = "root"
                         folderName = "My Drive"
+                        currentSharedDriveId = null
                         driveSearchActive = false
                         screen = "drive"
                         loadFolder("root")
@@ -833,6 +835,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val serial = ++requestSerial
+        val accountId = activeAccountId
+        val targetSharedDriveId = currentSharedDriveId
 
         loading = true
         status = "Loading $folderName…"
@@ -844,8 +848,9 @@ class MainActivity : ComponentActivity() {
                 var pageToken: String? = null
 
                 do {
+                    val parentId = if (targetFolderId == "root" && targetSharedDriveId != null) targetSharedDriveId else targetFolderId
                     val query =
-                        "'${targetFolderId.replace("'", "\\'")}' in parents and trashed=false"
+                        "'${parentId.replace("'", "\\'")}' in parents and trashed=false"
 
                     val builder = Uri.parse(
                         "https://www.googleapis.com/drive/v3/files"
@@ -857,6 +862,13 @@ class MainActivity : ComponentActivity() {
                         )
                         .appendQueryParameter("pageSize", "100")
                         .appendQueryParameter("orderBy", "folder,name")
+                        .appendQueryParameter("supportsAllDrives", "true")
+                        .appendQueryParameter("includeItemsFromAllDrives", "true")
+                        .appendQueryParameter("corpora", "user")
+                        .appendQueryParameter("supportsAllDrives", "true")
+                        .appendQueryParameter("includeItemsFromAllDrives", "true")
+                        .appendQueryParameter("corpora", if (targetSharedDriveId != null) "drive" else "user")
+                        .also { if (targetSharedDriveId != null) it.appendQueryParameter("driveId", targetSharedDriveId) }
 
                     pageToken?.let {
                         builder.appendQueryParameter("pageToken", it)
@@ -913,7 +925,9 @@ class MainActivity : ComponentActivity() {
                             found += DriveItem(
                                 file.getString("id"),
                                 file.getString("name"),
-                                file.getString("mimeType")
+                                file.getString("mimeType"),
+                                accountId = accountId,
+                                sharedDriveId = file.optString("driveId").takeIf { it.isNotBlank() }
                             )
                         }
                     }
@@ -923,29 +937,15 @@ class MainActivity : ComponentActivity() {
 
                 } while (pageToken != null)
 
+                if (targetFolderId == "root" && targetSharedDriveId == null) {
+                    found.addAll(listSharedDrives(token, accountId))
+                }
+
                 runOnUiThread {
                     if (
                         serial == requestSerial &&
                         !isFinishing
                     ) {
-                        val onlyFolder = found
-                            .filter { it.mimeType == FOLDER_MIME }
-                            .singleOrNull()
-
-                        if (
-                            screen == "videos" &&
-                            targetFolderId == "root" &&
-                            found.size == 1 &&
-                            onlyFolder?.name?.equals("NEET PG", ignoreCase = true) == true
-                        ) {
-                            folderStack.clear()
-                            folderStack.add(FolderLocation("root", "My Drive"))
-                            folderId = onlyFolder.id
-                            folderName = onlyFolder.name
-                            loadFolder(onlyFolder.id)
-                            return@runOnUiThread
-                        }
-
                         driveItems.clear()
                         driveItems.addAll(found)
                         loading = false
@@ -975,6 +975,51 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun listSharedDrives(token: String, accountId: String): List<DriveItem> {
+        val result = mutableListOf<DriveItem>()
+        var pageToken: String? = null
+        do {
+            val builder = Uri.parse("https://www.googleapis.com/drive/v3/drives")
+                .buildUpon()
+                .appendQueryParameter("pageSize", "100")
+                .appendQueryParameter("fields", "nextPageToken,drives(id,name)")
+                .appendQueryParameter("useDomainAdminAccess", "false")
+            pageToken?.let { builder.appendQueryParameter("pageToken", it) }
+            val connection = URL(builder.build().toString()).openConnection() as HttpURLConnection
+            val response: String
+            try {
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("Authorization", "Bearer $token")
+                connection.connectTimeout = 15000
+                connection.readTimeout = 20000
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+                    throw IllegalStateException("Shared Drive list failed ($code): $detail")
+                }
+                response = connection.inputStream.bufferedReader().use { it.readText() }
+            } finally {
+                connection.disconnect()
+            }
+            val json = JSONObject(response)
+            val drives = json.optJSONArray("drives") ?: org.json.JSONArray()
+            for (i in 0 until drives.length()) {
+                val drive = drives.getJSONObject(i)
+                val id = drive.getString("id")
+                result += DriveItem(
+                    id = id,
+                    name = drive.getString("name"),
+                    mimeType = FOLDER_MIME,
+                    accountId = accountId,
+                    sharedDriveId = id,
+                    isSharedDriveRoot = true
+                )
+            }
+            pageToken = json.optString("nextPageToken").takeIf { it.isNotBlank() }
+        } while (pageToken != null)
+        return result
     }
 
     private fun searchDrive(rawQuery: String) {
@@ -1050,7 +1095,9 @@ class MainActivity : ComponentActivity() {
                         found += DriveItem(
                             file.getString("id"),
                             file.getString("name"),
-                            file.getString("mimeType")
+                            file.getString("mimeType"),
+                            accountId = activeAccountId,
+                            sharedDriveId = file.optString("driveId").takeIf { it.isNotBlank() }
                         )
                     }
                     pageToken = json.optString("nextPageToken").takeIf { it.isNotBlank() }
@@ -1083,16 +1130,21 @@ class MainActivity : ComponentActivity() {
     private fun openFolder(item: DriveItem) {
         if (loading || item.mimeType != FOLDER_MIME) return
         if (driveSearchActive) {
-            folderStack.add(FolderLocation(folderIdBeforeSearch, folderNameBeforeSearch))
+            folderStack.add(FolderLocation(folderIdBeforeSearch, folderNameBeforeSearch, currentSharedDriveId))
             driveSearchActive = false
         } else {
-            folderStack.add(FolderLocation(folderId, folderName))
+            folderStack.add(FolderLocation(folderId, folderName, currentSharedDriveId))
         }
 
-        folderId = item.id
+        if (item.isSharedDriveRoot) {
+            currentSharedDriveId = item.sharedDriveId
+            folderId = "root"
+        } else {
+            if (item.sharedDriveId != null) currentSharedDriveId = item.sharedDriveId
+            folderId = item.id
+        }
         folderName = item.name
-
-        loadFolder(item.id)
+        loadFolder(folderId)
     }
 
     private fun goBackFolder() {
@@ -1106,6 +1158,7 @@ class MainActivity : ComponentActivity() {
 
         folderId = previous.id
         folderName = previous.name
+        currentSharedDriveId = previous.sharedDriveId
 
         loadFolder(previous.id)
     }
