@@ -2056,6 +2056,10 @@ private fun VideoScreen(
         mutableStateOf(player.isPlaying)
     }
 
+    var playbackError by remember {
+        mutableStateOf<androidx.media3.common.PlaybackException?>(null)
+    }
+
     var position by remember {
         mutableLongStateOf(0L)
     }
@@ -2086,6 +2090,11 @@ private fun VideoScreen(
             override fun onPlaybackStateChanged(state: Int) {
                 duration =
                     player.duration.takeIf { it > 0 } ?: 0L
+                if (state == Player.STATE_READY) playbackError = null
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playbackError = error
             }
         }
 
@@ -2210,6 +2219,47 @@ private fun VideoScreen(
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+
+                if (playbackError != null) {
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xEE151E30)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Playback interrupted",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Check your connection, then retry from the saved position.",
+                                color = AppMuted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    player.seekTo(position.coerceAtLeast(0L))
+                                    player.prepare()
+                                    player.playWhenReady = true
+                                    playbackError = null
+                                }
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Retry playback")
+                            }
+                        }
+                    }
+                }
 
                 if (controlsVisible) {
                     Column(
