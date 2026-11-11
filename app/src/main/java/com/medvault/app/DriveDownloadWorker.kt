@@ -91,7 +91,7 @@ class DriveDownloadWorker(
 
         val partialFile = File(
             downloadDirectory,
-            "${fileId}_$safeName.part"
+            "${DownloadRepository.accountKey(accountId)}_${fileId}_$safeName.part"
         )
 
         fun resultData(file: File): Data {
