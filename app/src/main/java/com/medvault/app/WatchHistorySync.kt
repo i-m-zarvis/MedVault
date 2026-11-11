@@ -17,7 +17,7 @@ class WatchHistorySync(context: Context, private val accountId: String = "defaul
     private val historyFile = File(context.filesDir, fileName)
 
     companion object {
-        private const val LEGACY_FILE_NAME = "medvault_watch_history.json"
+        private const val LEGACY_fileName = "medvault_watch_history.json"
         private const val APPDATA_URL =
             "https://www.googleapis.com/drive/v3/files"
         private const val UPLOAD_URL =
@@ -164,7 +164,7 @@ class WatchHistorySync(context: Context, private val accountId: String = "defaul
             fileId = files.getJSONObject(0).getString("id")
         } else {
             val metadata = JSONObject()
-                .put("name", FILE_NAME)
+                .put("name", fileName)
                 .put("mimeType", "application/json")
                 .put("parents", JSONArray().put("appDataFolder"))
 
