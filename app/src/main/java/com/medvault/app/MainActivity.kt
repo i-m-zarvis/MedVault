@@ -52,16 +52,19 @@ private val AppMuted = Color(0xFF9EABC0)
 
 private const val DRIVE_SCOPE =
     "https://www.googleapis.com/auth/drive.readonly"
+
 private const val DRIVE_APPDATA_SCOPE =
     "https://www.googleapis.com/auth/drive.appdata"
 
 private const val AUTH_REQUEST_CODE = 7001
+
 private const val FOLDER_MIME =
     "application/vnd.google-apps.folder"
 
 class MainActivity : ComponentActivity() {
 
     private val io = Executors.newSingleThreadExecutor()
+
     private lateinit var historySync: WatchHistorySync
 
     private var accessToken by mutableStateOf<String?>(null)
@@ -93,6 +96,7 @@ class MainActivity : ComponentActivity() {
         io.execute {
             try {
                 val saved = historySync.loadLocal()
+
                 runOnUiThread {
                     watchRecords.clear()
                     watchRecords.putAll(saved)
@@ -128,7 +132,9 @@ class MainActivity : ComponentActivity() {
                     pipMode = pipMode,
                     fullscreen = fullscreen,
                     player = player,
-                    history = watchRecords.values.sortedByDescending { it.updatedAt },
+                    history = watchRecords.values.sortedByDescending {
+                        it.updatedAt
+                    },
                     onAccountMenu = { accountMenu = it },
                     onConnect = { authorizeDrive() },
                     onDisconnect = { disconnectDrive() },
@@ -199,7 +205,10 @@ class MainActivity : ComponentActivity() {
                         startIntentSenderForResult(
                             pending.intentSender,
                             AUTH_REQUEST_CODE,
-                            null, 0, 0, 0
+                            null,
+                            0,
+                            0,
+                            0
                         )
                     } catch (e: Exception) {
                         connected = false
@@ -212,7 +221,8 @@ class MainActivity : ComponentActivity() {
             .addOnFailureListener {
                 authBusy = false
                 connected = false
-                status = "Google Drive authorization failed. Reconnect from account settings."
+                status =
+                    "Google Drive authorization failed. Reconnect from account settings."
             }
     }
 
@@ -252,11 +262,21 @@ class MainActivity : ComponentActivity() {
 
         accessToken = token
         connected = true
-        status = "Google Drive connected."
+
+        // Save the access token securely for background downloads.
+        try {
+            DriveTokenVault.save(applicationContext, token)
+            status = "Google Drive connected."
+        } catch (e: Exception) {
+            status =
+                "Google Drive connected, but secure token storage failed: ${e.message}"
+        }
 
         syncHistory(token)
 
-        if (screen == "drive") loadFolder(folderId)
+        if (screen == "drive") {
+            loadFolder(folderId)
+        }
     }
 
     private fun syncHistory(token: String) {
@@ -279,16 +299,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun saveProgress(position: Long, duration: Long) {
+    private fun saveProgress(
+        position: Long,
+        duration: Long
+    ) {
         val file = selectedVideo ?: return
         if (duration <= 0L) return
 
-        val completed = position >= (duration * 0.95f).toLong()
+        val completed =
+            position >= (duration * 0.95f).toLong()
 
         val record = WatchRecord(
             fileId = file.id,
             name = file.name,
-            positionMs = if (completed) duration else position.coerceAtLeast(0L),
+            positionMs = if (completed) {
+                duration
+            } else {
+                position.coerceAtLeast(0L)
+            },
             durationMs = duration,
             updatedAt = System.currentTimeMillis(),
             completed = completed
@@ -297,6 +325,7 @@ class MainActivity : ComponentActivity() {
         watchRecords[file.id] = record
 
         val snapshot = watchRecords.toMap()
+
         io.execute {
             try {
                 historySync.saveLocal(snapshot)
@@ -308,8 +337,12 @@ class MainActivity : ComponentActivity() {
     private fun saveCurrentProgress() {
         val currentPlayer = player ?: return
         val duration = currentPlayer.duration
+
         if (duration > 0L) {
-            saveProgress(currentPlayer.currentPosition, duration)
+            saveProgress(
+                currentPlayer.currentPosition,
+                duration
+            )
         }
     }
 
@@ -317,6 +350,14 @@ class MainActivity : ComponentActivity() {
         saveCurrentProgress()
 
         accessToken = null
+
+        // Remove the encrypted token when the user disconnects.
+        try {
+            DriveTokenVault.clear(applicationContext)
+        } catch (e: Exception) {
+            status = "Could not clear saved Google token: ${e.message}"
+        }
+
         connected = false
         driveItems.clear()
         folderStack.clear()
@@ -325,7 +366,9 @@ class MainActivity : ComponentActivity() {
 
         leavePlayer()
         screen = "home"
-        status = "Google Drive disconnected. Local watch history is retained."
+
+        status =
+            "Google Drive disconnected. Local watch history is retained."
     }
 
     private fun browseDrive() {
@@ -346,6 +389,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val serial = ++requestSerial
+
         loading = true
         status = "Loading $folderName…"
         driveItems.clear()
@@ -382,10 +426,12 @@ class MainActivity : ComponentActivity() {
 
                     try {
                         connection.requestMethod = "GET"
+
                         connection.setRequestProperty(
                             "Authorization",
                             "Bearer $token"
                         )
+
                         connection.connectTimeout = 15000
                         connection.readTimeout = 20000
 
@@ -421,6 +467,7 @@ class MainActivity : ComponentActivity() {
                     if (files != null) {
                         for (index in 0 until files.length()) {
                             val file = files.getJSONObject(index)
+
                             found += DriveItem(
                                 file.getString("id"),
                                 file.getString("name"),
@@ -435,7 +482,10 @@ class MainActivity : ComponentActivity() {
                 } while (pageToken != null)
 
                 runOnUiThread {
-                    if (serial == requestSerial && !isFinishing) {
+                    if (
+                        serial == requestSerial &&
+                        !isFinishing
+                    ) {
                         driveItems.clear()
                         driveItems.addAll(found)
                         loading = false
@@ -444,9 +494,13 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (error: Exception) {
                 runOnUiThread {
-                    if (serial == requestSerial && !isFinishing) {
+                    if (
+                        serial == requestSerial &&
+                        !isFinishing
+                    ) {
                         loading = false
-                        status = error.message ?: "Could not load Drive."
+                        status =
+                            error.message ?: "Could not load Drive."
 
                         if (error is SecurityException) {
                             connected = false
@@ -461,9 +515,13 @@ class MainActivity : ComponentActivity() {
     private fun openFolder(item: DriveItem) {
         if (loading || item.mimeType != FOLDER_MIME) return
 
-        folderStack.add(FolderLocation(folderId, folderName))
+        folderStack.add(
+            FolderLocation(folderId, folderName)
+        )
+
         folderId = item.id
         folderName = item.name
+
         loadFolder(item.id)
     }
 
@@ -473,17 +531,20 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val previous = folderStack.removeAt(folderStack.lastIndex)
+        val previous =
+            folderStack.removeAt(folderStack.lastIndex)
+
         folderId = previous.id
         folderName = previous.name
+
         loadFolder(previous.id)
     }
 
     private fun openFile(item: DriveItem) {
         val supported =
             item.mimeType.startsWith("video/") ||
-            listOf(".mp4", ".mkv", ".webm", ".mov")
-                .any { item.name.endsWith(it, true) }
+                listOf(".mp4", ".mkv", ".webm", ".mov")
+                    .any { item.name.endsWith(it, true) }
 
         if (!supported) {
             Toast.makeText(
@@ -495,36 +556,47 @@ class MainActivity : ComponentActivity() {
         }
 
         val token = accessToken
+
         if (token.isNullOrBlank()) {
             authorizeDrive()
+
             Toast.makeText(
                 this,
                 "Reconnect Google Drive, then try again.",
                 Toast.LENGTH_LONG
             ).show()
+
             return
         }
 
         startVideo(item, token)
     }
 
-    private fun startVideo(item: DriveItem, token: String) {
+    private fun startVideo(
+        item: DriveItem,
+        token: String
+    ) {
         saveCurrentProgress()
         player?.release()
 
         val resumePosition =
-            watchRecords[item.id]?.takeIf { !it.completed }?.positionMs ?: 0L
+            watchRecords[item.id]
+                ?.takeIf { !it.completed }
+                ?.positionMs ?: 0L
 
-        val httpFactory = DefaultHttpDataSource.Factory()
-            .setDefaultRequestProperties(
-                mapOf("Authorization" to "Bearer $token")
-            )
-            .setConnectTimeoutMs(20000)
-            .setReadTimeoutMs(30000)
-            .setAllowCrossProtocolRedirects(false)
+        val httpFactory =
+            DefaultHttpDataSource.Factory()
+                .setDefaultRequestProperties(
+                    mapOf("Authorization" to "Bearer $token")
+                )
+                .setConnectTimeoutMs(20000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(false)
 
         val newPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(httpFactory)
+            )
             .build()
 
         player = newPlayer
@@ -533,29 +605,35 @@ class MainActivity : ComponentActivity() {
 
         var resumeApplied = false
 
-        newPlayer.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                if (
-                    state == Player.STATE_READY &&
-                    !resumeApplied &&
-                    resumePosition > 0L
-                ) {
-                    newPlayer.seekTo(resumePosition)
-                    resumeApplied = true
-                }
-            }
+        newPlayer.addListener(
+            object : Player.Listener {
 
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                runOnUiThread {
-                    status = "Playback error: ${error.message}"
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Playback failed: ${error.errorCodeName}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (
+                        state == Player.STATE_READY &&
+                        !resumeApplied &&
+                        resumePosition > 0L
+                    ) {
+                        newPlayer.seekTo(resumePosition)
+                        resumeApplied = true
+                    }
+                }
+
+                override fun onPlayerError(
+                    error: androidx.media3.common.PlaybackException
+                ) {
+                    runOnUiThread {
+                        status = "Playback error: ${error.message}"
+
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Playback failed: ${error.errorCodeName}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
-        })
+        )
 
         val url =
             "https://www.googleapis.com/drive/v3/files/${Uri.encode(item.id)}?alt=media"
@@ -569,6 +647,7 @@ class MainActivity : ComponentActivity() {
         saveCurrentProgress()
 
         selectedVideo = null
+
         player?.release()
         player = null
 
@@ -578,11 +657,14 @@ class MainActivity : ComponentActivity() {
                 ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
 
-        accessToken?.let { syncHistory(it) }
+        accessToken?.let {
+            syncHistory(it)
+        }
     }
 
     private fun toggleFullscreen() {
         fullscreen = !fullscreen
+
         requestedOrientation =
             if (fullscreen) {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -598,9 +680,11 @@ class MainActivity : ComponentActivity() {
         ) return
 
         try {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
+            val params =
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+
             enterPictureInPictureMode(params)
         } catch (_: Exception) {
             Toast.makeText(
@@ -613,7 +697,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (selectedVideo != null && player?.isPlaying == true) {
+
+        if (
+            selectedVideo != null &&
+            player?.isPlaying == true
+        ) {
             enterPip()
         }
     }
@@ -637,15 +725,20 @@ class MainActivity : ComponentActivity() {
             isInPictureInPictureMode,
             newConfig
         )
+
         pipMode = isInPictureInPictureMode
     }
 
     override fun onDestroy() {
         saveCurrentProgress()
+
         requestSerial++
+
         player?.release()
         player = null
+
         io.shutdown()
+
         super.onDestroy()
     }
 }
@@ -682,7 +775,9 @@ private fun MedVaultRoot(
     onPip: () -> Unit,
     onProgress: (Long, Long) -> Unit
 ) {
-    BackHandler(enabled = screen != "home" && !pipMode) {
+    BackHandler(
+        enabled = screen != "home" && !pipMode
+    ) {
         when (screen) {
             "player" -> onHome()
             "drive" -> onFolderBack()
@@ -690,11 +785,15 @@ private fun MedVaultRoot(
         }
     }
 
-    Surface(Modifier.fillMaxSize(), color = AppBg) {
+    Surface(
+        Modifier.fillMaxSize(),
+        color = AppBg
+    ) {
         when {
             screen == "player" &&
                 selectedVideo != null &&
                 player != null -> {
+
                 VideoScreen(
                     selectedVideo,
                     player,
@@ -724,10 +823,18 @@ private fun MedVaultRoot(
 
             screen == "history" || screen == "continue" -> {
                 HistoryScreen(
-                    title = if (screen == "history") "Watch history" else "Continue watching",
+                    title = if (screen == "history") {
+                        "Watch history"
+                    } else {
+                        "Continue watching"
+                    },
                     records = if (screen == "continue") {
-                        history.filter { !it.completed && it.positionMs > 0L }
-                    } else history,
+                        history.filter {
+                            !it.completed && it.positionMs > 0L
+                        }
+                    } else {
+                        history
+                    },
                     onBack = onHome,
                     onOpen = onHistoryFile
                 )
@@ -764,8 +871,14 @@ private fun Dashboard(
     onHistory: () -> Unit,
     onContinue: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(Modifier.weight(1f)) {
                 Text(
                     "MEDVAULT",
@@ -774,11 +887,13 @@ private fun Dashboard(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp
                 )
+
                 Text(
                     "Your study library",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold
                 )
+
                 Text(
                     "MedVault by Aftab",
                     color = AppMuted,
@@ -787,7 +902,9 @@ private fun Dashboard(
             }
 
             Box {
-                IconButton(onClick = { onMenu(true) }) {
+                IconButton(
+                    onClick = { onMenu(true) }
+                ) {
                     Icon(
                         Icons.Default.AccountCircle,
                         "Account settings",
@@ -803,36 +920,50 @@ private fun Dashboard(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                if (connected) "Google Drive connected"
-                                else "Google Drive not connected"
+                                if (connected) {
+                                    "Google Drive connected"
+                                } else {
+                                    "Google Drive not connected"
+                                }
                             )
                         },
                         onClick = { onMenu(false) },
-                        leadingIcon = { Icon(Icons.Default.Cloud, null) }
+                        leadingIcon = {
+                            Icon(Icons.Default.Cloud, null)
+                        }
                     )
 
                     DropdownMenuItem(
                         text = {
                             Text(
-                                if (connected) "Reconnect Google Drive"
-                                else "Connect Google Drive"
+                                if (connected) {
+                                    "Reconnect Google Drive"
+                                } else {
+                                    "Connect Google Drive"
+                                }
                             )
                         },
                         onClick = {
                             onMenu(false)
                             onConnect()
                         },
-                        leadingIcon = { Icon(Icons.Default.Sync, null) }
+                        leadingIcon = {
+                            Icon(Icons.Default.Sync, null)
+                        }
                     )
 
                     if (connected) {
                         DropdownMenuItem(
-                            text = { Text("Disconnect Google account") },
+                            text = {
+                                Text("Disconnect Google account")
+                            },
                             onClick = {
                                 onMenu(false)
                                 onDisconnect()
                             },
-                            leadingIcon = { Icon(Icons.Default.Logout, null) }
+                            leadingIcon = {
+                                Icon(Icons.Default.Logout, null)
+                            }
                         )
                     }
                 }
@@ -842,7 +973,9 @@ private fun Dashboard(
         Spacer(Modifier.height(24.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = AppPanel),
+            colors = CardDefaults.cardColors(
+                containerColor = AppPanel
+            ),
             shape = RoundedCornerShape(20.dp)
         ) {
             Column(Modifier.padding(20.dp)) {
@@ -852,13 +985,17 @@ private fun Dashboard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
+
                 Spacer(Modifier.height(8.dp))
+
                 Text(
                     "Your lectures, in one place",
                     fontSize = 21.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+
                 Spacer(Modifier.height(6.dp))
+
                 Text(
                     when {
                         connected -> status
@@ -868,7 +1005,9 @@ private fun Dashboard(
                     color = AppMuted,
                     fontSize = 13.sp
                 )
+
                 Spacer(Modifier.height(14.dp))
+
                 Button(
                     onClick = onBrowse,
                     modifier = Modifier.fillMaxWidth()
@@ -881,6 +1020,7 @@ private fun Dashboard(
         }
 
         Spacer(Modifier.height(22.dp))
+
         Text(
             "LIBRARY",
             color = AppMuted,
@@ -888,6 +1028,7 @@ private fun Dashboard(
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.5.sp
         )
+
         Spacer(Modifier.height(10.dp))
 
         DashboardTile(
@@ -896,12 +1037,14 @@ private fun Dashboard(
             "Explore folders and lectures",
             onBrowse
         )
+
         DashboardTile(
             Icons.Default.PlayCircle,
             "Continue watching",
             "Resume unfinished lectures",
             onContinue
         )
+
         DashboardTile(
             Icons.Default.History,
             "Watch history",
@@ -923,21 +1066,44 @@ private fun DashboardTile(
             .fillMaxWidth()
             .padding(bottom = 9.dp)
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = AppPanel),
+        colors = CardDefaults.cardColors(
+            containerColor = AppPanel
+        ),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
             Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, null, tint = AppAccent, modifier = Modifier.size(25.dp))
+            Icon(
+                icon,
+                null,
+                tint = AppAccent,
+                modifier = Modifier.size(25.dp)
+            )
+
             Column(
-                Modifier.padding(start = 14.dp).weight(1f)
+                Modifier
+                    .padding(start = 14.dp)
+                    .weight(1f)
             ) {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, color = AppMuted, fontSize = 12.sp)
+                Text(
+                    title,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    subtitle,
+                    color = AppMuted,
+                    fontSize = 12.sp
+                )
             }
-            Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
+
+            Icon(
+                Icons.Default.ChevronRight,
+                null,
+                tint = AppMuted
+            )
         }
     }
 }
@@ -949,12 +1115,27 @@ private fun HistoryScreen(
     onBack: () -> Unit,
     onOpen: (WatchRecord) -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, "Back", tint = AppAccent)
+                Icon(
+                    Icons.Default.ArrowBack,
+                    "Back",
+                    tint = AppAccent
+                )
             }
-            Text(title, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+
+            Text(
+                title,
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
 
         if (records.isEmpty()) {
@@ -971,7 +1152,11 @@ private fun HistoryScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                items(records, key = { it.fileId }) { record ->
+                items(
+                    records,
+                    key = { it.fileId }
+                ) { record ->
+
                     Card(
                         Modifier
                             .fillMaxWidth()
@@ -981,16 +1166,24 @@ private fun HistoryScreen(
                         )
                     ) {
                         Column(Modifier.padding(15.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
-                                    if (record.completed) Icons.Default.CheckCircle
-                                    else Icons.Default.PlayCircle,
+                                    if (record.completed) {
+                                        Icons.Default.CheckCircle
+                                    } else {
+                                        Icons.Default.PlayCircle
+                                    },
                                     null,
                                     tint = AppAccent
                                 )
+
                                 Text(
                                     record.name,
-                                    Modifier.padding(start = 10.dp).weight(1f),
+                                    Modifier
+                                        .padding(start = 10.dp)
+                                        .weight(1f),
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -999,10 +1192,15 @@ private fun HistoryScreen(
 
                             Spacer(Modifier.height(10.dp))
 
-                            val progress = if (record.durationMs > 0L) {
-                                (record.positionMs.toFloat() /
-                                    record.durationMs.toFloat()).coerceIn(0f, 1f)
-                            } else 0f
+                            val progress =
+                                if (record.durationMs > 0L) {
+                                    (
+                                        record.positionMs.toFloat() /
+                                            record.durationMs.toFloat()
+                                        ).coerceIn(0f, 1f)
+                                } else {
+                                    0f
+                                }
 
                             LinearProgressIndicator(
                                 progress = { progress },
@@ -1043,17 +1241,34 @@ private fun DriveBrowser(
     onHome: () -> Unit
 ) {
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)
+        Modifier
+            .fillMaxSize()
+            .padding(
+                horizontal = 16.dp,
+                vertical = 12.dp
+            )
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             IconButton(onClick = onHome) {
-                Icon(Icons.Default.Home, "Dashboard", tint = AppAccent)
+                Icon(
+                    Icons.Default.Home,
+                    "Dashboard",
+                    tint = AppAccent
+                )
             }
+
             if (canGoBack) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Parent folder", tint = AppAccent)
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        "Parent folder",
+                        tint = AppAccent
+                    )
                 }
             }
+
             Text(
                 folderName,
                 Modifier.weight(1f),
@@ -1062,8 +1277,16 @@ private fun DriveBrowser(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            IconButton(onClick = onRefresh, enabled = !loading) {
-                Icon(Icons.Default.Refresh, "Refresh", tint = AppAccent)
+
+            IconButton(
+                onClick = onRefresh,
+                enabled = !loading
+            ) {
+                Icon(
+                    Icons.Default.Refresh,
+                    "Refresh",
+                    tint = AppAccent
+                )
             }
         }
 
@@ -1071,7 +1294,10 @@ private fun DriveBrowser(
             status,
             color = AppMuted,
             fontSize = 12.sp,
-            modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+            modifier = Modifier.padding(
+                start = 8.dp,
+                bottom = 8.dp
+            )
         )
 
         if (loading) {
@@ -1081,32 +1307,58 @@ private fun DriveBrowser(
             )
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items, key = { it.id }) { item ->
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(
+                items,
+                key = { it.id }
+            ) { item ->
+
                 val folder = item.mimeType == FOLDER_MIME
+
                 Card(
-                    Modifier.fillMaxWidth().clickable(enabled = !loading) {
-                        if (folder) onFolder(item) else onFile(item)
-                    },
-                    colors = CardDefaults.cardColors(containerColor = AppPanel)
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !loading) {
+                            if (folder) {
+                                onFolder(item)
+                            } else {
+                                onFile(item)
+                            }
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppPanel
+                    )
                 ) {
                     Row(
                         Modifier.padding(15.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            if (folder) Icons.Default.Folder
-                            else Icons.Default.VideoFile,
+                            if (folder) {
+                                Icons.Default.Folder
+                            } else {
+                                Icons.Default.VideoFile
+                            },
                             null,
                             tint = AppAccent
                         )
+
                         Text(
                             item.name,
-                            Modifier.weight(1f).padding(horizontal = 12.dp),
+                            Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
+
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            null,
+                            tint = AppMuted
+                        )
                     }
                 }
             }
@@ -1135,24 +1387,41 @@ private fun VideoScreen(
     onPip: () -> Unit,
     onProgress: (Long, Long) -> Unit
 ) {
-    var playing by remember { mutableStateOf(player.isPlaying) }
-    var position by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(0L) }
-    var speed by remember { mutableFloatStateOf(1f) }
-    var controlsVisible by remember { mutableStateOf(true) }
+    var playing by remember {
+        mutableStateOf(player.isPlaying)
+    }
+
+    var position by remember {
+        mutableLongStateOf(0L)
+    }
+
+    var duration by remember {
+        mutableLongStateOf(0L)
+    }
+
+    var speed by remember {
+        mutableFloatStateOf(1f)
+    }
+
+    var controlsVisible by remember {
+        mutableStateOf(true)
+    }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                duration = player.duration.takeIf { it > 0 } ?: 0L
+                duration =
+                    player.duration.takeIf { it > 0 } ?: 0L
             }
         }
 
         player.addListener(listener)
+
         onDispose {
             player.removeListener(listener)
         }
@@ -1163,7 +1432,9 @@ private fun VideoScreen(
 
         while (true) {
             position = player.currentPosition.coerceAtLeast(0L)
-            duration = player.duration.takeIf { it > 0 } ?: 0L
+
+            duration =
+                player.duration.takeIf { it > 0 } ?: 0L
 
             if (
                 duration > 0L &&
@@ -1184,26 +1455,41 @@ private fun VideoScreen(
                 PlayerView(context).apply {
                     this.player = player
                     useController = false
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                    setShowBuffering(
+                        PlayerView.SHOW_BUFFERING_ALWAYS
+                    )
                 }
             },
-            update = { it.player = player },
-            modifier = Modifier.fillMaxSize().background(Color.Black)
+            update = {
+                it.player = player
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
         )
     } else {
         Column(
-            Modifier.fillMaxSize().background(
-                if (fullscreen) Color.Black else AppBg
-            )
+            Modifier
+                .fillMaxSize()
+                .background(
+                    if (fullscreen) Color.Black else AppBg
+                )
         ) {
             if (!fullscreen) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Default.ArrowBack, "Back", tint = AppAccent)
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            "Back",
+                            tint = AppAccent
+                        )
                     }
+
                     Text(
                         file.name,
                         Modifier.weight(1f),
@@ -1211,6 +1497,7 @@ private fun VideoScreen(
                         overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.SemiBold
                     )
+
                     IconButton(onClick = onPip) {
                         Icon(
                             Icons.Default.PictureInPictureAlt,
@@ -1225,21 +1512,30 @@ private fun VideoScreen(
                 Modifier
                     .fillMaxWidth()
                     .then(
-                        if (fullscreen) Modifier.fillMaxHeight()
-                        else Modifier.aspectRatio(16f / 9f)
+                        if (fullscreen) {
+                            Modifier.fillMaxHeight()
+                        } else {
+                            Modifier.aspectRatio(16f / 9f)
+                        }
                     )
                     .background(Color.Black)
-                    .clickable { controlsVisible = !controlsVisible }
+                    .clickable {
+                        controlsVisible = !controlsVisible
+                    }
             ) {
                 AndroidView(
                     factory = { context ->
                         PlayerView(context).apply {
                             this.player = player
                             useController = false
-                            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                            setShowBuffering(
+                                PlayerView.SHOW_BUFFERING_ALWAYS
+                            )
                         }
                     },
-                    update = { it.player = player },
+                    update = {
+                        it.player = player
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -1249,28 +1545,46 @@ private fun VideoScreen(
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .background(Color(0x99000000))
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .padding(
+                                horizontal = 12.dp,
+                                vertical = 8.dp
+                            )
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
                                 formatTime(position),
                                 color = Color.White,
                                 fontSize = 11.sp
                             )
+
                             Slider(
-                                value = if (duration > 0)
-                                    position.toFloat().coerceIn(0f, duration.toFloat())
-                                else 0f,
-                                onValueChange = { position = it.toLong() },
-                                onValueChangeFinished = { player.seekTo(position) },
-                                valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
-                                modifier = Modifier.weight(1f).height(28.dp),
+                                value = if (duration > 0) {
+                                    position.toFloat()
+                                        .coerceIn(0f, duration.toFloat())
+                                } else {
+                                    0f
+                                },
+                                onValueChange = {
+                                    position = it.toLong()
+                                },
+                                onValueChangeFinished = {
+                                    player.seekTo(position)
+                                },
+                                valueRange = 0f..duration
+                                    .coerceAtLeast(1L)
+                                    .toFloat(),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(28.dp),
                                 colors = SliderDefaults.colors(
                                     thumbColor = AppAccent,
                                     activeTrackColor = AppAccent,
                                     inactiveTrackColor = Color.Gray
                                 )
                             )
+
                             Text(
                                 formatTime(duration),
                                 color = Color.White,
@@ -1283,30 +1597,56 @@ private fun VideoScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = {
-                                player.seekTo(
-                                    (player.currentPosition - 10000L).coerceAtLeast(0L)
+                            IconButton(
+                                onClick = {
+                                    player.seekTo(
+                                        (
+                                            player.currentPosition -
+                                                10000L
+                                            ).coerceAtLeast(0L)
+                                    )
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Replay10,
+                                    "Back 10 seconds",
+                                    tint = Color.White
                                 )
-                            }) {
-                                Icon(Icons.Default.Replay10, "Back 10 seconds", tint = Color.White)
                             }
 
-                            IconButton(onClick = {
-                                if (player.isPlaying) player.pause() else player.play()
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    if (player.isPlaying) {
+                                        player.pause()
+                                    } else {
+                                        player.play()
+                                    }
+                                }
+                            ) {
                                 Icon(
-                                    if (playing) Icons.Default.PauseCircleFilled
-                                    else Icons.Default.PlayCircleFilled,
+                                    if (playing) {
+                                        Icons.Default.PauseCircleFilled
+                                    } else {
+                                        Icons.Default.PlayCircleFilled
+                                    },
                                     if (playing) "Pause" else "Play",
                                     tint = Color.White,
                                     modifier = Modifier.size(38.dp)
                                 )
                             }
 
-                            IconButton(onClick = {
-                                player.seekTo(player.currentPosition + 10000L)
-                            }) {
-                                Icon(Icons.Default.Forward10, "Forward 10 seconds", tint = Color.White)
+                            IconButton(
+                                onClick = {
+                                    player.seekTo(
+                                        player.currentPosition + 10000L
+                                    )
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Forward10,
+                                    "Forward 10 seconds",
+                                    tint = Color.White
+                                )
                             }
 
                             IconButton(onClick = onPip) {
@@ -1319,8 +1659,11 @@ private fun VideoScreen(
 
                             IconButton(onClick = onFullscreen) {
                                 Icon(
-                                    if (fullscreen) Icons.Default.FullscreenExit
-                                    else Icons.Default.Fullscreen,
+                                    if (fullscreen) {
+                                        Icons.Default.FullscreenExit
+                                    } else {
+                                        Icons.Default.Fullscreen
+                                    },
                                     "Toggle fullscreen",
                                     tint = Color.White
                                 )
@@ -1332,9 +1675,23 @@ private fun VideoScreen(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("SPEED", color = Color.LightGray, fontSize = 10.sp)
+                            Text(
+                                "SPEED",
+                                color = Color.LightGray,
+                                fontSize = 10.sp
+                            )
+
                             Spacer(Modifier.width(8.dp))
-                            listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { rate ->
+
+                            listOf(
+                                0.5f,
+                                0.75f,
+                                1f,
+                                1.25f,
+                                1.5f,
+                                2f
+                            ).forEach { rate ->
+
                                 TextButton(
                                     onClick = {
                                         speed = rate
@@ -1347,7 +1704,11 @@ private fun VideoScreen(
                                 ) {
                                     Text(
                                         "${rate}x",
-                                        color = if (speed == rate) AppAccent else Color.White,
+                                        color = if (speed == rate) {
+                                            AppAccent
+                                        } else {
+                                            Color.White
+                                        },
                                         fontSize = 11.sp
                                     )
                                 }
@@ -1359,15 +1720,22 @@ private fun VideoScreen(
                 if (fullscreen) {
                     IconButton(
                         onClick = onClose,
-                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
                     ) {
-                        Icon(Icons.Default.Close, "Close player", tint = Color.White)
+                        Icon(
+                            Icons.Default.Close,
+                            "Close player",
+                            tint = Color.White
+                        )
                     }
                 }
             }
 
             if (!fullscreen) {
                 Spacer(Modifier.height(14.dp))
+
                 Text(
                     "NOW PLAYING",
                     color = AppAccent,
@@ -1375,13 +1743,18 @@ private fun VideoScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
+
                 Text(
                     file.name,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(
+                        horizontal = 16.dp,
+                        vertical = 5.dp
+                    ),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 Text(
                     "Streaming from Google Drive",
                     color = AppMuted,
@@ -1395,13 +1768,21 @@ private fun VideoScreen(
 
 private fun formatTime(ms: Long): String {
     val seconds = ms.coerceAtLeast(0L) / 1000L
+
     val hours = seconds / 3600
     val minutes = (seconds % 3600) / 60
     val remainder = seconds % 60
 
     return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, remainder)
+        "%d:%02d:%02d".format(
+            hours,
+            minutes,
+            remainder
+        )
     } else {
-        "%02d:%02d".format(minutes, remainder)
+        "%02d:%02d".format(
+            minutes,
+            remainder
+        )
     }
 }
