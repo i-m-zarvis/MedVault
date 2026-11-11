@@ -1548,15 +1548,24 @@ private fun VideosDashboard(
             IconButton(onClick = { onMenu(true) }) {
                 Icon(Icons.Default.Menu, "Account menu", tint = Color.White, modifier = Modifier.size(29.dp))
             }
-            Text(
-                "MedVault Videos",
+            Column(
                 modifier = Modifier.weight(1f),
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "MedVault Videos",
+                    color = Color.White,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Text(
+                    "Version 1.0 by Aftab",
+                    color = Color.White.copy(alpha = 0.88f),
+                    fontSize = 10.sp,
+                    letterSpacing = 0.5.sp
+                )
+            }
             IconButton(onClick = { searchExpanded = !searchExpanded }) {
                 Icon(Icons.Default.Search, "Search Google Drive", tint = Color.White, modifier = Modifier.size(30.dp))
             }
