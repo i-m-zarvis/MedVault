@@ -272,7 +272,11 @@ class MainActivity : ComponentActivity() {
                     pausedDownloadIds = pausedDownloadIds,
 
                     onAccountMenu = { accountMenu = it },
-                    onConnect = { authorizeDrive(true) },
+                    onConnect = {
+                        saveCurrentProgress()
+                        accessToken?.let { syncHistory(it) }
+                        authorizeDrive(true)
+                    },
                     onDisconnect = { disconnectDrive() },
 
                     onBrowse = {
@@ -730,6 +734,21 @@ class MainActivity : ComponentActivity() {
     private fun startOfflineVideo(
         lecture: DownloadedLecture
     ) {
+        if (activeAccountId != lecture.accountId) {
+            activeAccountId = lecture.accountId
+            activeAccountEmail = DriveTokenVault.accounts(this)
+                .firstOrNull { it.id == lecture.accountId }?.email ?: lecture.accountId
+            DriveTokenVault.setActiveAccountId(this, lecture.accountId)
+            historySync = WatchHistorySync(this, lecture.accountId)
+            try {
+                watchRecords.clear()
+                watchRecords.putAll(historySync.loadLocal())
+            } catch (_: Exception) {
+                watchRecords.clear()
+            }
+            accessToken = DriveTokenVault.get(this, lecture.accountId)
+            connected = !accessToken.isNullOrBlank()
+        }
         val file = File(lecture.localPath)
 
         if (!file.isFile) {
@@ -803,7 +822,7 @@ class MainActivity : ComponentActivity() {
             durationMs = duration,
             updatedAt = System.currentTimeMillis(),
             completed = completed,
-            accountId = activeAccountId
+            accountId = file.accountId
         )
 
         watchRecords[file.id] = record
