@@ -350,7 +350,7 @@ class MainActivity : ComponentActivity() {
                         val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
                             ?.removePrefix(DOWNLOAD_TAG_PREFIX)
                         if (!fileId.isNullOrBlank()) {
-                            downloadRepository.pause(work.id, fileId, activeAccountId)
+                            downloadRepository.pause(work.id, fileId, accountIdForWork(work))
                             pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                         }
                     },
@@ -364,7 +364,7 @@ class MainActivity : ComponentActivity() {
                         val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
                             ?.removePrefix(DOWNLOAD_TAG_PREFIX)
                         if (!fileId.isNullOrBlank()) {
-                            downloadRepository.cancel(work.id, fileId, activeAccountId)
+                            downloadRepository.cancel(work.id, fileId, accountIdForWork(work))
                             pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                         }
                     },
@@ -627,6 +627,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun accountIdForWork(work: WorkInfo): String {
+        val key = work.tags.firstOrNull { it.startsWith("medvault_account_") }
+            ?.removePrefix("medvault_account_")
+        return DriveTokenVault.accounts(this)
+            .firstOrNull { DownloadRepository.accountKey(it.id) == key }
+            ?.id ?: activeAccountId
+    }
+
     private fun retryDownload(work: WorkInfo) {
         val fileId = work.tags
             .firstOrNull {
@@ -650,10 +658,7 @@ class MainActivity : ComponentActivity() {
                 ?: work.outputData.getString("file_name")
                 ?: "lecture_$fileId.mp4"
 
-        val accountId = work.tags.firstOrNull { it.startsWith("medvault_account_") }
-            ?.removePrefix("medvault_account_")
-            ?.let { tag -> DriveTokenVault.accounts(this).firstOrNull { DownloadRepository.accountKey(it.id) == tag }?.id }
-            ?: activeAccountId
+        val accountId = accountIdForWork(work)
         val file = DriveItem(
             id = fileId,
             name = name,
@@ -661,10 +666,10 @@ class MainActivity : ComponentActivity() {
             accountId = accountId
         )
 
-        if (accessToken.isNullOrBlank()) {
+        if (DriveTokenVault.get(this, accountId).isNullOrBlank()) {
             Toast.makeText(
                 this,
-                "Reconnect Google Drive before retrying.",
+                "Reconnect the Google account that owns this download.",
                 Toast.LENGTH_LONG
             ).show()
 
