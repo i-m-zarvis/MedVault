@@ -7,15 +7,17 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class WatchHistorySync(context: Context) {
+class WatchHistorySync(context: Context, private val accountId: String = "default") {
 
-    private val historyFile = File(
-        context.filesDir,
+    private val fileName = if (accountId == "default") {
         "medvault_watch_history.json"
-    )
+    } else {
+        "medvault_watch_history_${DownloadRepository.accountKey(accountId)}.json"
+    }
+    private val historyFile = File(context.filesDir, fileName)
 
     companion object {
-        private const val FILE_NAME = "medvault_watch_history.json"
+        private const val LEGACY_FILE_NAME = "medvault_watch_history.json"
         private const val APPDATA_URL =
             "https://www.googleapis.com/drive/v3/files"
         private const val UPLOAD_URL =
@@ -70,7 +72,8 @@ class WatchHistorySync(context: Context) {
                 positionMs = obj.optLong("positionMs").coerceAtLeast(0L),
                 durationMs = obj.optLong("durationMs").coerceAtLeast(0L),
                 updatedAt = obj.optLong("updatedAt").coerceAtLeast(0L),
-                completed = obj.optBoolean("completed")
+                completed = obj.optBoolean("completed"),
+                accountId = obj.optString("accountId", accountId)
             )
 
             val existing = result[fileId]
@@ -107,7 +110,7 @@ class WatchHistorySync(context: Context) {
     }
 
     private fun downloadRemote(token: String): MutableMap<String, WatchRecord> {
-        val query = "name='$FILE_NAME' and trashed=false"
+        val query = "name='$fileName' and trashed=false"
 
         val url = URL(
             "$APPDATA_URL?spaces=appDataFolder&q=" +
@@ -255,5 +258,6 @@ class WatchHistorySync(context: Context) {
             .put("durationMs", durationMs)
             .put("updatedAt", updatedAt)
             .put("completed", completed)
+            .put("accountId", accountId)
     }
 }
