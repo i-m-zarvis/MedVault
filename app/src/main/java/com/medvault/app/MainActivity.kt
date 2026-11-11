@@ -26,7 +26,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -1605,7 +1604,7 @@ private fun VideosDashboard(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
                 ) {
-                    Icon(Icons.Default.DownloadDone, null, tint = cyan)
+                    Icon(Icons.Default.CloudDownload, null, tint = cyan)
                     Spacer(Modifier.width(7.dp))
                     Text("Downloaded")
                 }
@@ -1690,7 +1689,7 @@ private fun VideosDashboard(
                     ) {
                         gridItems(subjects, key = { it.id }) { subject ->
                             val icon = when {
-                                subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
+                                subject.name.contains("anatom", true) -> Icons.Default.FavoriteNew
                                 subject.name.contains("biochem", true) -> Icons.Default.Science
                                 subject.name.contains("physio", true) -> Icons.Default.Accessibility
                                 subject.name.contains("pharma", true) -> Icons.Default.Medication
@@ -1698,27 +1697,26 @@ private fun VideosDashboard(
                                 subject.name.contains("path", true) -> Icons.Default.BubbleChart
                                 subject.name.contains("medicine", true) -> Icons.Default.MedicalServices
                                 subject.name.contains("surgery", true) -> Icons.Default.MedicalInformation
-                                subject.name.contains("ophthalm", true) -> Icons.Default.Visibility
-                                subject.name.contains("ent", true) -> Icons.Default.Hearing
-                                subject.name.contains("psychi", true) -> Icons.Default.Psychology
-                                subject.name.contains("radiol", true) -> Icons.Default.MonitorHeart
+                                subject.name.contains("ophthalm", true) -> Icons.Default.VideoLibrary
+                                subject.name.contains("ent", true) -> Icons.Default.VideoLibrary
+                                subject.name.contains("psychi", true) -> Icons.Default.Favorite
+                                subject.name.contains("radiol", true) -> Icons.Default.Favorite
                                 else -> Icons.Default.VideoLibrary
                             }
-                            var pressed by remember { mutableStateOf(false) }
-                            val scale by animateFloatAsState(
-                                targetValue = if (pressed) 0.97f else 1f,
-                                label = "subject_card_press"
-                            )
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateContentSize()
-                                    .clickable { onOpenSubject(subject) },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn() + scaleIn(initialScale = 0.94f)
                             ) {
-                                Column {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateContentSize()
+                                        .clickable { onOpenSubject(subject) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                ) {
+                                    Column {
                                     Box(
                                         Modifier
                                             .fillMaxWidth()
