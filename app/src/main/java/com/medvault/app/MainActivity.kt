@@ -101,8 +101,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var downloadRepository: DownloadRepository
 
     private var accessToken by mutableStateOf<String?>(null)
-    private var activeAccountId by mutableStateOf(DriveTokenVault.getActiveAccountId(this) ?: "default")
-    private var activeAccountEmail by mutableStateOf(DriveTokenVault.accounts(this).firstOrNull { it.id == activeAccountId }?.email ?: "Google Drive")
+    // Activity context is unavailable during property initialization.
+    // Load account state in onCreate after Android attaches the Activity.
+    private var activeAccountId by mutableStateOf("default")
+    private var activeAccountEmail by mutableStateOf("Google Drive")
     private var currentSharedDriveId by mutableStateOf<String?>(null)
     private var connected by mutableStateOf(false)
     private var authBusy by mutableStateOf(false)
@@ -177,6 +179,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyImmersiveMode()
+
+        activeAccountId = DriveTokenVault.getActiveAccountId(this) ?: "default"
+        activeAccountEmail = DriveTokenVault.accounts(this)
+            .firstOrNull { it.id == activeAccountId }?.email ?: "Google Drive"
 
         historySync = WatchHistorySync(this)
         downloadRepository = DownloadRepository(this)
