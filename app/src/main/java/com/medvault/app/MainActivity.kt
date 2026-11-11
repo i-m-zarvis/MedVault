@@ -334,7 +334,8 @@ class MainActivity : ComponentActivity() {
                             DriveItem(
                                 record.fileId,
                                 record.name,
-                                "video/mp4"
+                                "video/mp4",
+                                accountId = record.accountId
                             )
                         )
                     },
@@ -528,7 +529,15 @@ class MainActivity : ComponentActivity() {
                     accessToken = token
                     connected = true
                     status = "Connected: $email"
-                    syncHistory(token)
+                    historySync = WatchHistorySync(this@MainActivity, email)
+                    io.execute {
+                        val savedHistory = try { historySync.loadLocal() } catch (_: Exception) { mutableMapOf() }
+                        runOnUiThread {
+                            watchRecords.clear()
+                            watchRecords.putAll(savedHistory)
+                            syncHistory(token)
+                        }
+                    }
                     if (screen == "drive" || screen == "videos") {
                         folderStack.clear()
                         currentSharedDriveId = null
@@ -753,10 +762,11 @@ class MainActivity : ComponentActivity() {
 
     private fun syncHistory(token: String) {
         val snapshot = watchRecords.toMap()
+        val syncStore = historySync
 
         io.execute {
             try {
-                val merged = historySync.sync(token, snapshot)
+                val merged = syncStore.sync(token, snapshot)
 
                 runOnUiThread {
                     watchRecords.clear()
@@ -791,16 +801,18 @@ class MainActivity : ComponentActivity() {
             },
             durationMs = duration,
             updatedAt = System.currentTimeMillis(),
-            completed = completed
+            completed = completed,
+            accountId = activeAccountId
         )
 
         watchRecords[file.id] = record
 
         val snapshot = watchRecords.toMap()
+        val syncStore = historySync
 
         io.execute {
             try {
-                historySync.saveLocal(snapshot)
+                syncStore.saveLocal(snapshot)
             } catch (_: Exception) {
             }
         }
