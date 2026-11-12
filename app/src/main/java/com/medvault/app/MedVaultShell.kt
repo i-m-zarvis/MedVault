@@ -76,6 +76,11 @@ fun MedVaultHomeScreen(
                             onClick = { onEditionChange(MedVaultEdition.P) },
                             label = { Text("Edition P") }
                         )
+                        FilterChip(
+                            selected = activeEdition == MedVaultEdition.U,
+                            onClick = { onEditionChange(MedVaultEdition.U) },
+                            label = { Text("Edition U") }
+                        )
                     }
                 }
             }
