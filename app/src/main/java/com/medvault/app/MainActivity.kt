@@ -1709,10 +1709,7 @@ private fun MedVaultRoot(
 
             targetScreen == "settings" -> {
                 SettingsScreen(
-                    connected = connected,
-                    activeAccountEmail = activeAccountEmail,
                     onBack = onHome,
-                    onGoogleSettings = onGoogleSettings,
                     onTelegramSettings = onTelegramSettings
                 )
             }
@@ -1838,10 +1835,7 @@ private fun MedVaultRoot(
 
 @Composable
 private fun SettingsScreen(
-    connected: Boolean,
-    activeAccountEmail: String,
     onBack: () -> Unit,
-    onGoogleSettings: () -> Unit,
     onTelegramSettings: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1856,17 +1850,6 @@ private fun SettingsScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Telegram", fontWeight = FontWeight.SemiBold)
                     Text("Account, source groups and lecture library settings", color = AppMuted, fontSize = 12.sp)
-                }
-                Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
-            }
-        }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onGoogleSettings), colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Cloud, null, tint = AppAccent, modifier = Modifier.size(28.dp))
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Google Drive", fontWeight = FontWeight.SemiBold)
-                    Text(if (connected) activeAccountEmail else "Not connected", color = AppMuted, fontSize = 12.sp)
                 }
                 Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
             }
