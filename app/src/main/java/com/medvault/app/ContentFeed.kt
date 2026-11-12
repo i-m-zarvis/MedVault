@@ -108,7 +108,7 @@ class ContentFeedSyncWorker(context: Context, params: WorkerParameters) : Corout
                     val etag = prefs.getString("etag_$category", null)
                     val response = request(path, etag)
                     if (response.code == HttpURLConnection.HTTP_NOT_MODIFIED) {
-                        prefs.edit().putLong("last_success_$category", now).apply()
+                        prefs.edit().putLong("last_success_$category", now).putString("signature_$category", feedSignature).apply()
                         updated++
                         continue
                     }
