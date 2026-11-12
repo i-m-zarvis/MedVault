@@ -113,7 +113,7 @@ class ContentFeedSyncWorker(context: Context, params: WorkerParameters) : Corout
                     }
                     if (response.code !in 200..299 || response.body.isNullOrBlank()) error("Feed request failed: ${response.code}")
                     val payload = JSONObject(response.body)
-                    require(payload.optInt("schemaVersion") == 1) { "Unsupported feed schema" }
+                    require(payload.optInt("schemaVersion", 1) == 1) { "Unsupported feed schema" }
                     require(payload.optString("category") == category) { "Feed category mismatch" }
                     val items = payload.optJSONArray("items") ?: error("Feed has no items array")
                     val rows = ArrayList<ContentItemEntity>(items.length())
