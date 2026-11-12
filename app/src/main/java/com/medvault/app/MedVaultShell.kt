@@ -20,10 +20,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
 
-private val ShellBackground = Color(0xFFF6F8FB)
-private val ShellInk = Color(0xFF252A3A)
-private val ShellMuted = Color(0xFF81889A)
-private val ShellBlue = Color(0xFF168FE5)
+private val ShellBackground = Color(0xFF0B1020)
+private val ShellInk = Color(0xFFF3F6FC)
+private val ShellMuted = Color(0xFF9EABC0)
+private val ShellBlue = Color(0xFF78AFFF)
+private val HomePanel = Color(0xFF151E30)
+private val HomePanelAlt = Color(0xFF1B2B40)
+private val HomeBorder = Color(0xFF29384D)
 
 @Composable
 fun MedVaultHomeScreen(
@@ -36,100 +39,163 @@ fun MedVaultHomeScreen(
     activeEdition: MedVaultEdition,
     onEditionChange: (MedVaultEdition) -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(ShellBackground)) {
-        Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(shape = RoundedCornerShape(12.dp), color = ShellBlue, modifier = Modifier.size(42.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.MedicalServices, null, tint = Color.White, modifier = Modifier.size(25.dp))
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(ShellBackground),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp)
+    ) {
+        item {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("MedVault", color = ShellInk, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text("Learn something every day.", color = ShellMuted, fontSize = 12.sp)
                 }
-            }
-            Spacer(Modifier.width(12.dp))
-            Text("MedVault", color = ShellInk, fontSize = 23.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            IconButton(onClick = onSettings) {
-                Icon(Icons.Default.AccountCircle, "Profile and settings", tint = ShellMuted, modifier = Modifier.size(32.dp))
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Default.AccountCircle, "Profile and settings", tint = ShellMuted, modifier = Modifier.size(29.dp))
+                }
             }
         }
-
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("YOUR MEDICAL WORKSPACE", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                    Text("What are we studying today?", color = ShellInk, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("Lectures and revision in one place.", color = ShellMuted, fontSize = 13.sp)
-                    Spacer(Modifier.height(10.dp))
-                    Text("ACTIVE EDITION", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = activeEdition == MedVaultEdition.M,
-                            onClick = { onEditionChange(MedVaultEdition.M) },
-                            label = { Text("Edition M") }
-                        )
-                        FilterChip(
-                            selected = activeEdition == MedVaultEdition.P,
-                            onClick = { onEditionChange(MedVaultEdition.P) },
-                            label = { Text("Edition P") }
-                        )
-                        FilterChip(
-                            selected = activeEdition == MedVaultEdition.U,
-                            onClick = { onEditionChange(MedVaultEdition.U) },
-                            label = { Text("Edition U") }
-                        )
-                    }
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("STUDY HUB", color = ShellMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StudyHubCard("Daily Dose", "MCQs and high-yield facts", Icons.Default.FlashOn, onDailyDose, Modifier.weight(1f))
-                        StudyHubCard("Medical Updates", "Exams and medical news", Icons.Default.Article, onUpdates, Modifier.weight(1f))
-                    }
-                }
-            }
-            item {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("DAILY LEARNING", "Your MBBS learning feed")
                 Card(
-                    Modifier.fillMaxWidth().clickable(onClick = onVideos),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF258FE8))
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = HomePanelAlt)
                 ) {
-                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = 0.18f), modifier = Modifier.size(58.dp)) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.PlayCircle, null, tint = Color.White, modifier = Modifier.size(38.dp))
-                            }
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            HomeTag("TODAY'S CONCEPT", ShellBlue)
+                            Spacer(Modifier.weight(1f))
+                            Icon(Icons.Default.AutoStories, null, tint = ShellBlue)
                         }
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("Video Library", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                            Text("Continue with your lectures", color = Color.White.copy(alpha = 0.88f), fontSize = 12.sp)
-                        }
-                        Icon(Icons.Default.ChevronRight, null, tint = Color.White)
+                        Text("A new MBBS concept, every day", color = ShellInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "High-yield topics selected around undergraduate medical subjects.",
+                            color = ShellMuted, fontSize = 13.sp, lineHeight = 19.sp
+                        )
+                        Text("DAILY CONCEPTS WILL BE ADDED IN THE LEARNING PHASE", color = ShellBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HomeActionTile(
+                        title = "Flashcards",
+                        subtitle = "Quick recall",
+                        icon = Icons.Default.Style,
+                        onClick = onDailyDose,
+                        modifier = Modifier.weight(1f)
+                    )
+                    HomeActionTile(
+                        title = "Daily MCQ",
+                        subtitle = "Test yourself",
+                        icon = Icons.Default.Psychology,
+                        onClick = onDailyDose,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
-            item {
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("DAILY REVISION", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text("A short question every time you open MedVault.", color = ShellInk, fontWeight = FontWeight.SemiBold)
-                        Text("Daily Dose will contain randomized MCQs, explanations and clinical pearls.", color = ShellMuted, fontSize = 12.sp)
-                        TextButton(onClick = onDailyDose, contentPadding = PaddingValues(0.dp)) { Text("Open Daily Dose") }
-                    }
-                }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("CLINICAL CORNER", "Think through a clinical case")
+                HomeEditorialCard(
+                    eyebrow = "CASE-BASED LEARNING",
+                    title = "Clinical cases and diagnostic reasoning",
+                    subtitle = "Patient presentations, important clues and clinical explanations.",
+                    icon = Icons.Default.MonitorHeart,
+                    onClick = null,
+                    footnote = "COMING IN THE LEARNING PHASE"
+                )
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("EXAM RADAR", "Important dates and notices")
+                HomeEditorialCard(
+                    eyebrow = "ACADEMIC CALENDAR",
+                    title = "Keep track of what is coming up",
+                    subtitle = "University exams, internal assessments, entrance exams and counselling deadlines.",
+                    icon = Icons.Default.EventNote,
+                    onClick = onUpdates,
+                    footnote = "OPEN UPDATES"
+                )
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("NEET PG UPDATES", "Entrance examination and counselling")
+                HomeEditorialCard(
+                    eyebrow = "OFFICIAL SOURCES",
+                    title = "NBEMS · MCC · NMC",
+                    subtitle = "Examination notifications, information bulletins and counselling announcements.",
+                    icon = Icons.Default.Assignment,
+                    onClick = onUpdates,
+                    footnote = "VIEW MEDICAL UPDATES"
+                )
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("MBBS UPDATES", "Undergraduate medical education")
+                HomeEditorialCard(
+                    eyebrow = "ACADEMIC NOTICES",
+                    title = "University and medical college updates",
+                    subtitle = "Results, examination schedules, regulations and important academic announcements.",
+                    icon = Icons.Default.School,
+                    onClick = onUpdates,
+                    footnote = "VIEW MEDICAL UPDATES"
+                )
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("TRENDING IN MEDICINE", "Developments worth following")
+                HomeEditorialCard(
+                    eyebrow = "RESEARCH · CLINICAL · TECHNOLOGY",
+                    title = "What's changing in medicine?",
+                    subtitle = "Emerging treatments, important studies and developments in medical technology.",
+                    icon = Icons.Default.TrendingUp,
+                    onClick = onUpdates,
+                    footnote = "EXPLORE MEDICAL UPDATES"
+                )
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeSectionHeading("MEDICAL NEWS BULLETIN", "India first, with major global developments")
+                HomeEditorialCard(
+                    eyebrow = "HEALTHCARE NEWS",
+                    title = "The latest in healthcare and research",
+                    subtitle = "Public health, Indian healthcare policy, medical research and major international developments.",
+                    icon = Icons.Default.Newspaper,
+                    onClick = onUpdates,
+                    footnote = "READ MEDICAL NEWS"
+                )
             }
         }
     }
 }
 
 @Composable
-private fun StudyHubCard(
+private fun HomeSectionHeading(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.15.sp)
+        Text(subtitle, color = ShellInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun HomeTag(text: String, tint: Color) {
+    Surface(color = tint.copy(alpha = 0.13f), shape = RoundedCornerShape(6.dp)) {
+        Text(text, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+    }
+}
+
+@Composable
+private fun HomeActionTile(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -139,14 +205,46 @@ private fun StudyHubCard(
     Card(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = HomePanel)
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(shape = RoundedCornerShape(11.dp), color = Color(0xFFE8F4FF), modifier = Modifier.size(40.dp)) {
-                Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = ShellBlue) }
+            Icon(icon, null, tint = ShellBlue, modifier = Modifier.size(23.dp))
+            Text(title, color = ShellInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = ShellMuted, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun HomeEditorialCard(
+    eyebrow: String,
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: (() -> Unit)?,
+    footnote: String
+) {
+    Card(
+        modifier = if (onClick != null) Modifier.fillMaxWidth().clickable(onClick = onClick) else Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = HomePanel)
+    ) {
+        Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.Top) {
+            Surface(color = HomePanelAlt, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(42.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = ShellBlue, modifier = Modifier.size(22.dp))
+                }
             }
-            Text(title, color = ShellInk, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text(subtitle, color = ShellMuted, fontSize = 11.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(eyebrow, color = ShellBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
+                Text(title, color = ShellInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp)
+                Text(subtitle, color = ShellMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                Text(footnote, color = if (onClick != null) ShellBlue else ShellMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+            }
+            if (onClick != null) {
+                Icon(Icons.Default.ChevronRight, null, tint = ShellMuted, modifier = Modifier.padding(start = 4.dp).size(19.dp))
+            }
         }
     }
 }
@@ -160,13 +258,13 @@ fun MedVaultBottomBar(
     onTests: () -> Unit,
     onOffline: () -> Unit
 ) {
-    NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
+    NavigationBar(containerColor = Color(0xFF111A2A), contentColor = ShellInk, tonalElevation = 0.dp) {
         val items = listOf(
             Triple("home", "Home", Icons.Default.Home),
-            Triple("videos", "Videos", Icons.Default.PlayCircle),
+            Triple("videos", "Lectures", Icons.Default.PlayCircle),
             Triple("qbank", "QBank", Icons.Default.MenuBook),
             Triple("tests", "Notes", Icons.Default.Assignment),
-            Triple("offline", "Offline", Icons.Default.Download)
+            Triple("offline", "Downloads", Icons.Default.Download)
         )
         val actions = listOf(onHome, onVideos, onQBank, onTests, onOffline)
         items.forEachIndexed { index, item ->
@@ -175,7 +273,14 @@ fun MedVaultBottomBar(
                 onClick = actions[index],
                 icon = { Icon(item.third, contentDescription = item.second) },
                 label = { Text(item.second, fontSize = 10.sp) },
-                alwaysShowLabel = true
+                alwaysShowLabel = true,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = ShellBlue,
+                    selectedTextColor = ShellBlue,
+                    indicatorColor = HomePanelAlt,
+                    unselectedIconColor = ShellMuted,
+                    unselectedTextColor = ShellMuted
+                )
             )
         }
     }
