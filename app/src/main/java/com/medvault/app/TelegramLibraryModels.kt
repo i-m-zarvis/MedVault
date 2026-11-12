@@ -55,8 +55,8 @@ data class TelegramLecture(
                     Media(document, name, mime, 0, content.caption.text, null)
                 }
                 is TdApi.MessageAnimation -> {
-                    val animation = content.animation.animation
-                    Media(animation, animation.fileName, animation.mimeType, animation.duration,
+                    val animation = content.animation
+                    Media(animation.animation, animation.fileName, animation.mimeType, animation.duration,
                         content.caption.text, animation.thumbnail?.file?.id)
                 }
                 is TdApi.MessageVideoNote -> {
