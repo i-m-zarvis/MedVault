@@ -60,7 +60,7 @@ private val LiquidViolet = Color(0xFFB18CFF)
 private val LiquidTeal = Color(0xFF62D7C8)
 
 /** A low-cost glass-like surface: layered colour, a restrained highlight and a fine edge. */
-private fun Modifier.liquidPanel(
+internal fun Modifier.liquidPanel(
     accent: Color = HomeBlue,
     radius: androidx.compose.ui.unit.Dp = 24.dp
 ): Modifier {
@@ -558,10 +558,10 @@ fun MedVaultOfflineScreen(
             }
         }
         Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xE61C2940)),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).liquidPanel(Color(0xFFB18CFF), 26.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
             shape = RoundedCornerShape(26.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+            border = null
         ) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -658,8 +658,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 }
             }
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color(0xD91B2940)), shape = RoundedCornerShape(22.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))) {
+        Card(Modifier.fillMaxWidth().liquidPanel(ShellBlue, 22.dp).clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBox, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
@@ -670,7 +669,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = HomePanel)) {
+        Card(Modifier.fillMaxWidth().liquidPanel(ShellBlue, 22.dp).clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.FolderOpen, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
@@ -681,7 +680,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+        Card(Modifier.fillMaxWidth().liquidPanel(LiquidViolet, 22.dp).clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = ShellBlue, modifier = Modifier.size(25.dp))
