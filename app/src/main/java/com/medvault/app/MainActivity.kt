@@ -273,7 +273,10 @@ class MainActivity : ComponentActivity() {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .padding(top = if (screen == "player" || fullscreen) 0.dp else 48.dp)
+                        .background(AppBg)
+                        // Keep backgrounds edge-to-edge, but keep controls and text
+                        // outside physical display cutouts on every orientation.
+                        .windowInsetsPadding(WindowInsets.displayCutout)
                 ) {
                 MedVaultRoot(
                     connected = connected,
