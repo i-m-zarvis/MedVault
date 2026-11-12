@@ -32,7 +32,9 @@ fun MedVaultHomeScreen(
     onTests: () -> Unit,
     onDailyDose: () -> Unit,
     onUpdates: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    activeEdition: MedVaultEdition,
+    onEditionChange: (MedVaultEdition) -> Unit
 ) {
     Column(Modifier.fillMaxSize().background(ShellBackground)) {
         Row(
@@ -61,6 +63,20 @@ fun MedVaultHomeScreen(
                     Text("YOUR MEDICAL WORKSPACE", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                     Text("What are we studying today?", color = ShellInk, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Text("Lectures and revision in one place.", color = ShellMuted, fontSize = 13.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text("ACTIVE EDITION", color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = activeEdition == MedVaultEdition.M,
+                            onClick = { onEditionChange(MedVaultEdition.M) },
+                            label = { Text("Edition M") }
+                        )
+                        FilterChip(
+                            selected = activeEdition == MedVaultEdition.P,
+                            onClick = { onEditionChange(MedVaultEdition.P) },
+                            label = { Text("Edition P") }
+                        )
+                    }
                 }
             }
             item {
