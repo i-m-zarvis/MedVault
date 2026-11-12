@@ -1,21 +1,14 @@
 package com.medvault.app
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
@@ -29,15 +22,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.TdApi
 import java.io.File
 import java.io.FileOutputStream
@@ -419,102 +409,3 @@ fun TelegramDocumentLibraryScreen(
     }
 }
 
-@Composable
-fun MedVaultPdfReaderScreen(file: File, title: String, onBack: () -> Unit) {
-    var pageCount by remember(file.absolutePath) { mutableIntStateOf(0) }
-    var error by remember(file.absolutePath) { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(file.absolutePath) {
-        pageCount = withContext(Dispatchers.IO) {
-            try {
-                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-                    PdfRenderer(fd).use { it.pageCount }
-                }
-            } catch (e: Exception) {
-                error = e.message ?: "Unable to open this PDF file."
-                0
-            }
-        }
-    }
-
-    Column(Modifier.fillMaxSize().background(StudyBg)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
-            Text(title, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (pageCount > 0) "$pageCount pages" else "PDF", color = StudyMuted, fontSize = 12.sp)
-        }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
-        if (pageCount > 0) {
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(pageCount) { pageIndex ->
-                    NativePdfPage(file = file, pageIndex = pageIndex)
-                }
-            }
-        } else if (error == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        }
-    }
-}
-
-/** Renders pages with Android's platform PdfRenderer; pages scroll continuously in-app. */
-@Composable
-private fun NativePdfPage(file: File, pageIndex: Int) {
-    var bitmap by remember(file.absolutePath, pageIndex) { mutableStateOf<Bitmap?>(null) }
-    var failed by remember(file.absolutePath, pageIndex) { mutableStateOf(false) }
-
-    LaunchedEffect(file.absolutePath, pageIndex) {
-        val rendered = withContext(Dispatchers.IO) {
-            try {
-                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-                    PdfRenderer(fd).use { renderer ->
-                        renderer.openPage(pageIndex).use { page ->
-                            val width = 1400
-                            val height = (width.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
-                            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { image ->
-                                page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            }
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                failed = true
-                null
-            }
-        }
-        bitmap = rendered
-    }
-
-    DisposableEffect(bitmap) {
-        onDispose { bitmap?.recycle() }
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(4.dp)
-    ) {
-        when {
-            bitmap != null -> Image(
-                bitmap = bitmap!!.asImageBitmap(),
-                contentDescription = "PDF page " + (pageIndex + 1),
-                modifier = Modifier.fillMaxWidth(),
-                contentScale = ContentScale.FillWidth
-            )
-            failed -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                Text("Could not render page " + (pageIndex + 1), color = Color.DarkGray)
-            }
-            else -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        }
-    }
-}
