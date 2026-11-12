@@ -464,64 +464,60 @@ fun MedVaultBottomBar(
         Triple("profile", "Profile", Icons.Default.Person)
     )
     val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
+    val accents = listOf(HomeBlue, LiquidViolet, LiquidTeal, Color(0xFFF4C34F), HomeBlue)
 
-    // A compact floating dock: familiar Android destinations, with the quieter
-    // translucent treatment and selected-state capsule used by iOS tab bars.
+    // Lightweight outlined dock inspired by the reference: no heavy selected capsule.
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))
-            .padding(start = 12.dp, end = 12.dp, top = 5.dp, bottom = 9.dp),
+            .background(Color.Transparent)
+            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 9.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xE61A2437),
-            shape = RoundedCornerShape(28.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-            shadowElevation = 12.dp
+            color = Color(0xCC0A0D16),
+            shape = RoundedCornerShape(34.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+            shadowElevation = 4.dp
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(76.dp).padding(horizontal = 5.dp, vertical = 5.dp),
+                modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 7.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEachIndexed { index, item ->
                     val isSelected = selected == item.first
+                    val accent = accents[index]
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(22.dp))
                             .clickable(onClick = actions[index])
-                            .padding(vertical = 3.dp),
+                            .padding(top = 5.dp, bottom = 2.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .height(31.dp)
-                                .width(52.dp)
-                                .background(
-                                    if (isSelected) HomeBlue.copy(alpha = 0.16f) else Color.Transparent,
-                                    RoundedCornerShape(16.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                item.third,
-                                contentDescription = item.second,
-                                tint = if (isSelected) HomeBlue else HomeMuted,
-                                modifier = Modifier.size(21.dp)
-                            )
-                        }
-                        Spacer(Modifier.height(2.dp))
+                        Icon(
+                            item.third,
+                            contentDescription = item.second,
+                            tint = if (isSelected) accent else HomeMuted.copy(alpha = 0.82f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             item.second,
-                            color = if (isSelected) HomeBlue else HomeMuted,
+                            color = if (isSelected) accent else HomeMuted,
                             fontSize = 9.sp,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                             maxLines = 1
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Box(
+                            Modifier
+                                .size(4.dp)
+                                .background(if (isSelected) accent else Color.Transparent, RoundedCornerShape(50))
                         )
                     }
                 }
