@@ -20,7 +20,7 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
 
     fun assignSource(edition: MedVaultEdition, candidate: TelegramSourceCandidate) {
         val alreadyUsed = MedVaultEdition.values()
-            .filterNot { it == edition }
+            .filterNot { it == edition || it == MedVaultEdition.QBANK }
             .any { selectedChatId(it) == candidate.chatId }
         require(!alreadyUsed) { "This group is already assigned to another MedVault library." }
         prefs.edit().putLong(key(edition), candidate.chatId)
