@@ -1,6 +1,7 @@
 package com.medvault.app
 
 import android.Manifest
+import android.accounts.Account
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
@@ -12,15 +13,30 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import android.widget.Toast
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -36,10 +52,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -64,6 +84,8 @@ private const val DRIVE_SCOPE =
 
 private const val DRIVE_APPDATA_SCOPE =
     "https://www.googleapis.com/auth/drive.appdata"
+private const val DRIVE_EMAIL_SCOPE =
+    "https://www.googleapis.com/auth/userinfo.email"
 
 private const val AUTH_REQUEST_CODE = 7001
 private const val FOLDER_MIME =
@@ -79,6 +101,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var downloadRepository: DownloadRepository
 
     private var accessToken by mutableStateOf<String?>(null)
+    // Activity context is unavailable during property initialization.
+    // Load account state in onCreate after Android attaches the Activity.
+    private var activeAccountId by mutableStateOf("default")
+    private var activeAccountEmail by mutableStateOf("Google Drive")
+    private var currentSharedDriveId by mutableStateOf<String?>(null)
     private var connected by mutableStateOf(false)
     private var authBusy by mutableStateOf(false)
     private var loading by mutableStateOf(false)
@@ -90,8 +117,11 @@ class MainActivity : ComponentActivity() {
 
     private var folderId by mutableStateOf("root")
     private var folderName by mutableStateOf("My Drive")
+    private var driveSearchActive by mutableStateOf(false)
+    private var folderIdBeforeSearch = "root"
+    private var folderNameBeforeSearch = "My Drive"
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
-    private var screen by mutableStateOf("home")
+    private var screen by mutableStateOf("videos")
     private var accountMenu by mutableStateOf(false)
     private var pipMode by mutableStateOf(false)
     private var fullscreen by mutableStateOf(false)
@@ -114,8 +144,45 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private fun applyImmersiveMode() {
+        if (isInPictureInPictureMode) return
+
+        // Keep immersive content below the camera punch-hole/notch.
+        // System bars remain hidden; only the display cutout is respected.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
+            }
+        }
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            // Do not reveal system bars from ordinary side/back-edge swipes.
+            // Android's notification shade remains available from the top edge.
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyImmersiveMode()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyImmersiveMode()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyImmersiveMode()
+
+        activeAccountId = DriveTokenVault.getActiveAccountId(this) ?: "default"
+        activeAccountEmail = DriveTokenVault.accounts(this)
+            .firstOrNull { it.id == activeAccountId }?.email ?: "Google Drive"
 
         historySync = WatchHistorySync(this)
         downloadRepository = DownloadRepository(this)
@@ -141,14 +208,40 @@ class MainActivity : ComponentActivity() {
                     .observeAsState(initial = emptyList())
 
             var downloadedLectures by remember {
-                mutableStateOf(
-                    DownloadStore.getAll(this@MainActivity)
-                )
+                mutableStateOf(DownloadStore.getAll(this@MainActivity))
+            }
+            var pausedDownloadIds by remember {
+                mutableStateOf(DownloadRepository.pausedIds(this@MainActivity))
+            }
+            var showBrandSplash by remember { mutableStateOf(true) }
+
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(1900)
+                showBrandSplash = false
             }
 
             LaunchedEffect(downloadWorkItems) {
                 downloadedLectures =
                     DownloadStore.getAll(this@MainActivity)
+
+                val expiredDownload = downloadWorkItems.firstOrNull { work ->
+                    work.state == WorkInfo.State.FAILED &&
+                        work.outputData.getString("error")
+                            ?.contains("Google access expired", ignoreCase = true) == true
+                }
+
+                if (expiredDownload != null) {
+                    val expiredAccountId = accountIdForWork(expiredDownload)
+                    try {
+                        DriveTokenVault.clear(applicationContext, expiredAccountId)
+                    } catch (_: Exception) {
+                    }
+                    if (expiredAccountId == activeAccountId) {
+                        accessToken = null
+                        connected = false
+                        status = "Google access expired. Reconnect this Google account before retrying downloads."
+                    }
+                }
             }
 
             MaterialTheme(
@@ -160,6 +253,11 @@ class MainActivity : ComponentActivity() {
                     onSurface = Color.White
                 )
             ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = if (screen == "player" || fullscreen) 0.dp else 48.dp)
+                ) {
                 MedVaultRoot(
                     connected = connected,
                     authBusy = authBusy,
@@ -170,6 +268,7 @@ class MainActivity : ComponentActivity() {
                     canGoBack = folderStack.isNotEmpty(),
                     selectedVideo = selectedVideo,
                     screen = screen,
+                    activeAccountEmail = activeAccountEmail,
                     accountMenu = accountMenu,
                     pipMode = pipMode,
                     fullscreen = fullscreen,
@@ -179,25 +278,63 @@ class MainActivity : ComponentActivity() {
                     },
                     downloadWorkItems = downloadWorkItems,
                     downloadedLectures = downloadedLectures,
+                    pausedDownloadIds = pausedDownloadIds,
 
                     onAccountMenu = { accountMenu = it },
-                    onConnect = { authorizeDrive() },
+                    onConnect = {
+                        saveCurrentProgress()
+                        accessToken?.let { syncHistory(it) }
+                        authorizeDrive(true)
+                    },
                     onDisconnect = { disconnectDrive() },
 
                     onBrowse = {
-                        screen = "drive"
+                        folderId = "root"
+                        folderName = "My Drive"
+                        currentSharedDriveId = null
+                        folderStack.clear()
+                        driveSearchActive = false
+                        screen = "videos"
                         browseDrive()
+                    },
+                    onRawDrive = {
+                        folderStack.clear()
+                        folderId = "root"
+                        folderName = "My Drive"
+                        currentSharedDriveId = null
+                        driveSearchActive = false
+                        screen = "drive"
+                        loadFolder("root")
                     },
 
                     onHome = {
                         saveCurrentProgress()
                         leavePlayer()
-                        screen = "home"
+                        screen = "videos"
                     },
 
-                    onFolderBack = { goBackFolder() },
-                    onRefresh = { loadFolder(folderId) },
-                    onFolder = { openFolder(it) },
+                    onFolderBack = {
+                        if (driveSearchActive) {
+                            folderId = folderIdBeforeSearch
+                            folderName = folderNameBeforeSearch
+                            driveSearchActive = false
+                            loadFolder(folderId)
+                        } else goBackFolder()
+                    },
+                    onRefresh = {
+                        if (driveSearchActive) {
+                            folderName = folderNameBeforeSearch
+                            loadFolder(folderIdBeforeSearch)
+                        } else loadFolder(folderId)
+                    },
+                    onGlobalSearch = {
+                        screen = "drive"
+                        searchDrive(it)
+                    },
+                    onFolder = {
+                        screen = "drive"
+                        openFolder(it)
+                    },
                     onFile = { openFile(it) },
                     onDownload = { requestDownload(it) },
 
@@ -210,7 +347,8 @@ class MainActivity : ComponentActivity() {
                             DriveItem(
                                 record.fileId,
                                 record.name,
-                                "video/mp4"
+                                "video/mp4",
+                                accountId = record.accountId
                             )
                         )
                     },
@@ -223,19 +361,31 @@ class MainActivity : ComponentActivity() {
                     },
 
                     onPauseDownload = { work ->
-                        downloadRepository.pause(work.id)
+                        val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
+                            ?.removePrefix(DOWNLOAD_TAG_PREFIX)
+                        if (!fileId.isNullOrBlank()) {
+                            downloadRepository.pause(work.id, fileId, accountIdForWork(work))
+                            pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
+                        }
                     },
 
                     onResumeDownload = { work ->
                         retryDownload(work)
+                        pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                     },
 
                     onCancelDownload = { work ->
-                        downloadRepository.cancel(work.id)
+                        val fileId = work.tags.firstOrNull { it.startsWith(DOWNLOAD_TAG_PREFIX) }
+                            ?.removePrefix(DOWNLOAD_TAG_PREFIX)
+                        if (!fileId.isNullOrBlank()) {
+                            downloadRepository.cancel(work.id, fileId, accountIdForWork(work))
+                            pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
+                        }
                     },
 
                     onRetryDownload = { work ->
                         retryDownload(work)
+                        pausedDownloadIds = DownloadRepository.pausedIds(this@MainActivity)
                     },
 
                     onPlayOffline = { lecture ->
@@ -248,6 +398,14 @@ class MainActivity : ComponentActivity() {
                             DownloadStore.getAll(this@MainActivity)
                     }
                 )
+                AnimatedVisibility(
+                    visible = showBrandSplash,
+                    enter = fadeIn() + scaleIn(initialScale = 0.96f),
+                    exit = fadeOut()
+                ) {
+                    MedVaultBrandSplash()
+                }
+                }
             }
         }
 
@@ -258,7 +416,7 @@ class MainActivity : ComponentActivity() {
     // GOOGLE DRIVE AUTHORIZATION
     // ---------------------------------------------------------
 
-    private fun authorizeDrive() {
+    private fun authorizeDrive(forceAccountPicker: Boolean = false) {
         if (authBusy) return
 
         authBusy = true
@@ -268,9 +426,16 @@ class MainActivity : ComponentActivity() {
             .setRequestedScopes(
                 listOf(
                     Scope(DRIVE_SCOPE),
-                    Scope(DRIVE_APPDATA_SCOPE)
+                    Scope(DRIVE_APPDATA_SCOPE),
+                    Scope(DRIVE_EMAIL_SCOPE)
                 )
             )
+            .apply {
+                if (forceAccountPicker) setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT)
+                else if (activeAccountId != "default" && activeAccountId.contains("@")) {
+                    setAccount(Account(activeAccountId, "com.google"))
+                }
+            }
             .build()
 
         Identity.getAuthorizationClient(this)
@@ -344,34 +509,70 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        accessToken = token
-        connected = true
+        status = "Identifying Google account…"
+        io.execute {
+            try {
+                val connection = URL("https://www.googleapis.com/oauth2/v2/userinfo")
+                    .openConnection() as HttpURLConnection
+                val email: String
+                val displayName: String
+                try {
+                    connection.requestMethod = "GET"
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    connection.connectTimeout = 12000
+                    connection.readTimeout = 12000
+                    if (connection.responseCode !in 200..299) {
+                        throw IllegalStateException("Could not identify the selected Google account.")
+                    }
+                    val profile = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    email = profile.optString("email").trim()
+                    displayName = profile.optString("name", email).ifBlank { email }
+                } finally {
+                    connection.disconnect()
+                }
+                if (email.isBlank()) throw IllegalStateException("Google did not return an account email.")
 
-        try {
-            DriveTokenVault.save(applicationContext, token)
-            status = "Google Drive connected."
-        } catch (e: Exception) {
-            status =
-                "Google Drive connected, but secure token storage failed: ${e.message}"
-        }
+                val isFirstSavedAccount = DriveTokenVault.accounts(applicationContext).isEmpty()
+                DriveTokenVault.save(applicationContext, email, token)
+                DriveTokenVault.saveAccount(applicationContext, DriveAccount(email, email, displayName))
+                DriveTokenVault.setActiveAccountId(applicationContext, email)
 
-        syncHistory(token)
-
-        if (screen == "drive") {
-            loadFolder(folderId)
+                runOnUiThread {
+                    activeAccountId = email
+                    activeAccountEmail = email
+                    accessToken = token
+                    connected = true
+                    status = "Connected: $email"
+                    historySync = WatchHistorySync(this@MainActivity, email, migrateLegacy = isFirstSavedAccount)
+                    io.execute {
+                        val savedHistory = try { historySync.loadLocal() } catch (_: Exception) { mutableMapOf() }
+                        runOnUiThread {
+                            watchRecords.clear()
+                            watchRecords.putAll(savedHistory)
+                            syncHistory(token)
+                        }
+                    }
+                    if (screen == "drive" || screen == "videos") {
+                        folderStack.clear()
+                        currentSharedDriveId = null
+                        folderId = "root"
+                        folderName = "My Drive"
+                        loadFolder("root")
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    connected = false
+                    status = "Google account setup failed: ${e.message}"
+                }
+            }
         }
     }
 
     private fun disconnectDrive() {
         saveCurrentProgress()
-
         accessToken = null
-
-        try {
-            DriveTokenVault.clear(applicationContext)
-        } catch (_: Exception) {
-        }
-
+        try { DriveTokenVault.clear(applicationContext, activeAccountId) } catch (_: Exception) { }
         connected = false
         driveItems.clear()
         folderStack.clear()
@@ -379,10 +580,10 @@ class MainActivity : ComponentActivity() {
         folderName = "My Drive"
 
         leavePlayer()
-        screen = "home"
+        screen = "videos"
 
         status =
-            "Google Drive disconnected. Local downloads and watch history are retained."
+            "Google Drive disconnected. Saved accounts, local downloads and watch history are retained."
     }
 
     // ---------------------------------------------------------
@@ -419,7 +620,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueDownload(file: DriveItem) {
-        val existing = DownloadStore.find(this, file.id)
+        val existing = DownloadStore.find(this, file.id, file.accountId)
 
         if (
             existing != null &&
@@ -450,6 +651,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun accountIdForWork(work: WorkInfo): String {
+        val key = work.tags.firstOrNull { it.startsWith("medvault_account_") }
+            ?.removePrefix("medvault_account_")
+        return DriveTokenVault.accounts(this)
+            .firstOrNull { DownloadRepository.accountKey(it.id) == key }
+            ?.id ?: activeAccountId
+    }
+
     private fun retryDownload(work: WorkInfo) {
         val fileId = work.tags
             .firstOrNull {
@@ -473,16 +682,21 @@ class MainActivity : ComponentActivity() {
                 ?: work.outputData.getString("file_name")
                 ?: "lecture_$fileId.mp4"
 
+        val accountId = accountIdForWork(work)
         val file = DriveItem(
             id = fileId,
             name = name,
-            mimeType = "video/mp4"
+            mimeType = "video/mp4",
+            accountId = accountId
         )
 
-        if (accessToken.isNullOrBlank()) {
+        if (DriveTokenVault.get(this, accountId).isNullOrBlank()) {
+            activeAccountId = accountId
+            activeAccountEmail = DriveTokenVault.accounts(this).firstOrNull { it.id == accountId }?.email ?: accountId
+            DriveTokenVault.setActiveAccountId(this, accountId)
             Toast.makeText(
                 this,
-                "Reconnect Google Drive before retrying.",
+                "Reconnect the Google account that owns this download.",
                 Toast.LENGTH_LONG
             ).show()
 
@@ -521,7 +735,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        DownloadStore.delete(this, lecture.fileId)
+        DownloadStore.delete(this, lecture.fileId, lecture.accountId)
 
         Toast.makeText(
             this,
@@ -533,6 +747,21 @@ class MainActivity : ComponentActivity() {
     private fun startOfflineVideo(
         lecture: DownloadedLecture
     ) {
+        if (activeAccountId != lecture.accountId) {
+            activeAccountId = lecture.accountId
+            activeAccountEmail = DriveTokenVault.accounts(this)
+                .firstOrNull { it.id == lecture.accountId }?.email ?: lecture.accountId
+            DriveTokenVault.setActiveAccountId(this, lecture.accountId)
+            historySync = WatchHistorySync(this, lecture.accountId)
+            try {
+                watchRecords.clear()
+                watchRecords.putAll(historySync.loadLocal())
+            } catch (_: Exception) {
+                watchRecords.clear()
+            }
+            accessToken = DriveTokenVault.get(this, lecture.accountId)
+            connected = !accessToken.isNullOrBlank()
+        }
         val file = File(lecture.localPath)
 
         if (!file.isFile) {
@@ -549,7 +778,8 @@ class MainActivity : ComponentActivity() {
         val item = DriveItem(
             id = lecture.fileId,
             name = lecture.name,
-            mimeType = "video/mp4"
+            mimeType = "video/mp4",
+            accountId = lecture.accountId
         )
 
         startVideo(
@@ -565,10 +795,11 @@ class MainActivity : ComponentActivity() {
 
     private fun syncHistory(token: String) {
         val snapshot = watchRecords.toMap()
+        val syncStore = historySync
 
         io.execute {
             try {
-                val merged = historySync.sync(token, snapshot)
+                val merged = syncStore.sync(token, snapshot)
 
                 runOnUiThread {
                     watchRecords.clear()
@@ -603,16 +834,18 @@ class MainActivity : ComponentActivity() {
             },
             durationMs = duration,
             updatedAt = System.currentTimeMillis(),
-            completed = completed
+            completed = completed,
+            accountId = file.accountId
         )
 
         watchRecords[file.id] = record
 
         val snapshot = watchRecords.toMap()
+        val syncStore = historySync
 
         io.execute {
             try {
-                historySync.saveLocal(snapshot)
+                syncStore.saveLocal(snapshot)
             } catch (_: Exception) {
             }
         }
@@ -642,7 +875,57 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Natural, human-readable ordering: folders first, then names with
+    // numeric runs compared by value (1, 2, 10 rather than 1, 10, 2).
+    private fun sortedDriveItems(items: List<DriveItem>): List<DriveItem> {
+        fun compareNatural(a: String, b: String): Int {
+            var i = 0
+            var j = 0
+            while (i < a.length && j < b.length) {
+                val aDigit = a[i].isDigit()
+                val bDigit = b[j].isDigit()
+                if (aDigit && bDigit) {
+                    var aEnd = i
+                    var bEnd = j
+                    while (aEnd < a.length && a[aEnd].isDigit()) aEnd++
+                    while (bEnd < b.length && b[bEnd].isDigit()) bEnd++
+                    val aRaw = a.substring(i, aEnd)
+                    val bRaw = b.substring(j, bEnd)
+                    val aNumber = aRaw.trimStart('0').ifEmpty { "0" }
+                    val bNumber = bRaw.trimStart('0').ifEmpty { "0" }
+                    val numberCompare = when {
+                        aNumber.length != bNumber.length -> aNumber.length.compareTo(bNumber.length)
+                        else -> aNumber.compareTo(bNumber)
+                    }
+                    if (numberCompare != 0) return numberCompare
+                    // Stable tie-break for names such as "01" and "1".
+                    val rawCompare = aRaw.length.compareTo(bRaw.length)
+                    if (rawCompare != 0) return rawCompare
+                    i = aEnd
+                    j = bEnd
+                } else {
+                    val charCompare = a[i].lowercaseChar().compareTo(b[j].lowercaseChar())
+                    if (charCompare != 0) return charCompare
+                    i++
+                    j++
+                }
+            }
+            return (a.length - i).compareTo(b.length - j)
+        }
+
+        return items.sortedWith { left, right ->
+            val leftIsFolder = left.mimeType == FOLDER_MIME || left.isSharedDriveRoot
+            val rightIsFolder = right.mimeType == FOLDER_MIME || right.isSharedDriveRoot
+            when {
+                leftIsFolder && !rightIsFolder -> -1
+                !leftIsFolder && rightIsFolder -> 1
+                else -> compareNatural(left.name, right.name)
+            }
+        }
+    }
+
     private fun loadFolder(targetFolderId: String) {
+        driveSearchActive = false
         val token = accessToken
 
         if (token.isNullOrBlank()) {
@@ -652,6 +935,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val serial = ++requestSerial
+        val accountId = activeAccountId
+        val targetSharedDriveId = currentSharedDriveId
 
         loading = true
         status = "Loading $folderName…"
@@ -663,8 +948,9 @@ class MainActivity : ComponentActivity() {
                 var pageToken: String? = null
 
                 do {
+                    val parentId = if (targetFolderId == "root" && targetSharedDriveId != null) targetSharedDriveId else targetFolderId
                     val query =
-                        "'${targetFolderId.replace("'", "\\'")}' in parents and trashed=false"
+                        "'${parentId.replace("'", "\\'")}' in parents and trashed=false"
 
                     val builder = Uri.parse(
                         "https://www.googleapis.com/drive/v3/files"
@@ -672,10 +958,14 @@ class MainActivity : ComponentActivity() {
                         .appendQueryParameter("q", query)
                         .appendQueryParameter(
                             "fields",
-                            "nextPageToken,files(id,name,mimeType)"
+                            "nextPageToken,files(id,name,mimeType,driveId,size)"
                         )
                         .appendQueryParameter("pageSize", "100")
                         .appendQueryParameter("orderBy", "folder,name")
+                        .appendQueryParameter("supportsAllDrives", "true")
+                        .appendQueryParameter("includeItemsFromAllDrives", "true")
+                        .appendQueryParameter("corpora", if (targetSharedDriveId != null) "drive" else "user")
+                        .also { if (targetSharedDriveId != null) it.appendQueryParameter("driveId", targetSharedDriveId) }
 
                     pageToken?.let {
                         builder.appendQueryParameter("pageToken", it)
@@ -732,7 +1022,9 @@ class MainActivity : ComponentActivity() {
                             found += DriveItem(
                                 file.getString("id"),
                                 file.getString("name"),
-                                file.getString("mimeType")
+                                file.getString("mimeType"),
+                                accountId = accountId,
+                                sharedDriveId = file.optString("driveId").takeIf { it.isNotBlank() }
                             )
                         }
                     }
@@ -742,13 +1034,17 @@ class MainActivity : ComponentActivity() {
 
                 } while (pageToken != null)
 
+                if (targetFolderId == "root" && targetSharedDriveId == null) {
+                    found.addAll(listSharedDrives(token, accountId))
+                }
+
                 runOnUiThread {
                     if (
                         serial == requestSerial &&
                         !isFinishing
                     ) {
                         driveItems.clear()
-                        driveItems.addAll(found)
+                        driveItems.addAll(sortedDriveItems(found))
                         loading = false
                         status = "${found.size} items"
                     }
@@ -778,17 +1074,178 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun listSharedDrives(token: String, accountId: String): List<DriveItem> {
+        val result = mutableListOf<DriveItem>()
+        var pageToken: String? = null
+        do {
+            val builder = Uri.parse("https://www.googleapis.com/drive/v3/drives")
+                .buildUpon()
+                .appendQueryParameter("pageSize", "100")
+                .appendQueryParameter("fields", "nextPageToken,drives(id,name)")
+                .appendQueryParameter("useDomainAdminAccess", "false")
+            pageToken?.let { builder.appendQueryParameter("pageToken", it) }
+            val connection = URL(builder.build().toString()).openConnection() as HttpURLConnection
+            val response: String
+            try {
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("Authorization", "Bearer $token")
+                connection.connectTimeout = 15000
+                connection.readTimeout = 20000
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+                    throw IllegalStateException("Shared Drive list failed ($code): $detail")
+                }
+                response = connection.inputStream.bufferedReader().use { it.readText() }
+            } finally {
+                connection.disconnect()
+            }
+            val json = JSONObject(response)
+            val drives = json.optJSONArray("drives") ?: org.json.JSONArray()
+            for (i in 0 until drives.length()) {
+                val drive = drives.getJSONObject(i)
+                val id = drive.getString("id")
+                result += DriveItem(
+                    id = id,
+                    name = drive.getString("name"),
+                    mimeType = FOLDER_MIME,
+                    accountId = accountId,
+                    sharedDriveId = id,
+                    isSharedDriveRoot = true
+                )
+            }
+            pageToken = json.optString("nextPageToken").takeIf { it.isNotBlank() }
+        } while (pageToken != null)
+        return result
+    }
+
+    private fun searchDrive(rawQuery: String) {
+        val queryText = rawQuery.trim()
+        if (queryText.isBlank()) {
+            driveSearchActive = false
+            loadFolder(folderId)
+            return
+        }
+
+        val token = accessToken
+        if (token.isNullOrBlank()) {
+            status = "Connect Google Drive before searching."
+            authorizeDrive()
+            return
+        }
+
+        val serial = ++requestSerial
+        val accountId = activeAccountId
+        if (!driveSearchActive) {
+            folderIdBeforeSearch = folderId
+            folderNameBeforeSearch = folderName
+        }
+        driveSearchActive = true
+        loading = true
+        folderName = "Drive search"
+        status = "Searching all of Google Drive…"
+        driveItems.clear()
+
+        io.execute {
+            try {
+                val found = mutableListOf<DriveItem>()
+                var pageToken: String? = null
+                val escaped = queryText.replace("\\", "\\\\").replace("'", "\\'")
+                val driveQuery = "name contains '$escaped' and trashed=false"
+
+                do {
+                    val builder = Uri.parse(
+                        "https://www.googleapis.com/drive/v3/files"
+                    ).buildUpon()
+                        .appendQueryParameter("q", driveQuery)
+                        .appendQueryParameter("fields", "nextPageToken,files(id,name,mimeType,driveId,size)")
+                        .appendQueryParameter("pageSize", "100")
+                        .appendQueryParameter("orderBy", "folder,name")
+                        .appendQueryParameter("supportsAllDrives", "true")
+                        .appendQueryParameter("includeItemsFromAllDrives", "true")
+                        .appendQueryParameter("corpora", "user")
+
+                    pageToken?.let { builder.appendQueryParameter("pageToken", it) }
+                    val connection = URL(builder.build().toString())
+                        .openConnection() as HttpURLConnection
+
+                    val response: String
+                    try {
+                        connection.requestMethod = "GET"
+                        connection.setRequestProperty("Authorization", "Bearer $token")
+                        connection.connectTimeout = 15000
+                        connection.readTimeout = 20000
+                        val code = connection.responseCode
+                        if (code !in 200..299) {
+                            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                                ?: "HTTP $code"
+                            if (code == 401) {
+                                throw SecurityException("Google access expired. Reconnect from account settings.")
+                            }
+                            throw IllegalStateException("Drive search failed ($code): $detail")
+                        }
+                        response = connection.inputStream.bufferedReader().use { it.readText() }
+                    } finally {
+                        connection.disconnect()
+                    }
+
+                    val json = JSONObject(response)
+                    val files = json.optJSONArray("files") ?: org.json.JSONArray()
+                    for (index in 0 until files.length()) {
+                        val file = files.getJSONObject(index)
+                        found += DriveItem(
+                            file.getString("id"),
+                            file.getString("name"),
+                            file.getString("mimeType"),
+                            accountId = accountId,
+                            sharedDriveId = file.optString("driveId").takeIf { it.isNotBlank() }
+                        )
+                    }
+                    pageToken = json.optString("nextPageToken").takeIf { it.isNotBlank() }
+                } while (pageToken != null)
+
+                runOnUiThread {
+                    if (serial == requestSerial && !isFinishing) {
+                        driveItems.clear()
+                        driveItems.addAll(sortedDriveItems(found))
+                        loading = false
+                        status = "${found.size} results across Google Drive"
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    if (serial == requestSerial && !isFinishing) {
+                        loading = false
+                        status = error.message ?: "Could not search Google Drive."
+                        if (error is SecurityException) {
+                            connected = false
+                            accessToken = null
+                            try { DriveTokenVault.clear(applicationContext) } catch (_: Exception) { }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun openFolder(item: DriveItem) {
         if (loading || item.mimeType != FOLDER_MIME) return
+        if (driveSearchActive) {
+            folderStack.add(FolderLocation(folderIdBeforeSearch, folderNameBeforeSearch, currentSharedDriveId))
+            driveSearchActive = false
+        } else {
+            folderStack.add(FolderLocation(folderId, folderName, currentSharedDriveId))
+        }
 
-        folderStack.add(
-            FolderLocation(folderId, folderName)
-        )
-
-        folderId = item.id
+        if (item.isSharedDriveRoot) {
+            currentSharedDriveId = item.sharedDriveId
+            folderId = "root"
+        } else {
+            currentSharedDriveId = item.sharedDriveId
+            folderId = item.id
+        }
         folderName = item.name
-
-        loadFolder(item.id)
+        loadFolder(folderId)
     }
 
     private fun goBackFolder() {
@@ -802,6 +1259,7 @@ class MainActivity : ComponentActivity() {
 
         folderId = previous.id
         folderName = previous.name
+        currentSharedDriveId = previous.sharedDriveId
 
         loadFolder(previous.id)
     }
@@ -911,12 +1369,39 @@ class MainActivity : ComponentActivity() {
                 override fun onPlayerError(
                     error: androidx.media3.common.PlaybackException
                 ) {
+                    var cause: Throwable? = error
+                    var authorizationExpired = false
+                    while (cause != null) {
+                        if (
+                            cause is HttpDataSource.InvalidResponseCodeException &&
+                            cause.responseCode == 401
+                        ) {
+                            authorizationExpired = true
+                            break
+                        }
+                        cause = cause.cause
+                    }
+
                     runOnUiThread {
-                        status = "Playback error: ${error.message}"
+                        if (authorizationExpired) {
+                            accessToken = null
+                            connected = false
+                            status = "Google access expired. Reconnect Google Drive to continue streaming."
+                            try {
+                                DriveTokenVault.clear(applicationContext)
+                            } catch (_: Exception) {
+                            }
+                        } else {
+                            status = "Playback error: ${error.message}"
+                        }
 
                         Toast.makeText(
                             this@MainActivity,
-                            "Playback failed: ${error.errorCodeName}",
+                            if (authorizationExpired) {
+                                "Google access expired. Reconnect Drive."
+                            } else {
+                                "Playback failed: ${error.errorCodeName}"
+                            },
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -929,7 +1414,7 @@ class MainActivity : ComponentActivity() {
         } else {
             Uri.parse(
                 "https://www.googleapis.com/drive/v3/files/" +
-                    "${Uri.encode(item.id)}?alt=media"
+                    "${Uri.encode(item.id)}?alt=media&supportsAllDrives=true"
             )
         }
 
@@ -1056,6 +1541,7 @@ private fun MedVaultRoot(
     canGoBack: Boolean,
     selectedVideo: DriveItem?,
     screen: String,
+    activeAccountEmail: String,
     accountMenu: Boolean,
     pipMode: Boolean,
     fullscreen: Boolean,
@@ -1063,13 +1549,16 @@ private fun MedVaultRoot(
     history: List<WatchRecord>,
     downloadWorkItems: List<WorkInfo>,
     downloadedLectures: List<DownloadedLecture>,
+    pausedDownloadIds: Set<String>,
     onAccountMenu: (Boolean) -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onBrowse: () -> Unit,
+    onRawDrive: () -> Unit,
     onHome: () -> Unit,
     onFolderBack: () -> Unit,
     onRefresh: () -> Unit,
+    onGlobalSearch: (String) -> Unit,
     onFolder: (DriveItem) -> Unit,
     onFile: (DriveItem) -> Unit,
     onDownload: (DriveItem) -> Unit,
@@ -1088,21 +1577,33 @@ private fun MedVaultRoot(
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     BackHandler(
-        enabled = screen != "home" && !pipMode
+        enabled = screen != "home" && screen != "videos" && !pipMode
     ) {
         when (screen) {
             "player" -> onHome()
             "drive" -> onFolderBack()
-            "history", "continue", "downloads" -> onHome()
+            "videos", "history", "continue", "downloads" -> onHome()
         }
     }
 
-    Surface(
-        Modifier.fillMaxSize(),
-        color = AppBg
-    ) {
-        when {
-            screen == "player" &&
+    AnimatedContent(
+        targetState = screen,
+        transitionSpec = {
+            if (initialState == "player" || targetState == "player") {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                (fadeIn() + slideInHorizontally { it / 14 }) togetherWith
+                    (fadeOut() + slideOutHorizontally { -it / 14 })
+            }
+        },
+        label = "medvault_navigation"
+    ) { targetScreen ->
+        Surface(
+            Modifier.fillMaxSize(),
+            color = AppBg
+        ) {
+            when {
+            targetScreen == "player" &&
                 selectedVideo != null &&
                 player != null -> {
 
@@ -1118,7 +1619,29 @@ private fun MedVaultRoot(
                 )
             }
 
-            screen == "drive" -> {
+            targetScreen == "videos" || targetScreen == "home" -> {
+                VideosDashboard(
+                    subjectFolders = items.filter { it.mimeType == FOLDER_MIME },
+                    loading = loading,
+                    status = status,
+                    history = history,
+                    downloadedCount = downloadedLectures.size,
+                    connected = connected,
+                    activeAccountEmail = activeAccountEmail,
+                    menu = accountMenu,
+                    onMenu = onAccountMenu,
+                    onConnect = onConnect,
+                    onDisconnect = onDisconnect,
+                    onSearch = onGlobalSearch,
+                    onOpenSubject = onFolder,
+                    onRawDrive = onRawDrive,
+                    onDownloads = onDownloads,
+                    onContinue = onContinue,
+                    onHistory = onHistory
+                )
+            }
+
+            targetScreen == "drive" -> {
                 DriveBrowser(
                     items = items,
                     folderName = folderName,
@@ -1127,6 +1650,7 @@ private fun MedVaultRoot(
                     status = status,
                     onBack = onFolderBack,
                     onRefresh = onRefresh,
+                    onGlobalSearch = onGlobalSearch,
                     onFolder = onFolder,
                     onFile = onFile,
                     onDownload = onDownload,
@@ -1134,14 +1658,14 @@ private fun MedVaultRoot(
                 )
             }
 
-            screen == "history" || screen == "continue" -> {
+            targetScreen == "history" || targetScreen == "continue" -> {
                 HistoryScreen(
-                    title = if (screen == "history") {
+                    title = if (targetScreen == "history") {
                         "Watch history"
                     } else {
                         "Continue watching"
                     },
-                    records = if (screen == "continue") {
+                    records = if (targetScreen == "continue") {
                         history.filter {
                             !it.completed && it.positionMs > 0L
                         }
@@ -1153,10 +1677,11 @@ private fun MedVaultRoot(
                 )
             }
 
-            screen == "downloads" -> {
+            targetScreen == "downloads" -> {
                 DownloadManagerScreen(
                     workItems = downloadWorkItems,
                     downloadedLectures = downloadedLectures,
+                    pausedIds = pausedDownloadIds,
                     onBack = onHome,
                     onPause = onPauseDownload,
                     onResume = onResumeDownload,
@@ -1188,6 +1713,320 @@ private fun MedVaultRoot(
                     }
                 )
             }
+        }
+    }
+    }
+}
+
+// =============================================================
+// VIDEOS SUBJECT DASHBOARD
+// =============================================================
+
+@Composable
+private fun VideosDashboard(
+    subjectFolders: List<DriveItem>,
+    loading: Boolean,
+    status: String,
+    history: List<WatchRecord>,
+    downloadedCount: Int,
+    connected: Boolean,
+    activeAccountEmail: String,
+    menu: Boolean,
+    onMenu: (Boolean) -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+    onSearch: (String) -> Unit,
+    onOpenSubject: (DriveItem) -> Unit,
+    onRawDrive: () -> Unit,
+    onDownloads: () -> Unit,
+    onContinue: () -> Unit,
+    onHistory: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    var searchExpanded by remember { mutableStateOf(false) }
+    val subjects = remember(subjectFolders) {
+        subjectFolders.sortedBy { it.name.lowercase() }
+    }
+    val lightBg = Color(0xFFF4F5F5)
+    val cyan = Color(0xFF62C5D5)
+    val ink = Color(0xFF62686A)
+    val muted = Color(0xFF858B8D)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(lightBg)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(cyan)
+                .padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { onMenu(true) }) {
+                Icon(Icons.Default.Menu, "Account menu", tint = Color.White, modifier = Modifier.size(29.dp))
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "MedVault Videos",
+                    color = Color.White,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Text(
+                    "Version 1.0 by Aftab",
+                    color = Color.White.copy(alpha = 0.88f),
+                    fontSize = 10.sp,
+                    letterSpacing = 0.5.sp
+                )
+            }
+            IconButton(onClick = { searchExpanded = !searchExpanded }) {
+                Icon(Icons.Default.Search, "Search Google Drive", tint = Color.White, modifier = Modifier.size(30.dp))
+            }
+            DropdownMenu(
+                expanded = menu,
+                onDismissRequest = { onMenu(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (connected) activeAccountEmail else "No Google account connected") },
+                    onClick = { onMenu(false) },
+                    leadingIcon = { Icon(Icons.Default.AccountCircle, null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add / switch Google account") },
+                    onClick = { onMenu(false); onConnect() },
+                    leadingIcon = { Icon(Icons.Default.Sync, null) }
+                )
+                if (connected) {
+                    DropdownMenuItem(
+                        text = { Text("Disconnect Google account") },
+                        onClick = { onMenu(false); onDisconnect() },
+                        leadingIcon = { Icon(Icons.Default.Logout, null) }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Browse raw Drive") },
+                    onClick = { onMenu(false); onRawDrive() },
+                    leadingIcon = { Icon(Icons.Default.FolderOpen, null) }
+                )
+            }
+        }
+
+        if (searchExpanded) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Search all Google Drive") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    shape = RoundedCornerShape(14.dp)
+                )
+                IconButton(
+                    onClick = { if (query.isNotBlank()) onSearch(query.trim()) },
+                    enabled = query.isNotBlank()
+                ) {
+                    Icon(Icons.Default.ArrowForward, "Search")
+                }
+            }
+        }
+
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = onDownloads,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
+                ) {
+                    Icon(Icons.Default.CloudDownload, null, tint = cyan)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Downloaded ($downloadedCount)")
+                }
+                OutlinedButton(
+                    onClick = onContinue,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ink)
+                ) {
+                    Icon(Icons.Default.VideoLibrary, null, tint = cyan)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Continue")
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onHistory),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFCEB)),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.History, null, tint = Color(0xFFD47770), modifier = Modifier.size(27.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("World of Revision", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(
+                            history.firstOrNull()?.name ?: "Recently watched lectures",
+                            color = muted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(Icons.Default.ChevronRight, null, tint = muted)
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("SUBJECTS", color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onRawDrive) {
+                    Text("Browse Drive", color = ink)
+                    Icon(Icons.Default.ArrowDropDown, null, tint = muted)
+                }
+            }
+
+            when {
+                loading && subjects.isEmpty() -> {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = cyan)
+                    }
+                }
+                subjects.isEmpty() -> {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.CloudOff, null, tint = muted, modifier = Modifier.size(42.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text(status, color = ink)
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = onRawDrive) { Text("Open Google Drive") }
+                        }
+                    }
+                }
+                else -> {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        gridItems(subjects, key = { it.id }) { subject ->
+                            val icon = when {
+                                subject.isSharedDriveRoot -> Icons.Default.Cloud
+                                subject.name.contains("anatom", true) -> Icons.Default.AccessibilityNew
+                                subject.name.contains("biochem", true) -> Icons.Default.Science
+                                subject.name.contains("physio", true) -> Icons.Default.Favorite
+                                subject.name.contains("pharma", true) -> Icons.Default.Medication
+                                subject.name.contains("micro", true) -> Icons.Default.Biotech
+                                subject.name.contains("path", true) -> Icons.Default.BubbleChart
+                                subject.name.contains("medicine", true) -> Icons.Default.MedicalServices
+                                subject.name.contains("surgery", true) -> Icons.Default.MedicalInformation
+                                subject.name.contains("ophthalm", true) -> Icons.Default.VideoLibrary
+                                subject.name.contains("ent", true) -> Icons.Default.VideoLibrary
+                                subject.name.contains("psychi", true) -> Icons.Default.Favorite
+                                subject.name.contains("radiol", true) -> Icons.Default.Favorite
+                                else -> Icons.Default.VideoLibrary
+                            }
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn() + scaleIn(initialScale = 0.94f)
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateContentSize()
+                                        .clickable { onOpenSubject(subject) },
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                                ) {
+                                    Column {
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(112.dp)
+                                            .background(Color(0xFFE5E7E7)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(
+                                            Modifier
+                                                .size(76.dp)
+                                                .background(Color(0xFFEFFAFF), RoundedCornerShape(50)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(icon, null, tint = cyan, modifier = Modifier.size(38.dp))
+                                        }
+                                    }
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(
+                                            subject.name,
+                                            color = ink,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 16.sp,
+                                            maxLines = 2,
+                                            minLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.height(5.dp))
+                                        Text(if (subject.isSharedDriveRoot) "Open Shared Drive" else "Open subject", color = muted, fontSize = 12.sp)
+                                        Spacer(Modifier.height(10.dp))
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .height(5.dp)
+                                                .background(Color(0xFFEAF5F7), RoundedCornerShape(5.dp))
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        }
+
+        NavigationBar(
+            containerColor = Color.White,
+            contentColor = cyan,
+            tonalElevation = 8.dp
+        ) {
+            NavigationBarItem(
+                selected = true,
+                onClick = { },
+                icon = { Icon(Icons.Default.VideoLibrary, contentDescription = null) },
+                label = { Text("Videos") },
+                alwaysShowLabel = true
+            )
         }
     }
 }
@@ -1592,186 +2431,237 @@ private fun DriveBrowser(
     status: String,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onGlobalSearch: (String) -> Unit,
     onFolder: (DriveItem) -> Unit,
     onFile: (DriveItem) -> Unit,
     onDownload: (DriveItem) -> Unit,
     onHome: () -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    val lightBg = Color(0xFFF4F5F5)
+    val cyan = Color(0xFF62C5D5)
+    val ink = Color(0xFF62686A)
+    val muted = Color(0xFF858B8D)
+
     Column(
         Modifier
             .fillMaxSize()
-            .padding(
-                horizontal = 16.dp,
-                vertical = 12.dp
-            )
+            .background(lightBg)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onHome) {
-                Icon(
-                    Icons.Default.Home,
-                    "Dashboard",
-                    tint = AppAccent
-                )
+                Icon(Icons.Default.Home, "Videos home", tint = cyan)
             }
-
             if (canGoBack) {
                 IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.Default.ArrowBack,
-                        "Parent folder",
-                        tint = AppAccent
-                    )
+                    Icon(Icons.Default.ArrowBack, "Parent folder", tint = cyan)
                 }
             }
-
-            Text(
-                folderName,
-                Modifier.weight(1f),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            IconButton(
-                onClick = onRefresh,
-                enabled = !loading
-            ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    "Refresh",
-                    tint = AppAccent
+            Column(Modifier.weight(1f)) {
+                Text(
+                    folderName,
+                    color = ink,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "Version 1.0 by Aftab",
+                    color = muted,
+                    fontSize = 11.sp
                 )
             }
+            IconButton(onClick = onRefresh, enabled = !loading) {
+                Icon(Icons.Default.Refresh, "Refresh", tint = cyan)
+            }
         }
-
-        Text(
-            status,
-            color = AppMuted,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(
-                start = 8.dp,
-                bottom = 8.dp
-            )
-        )
 
         if (loading) {
             LinearProgressIndicator(
                 Modifier.fillMaxWidth(),
-                color = AppAccent
+                color = cyan
             )
         }
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(
-                items,
-                key = { it.id }
-            ) { item ->
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            singleLine = true,
+            placeholder = { Text("Search all Google Drive") },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null, tint = muted)
+            },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = {
+                            searchQuery = ""
+                            onRefresh()
+                        }) {
+                            Icon(Icons.Default.Close, "Clear search", tint = muted)
+                        }
+                    }
+                    IconButton(
+                        onClick = { if (searchQuery.isNotBlank()) onGlobalSearch(searchQuery.trim()) },
+                        enabled = searchQuery.isNotBlank() && !loading
+                    ) {
+                        Icon(Icons.Default.Search, "Search all Google Drive", tint = cyan)
+                    }
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = ink,
+                unfocusedTextColor = ink,
+                focusedBorderColor = cyan,
+                unfocusedBorderColor = Color(0xFFB8BEC0),
+                focusedPlaceholderColor = muted,
+                unfocusedPlaceholderColor = muted
+            )
+        )
 
-                val folder = item.mimeType == FOLDER_MIME
+        Text(
+            if (folderName == "Drive search") "${items.size} results across Drive"
+            else "${items.size} items in this folder",
+            color = muted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 8.dp)
+        )
 
-                val supportedVideo =
-                    !folder && (
+        if (!loading && items.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.FolderOff, null, tint = muted, modifier = Modifier.size(44.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (folderName == "Drive search") "No matching files found across Google Drive." else "No items found.",
+                        color = ink
+                    )
+                    Text(status, color = muted, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                gridItems(items, key = { it.id }) { item ->
+                    val folder = item.mimeType == FOLDER_MIME
+                    val isVideo = !folder && (
                         item.mimeType.startsWith("video/") ||
-                            listOf(
-                                ".mp4",
-                                ".mkv",
-                                ".webm",
-                                ".mov"
-                            ).any {
+                            listOf(".mp4", ".mkv", ".webm", ".mov").any {
                                 item.name.endsWith(it, true)
                             }
                         )
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = AppPanel
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Row(
-                        Modifier
+                    val tileIcon = when {
+                        folder -> Icons.Default.Folder
+                        isVideo -> Icons.Default.VideoLibrary
+                        item.mimeType.contains("pdf", true) -> Icons.Default.PictureAsPdf
+                        item.mimeType.contains("audio", true) -> Icons.Default.AudioFile
+                        else -> Icons.Default.InsertDriveFile
+                    }
+                    Card(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(
-                                start = 15.dp,
-                                end = 6.dp,
-                                top = 12.dp,
-                                bottom = 12.dp
-                            ),
-                        verticalAlignment = Alignment.CenterVertically
+                            .animateContentSize()
+                            .clickable(enabled = !loading) {
+                                if (folder) onFolder(item) else onFile(item)
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                     ) {
-                        Row(
-                            Modifier
-                                .weight(1f)
-                                .clickable(enabled = !loading) {
-                                    if (folder) {
-                                        onFolder(item)
-                                    } else {
-                                        onFile(item)
-                                    }
-                                },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (folder) {
-                                    Icons.Default.Folder
-                                } else {
-                                    Icons.Default.VideoFile
-                                },
-                                null,
-                                tint = AppAccent
-                            )
-
-                            Text(
-                                item.name,
+                        Column {
+                            Box(
                                 Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 12.dp),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                null,
-                                tint = AppMuted
-                            )
-                        }
-
-                        if (supportedVideo) {
-                            IconButton(
-                                onClick = {
-                                    onDownload(item)
-                                },
-                                enabled = !loading
+                                    .fillMaxWidth()
+                                    .height(112.dp)
+                                    .background(Color(0xFFE5E7E7)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.Download,
-                                    contentDescription = "Download lecture",
-                                    tint = AppAccent
+                                Box(
+                                    Modifier
+                                        .size(76.dp)
+                                        .background(Color(0xFFEFFAFF), RoundedCornerShape(50)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(tileIcon, null, tint = cyan, modifier = Modifier.size(40.dp))
+                                }
+                            }
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    item.name,
+                                    color = ink,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    maxLines = 2,
+                                    minLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
+                                Spacer(Modifier.height(5.dp))
+                                Text(
+                                    when {
+                                        folder -> "Open folder"
+                                        item.size != null -> "${if (isVideo) "Video" else "File"} · ${formatDriveSize(item.size)}"
+                                        isVideo -> "Video lecture"
+                                        else -> "Open file"
+                                    },
+                                    color = muted,
+                                    fontSize = 12.sp,
+                                    maxLines = 1
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        Modifier
+                                            .weight(1f)
+                                            .height(5.dp)
+                                            .background(Color(0xFFEAF5F7), RoundedCornerShape(5.dp))
+                                    )
+                                    if (isVideo) {
+                                        IconButton(
+                                            onClick = { onDownload(item) },
+                                            enabled = !loading,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Download,
+                                                contentDescription = "Download ${item.name}",
+                                                tint = cyan
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-
-            if (!loading && items.isEmpty()) {
-                item {
-                    Text(
-                        "No items found. $status",
-                        color = AppMuted,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
         }
     }
+}
+
+private fun formatDriveSize(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024.0) return String.format(java.util.Locale.US, "%.1f KB", kb)
+    val mb = kb / 1024.0
+    if (mb < 1024.0) return String.format(java.util.Locale.US, "%.1f MB", mb)
+    return String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0)
 }
 
 // =============================================================
@@ -1793,12 +2683,20 @@ private fun VideoScreen(
         mutableStateOf(player.isPlaying)
     }
 
+    var playbackError by remember {
+        mutableStateOf<androidx.media3.common.PlaybackException?>(null)
+    }
+
     var position by remember {
         mutableLongStateOf(0L)
     }
 
     var duration by remember {
         mutableLongStateOf(0L)
+    }
+
+    var isSeeking by remember {
+        mutableStateOf(false)
     }
 
     var speed by remember {
@@ -1819,6 +2717,11 @@ private fun VideoScreen(
             override fun onPlaybackStateChanged(state: Int) {
                 duration =
                     player.duration.takeIf { it > 0 } ?: 0L
+                if (state == Player.STATE_READY) playbackError = null
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playbackError = error
             }
         }
 
@@ -1833,12 +2736,15 @@ private fun VideoScreen(
         var lastSaved = 0L
 
         while (true) {
-            position = player.currentPosition.coerceAtLeast(0L)
+            if (!isSeeking) {
+                position = player.currentPosition.coerceAtLeast(0L)
+            }
 
             duration =
                 player.duration.takeIf { it > 0 } ?: 0L
 
             if (
+                !isSeeking &&
                 duration > 0L &&
                 position > 0L &&
                 System.currentTimeMillis() - lastSaved >= 5000L
@@ -1941,6 +2847,47 @@ private fun VideoScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
+                if (playbackError != null) {
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xEE151E30)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Playback interrupted",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Check your connection, then retry from the saved position.",
+                                color = AppMuted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    player.seekTo(position.coerceAtLeast(0L))
+                                    player.prepare()
+                                    player.playWhenReady = true
+                                    playbackError = null
+                                }
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Retry playback")
+                            }
+                        }
+                    }
+                }
+
                 if (controlsVisible) {
                     Column(
                         Modifier
@@ -1969,10 +2916,12 @@ private fun VideoScreen(
                                     0f
                                 },
                                 onValueChange = {
+                                    isSeeking = true
                                     position = it.toLong()
                                 },
                                 onValueChangeFinished = {
                                     player.seekTo(position)
+                                    isSeeking = false
                                 },
                                 valueRange = 0f..duration
                                     .coerceAtLeast(1L)
@@ -2039,8 +2988,10 @@ private fun VideoScreen(
 
                             IconButton(
                                 onClick = {
+                                    val target = player.currentPosition + 10000L
+                                    val total = player.duration
                                     player.seekTo(
-                                        player.currentPosition + 10000L
+                                        if (total > 0L) target.coerceAtMost(total) else target
                                     )
                                 }
                             ) {
@@ -2190,5 +3141,58 @@ private fun formatTime(ms: Long): String {
             minutes,
             remainder
         )
+    }
+}
+
+
+@Composable
+private fun MedVaultBrandSplash() {
+    var pulse by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            pulse = !pulse
+            kotlinx.coroutines.delay(650)
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            androidx.compose.material3.Surface(
+                modifier = Modifier.size(if (pulse) 92.dp else 84.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF172B49),
+                shadowElevation = 18.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = AppAccent,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Text(
+                "MEDVAULT",
+                color = Color.White,
+                fontSize = 27.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 3.sp
+            )
+            Spacer(Modifier.height(7.dp))
+            Text(
+                "by Aftab",
+                color = AppMuted,
+                fontSize = 13.sp,
+                letterSpacing = 1.5.sp
+            )
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.medvault.app
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,9 +29,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +55,7 @@ private val DownloadPanel = Color(0xFF151E30)
 fun DownloadManagerScreen(
     workItems: List<WorkInfo>,
     downloadedLectures: List<DownloadedLecture>,
+    pausedIds: Set<String> = emptySet(),
     onBack: () -> Unit,
     onPause: (WorkInfo) -> Unit,
     onResume: (WorkInfo) -> Unit,
@@ -56,6 +64,25 @@ fun DownloadManagerScreen(
     onPlayOffline: (DownloadedLecture) -> Unit,
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
+    val context = LocalContext.current
+    val downloadDirectory = File(context.filesDir, "downloads")
+    val storageUsed = downloadDirectory.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
+    val storageFree = context.filesDir.usableSpace
+    val storageTotal = storageUsed + storageFree
+    val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
+    var libraryQuery by remember { mutableStateOf("") }
+    fun isPaused(work: WorkInfo): Boolean {
+        val fileId = work.tags.firstOrNull { it.startsWith("medvault_download_") }
+            ?.removePrefix("medvault_download_") ?: return false
+        val accountKey = work.tags.firstOrNull { it.startsWith("medvault_account_") }
+            ?.removePrefix("medvault_account_") ?: DownloadRepository.accountKey("default")
+        return "$accountKey:$fileId" in pausedIds
+    }
+
+    val filteredLectures = downloadedLectures
+        .filter { it.name.contains(libraryQuery.trim(), ignoreCase = true) }
+        .sortedByDescending { it.downloadedAt }
+
     val activeItems = workItems.filter {
         it.state == WorkInfo.State.ENQUEUED ||
             it.state == WorkInfo.State.RUNNING ||
@@ -108,6 +135,28 @@ fun DownloadManagerScreen(
             )
         }
 
+        Card(
+            modifier = Modifier.fillMaxWidth().animateContentSize(),
+            colors = CardDefaults.cardColors(containerColor = DownloadPanel),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("OFFLINE STORAGE", color = DownloadAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text(formatDownloadSize(storageUsed), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.size(8.dp))
+                LinearProgressIndicator(
+                    progress = { storageFraction.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = DownloadAccent
+                )
+                Spacer(Modifier.size(5.dp))
+                Text("${formatDownloadSize(storageFree)} available on device · app-private storage", color = DownloadMuted, fontSize = 11.sp)
+            }
+        }
+
         Spacer(Modifier.size(18.dp))
 
         Text(
@@ -135,7 +184,8 @@ fun DownloadManagerScreen(
                         onPause = { onPause(work) },
                         onResume = { onResume(work) },
                         onCancel = { onCancel(work) },
-                        onRetry = { onRetry(work) }
+                        onRetry = { onRetry(work) },
+                        isPaused = isPaused(work)
                     )
                 }
             }
@@ -152,18 +202,32 @@ fun DownloadManagerScreen(
 
         Spacer(Modifier.size(8.dp))
 
+        if (downloadedLectures.isNotEmpty()) {
+            OutlinedTextField(
+                value = libraryQuery,
+                onValueChange = { libraryQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Search offline lectures…") },
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(Modifier.size(6.dp))
+        }
+
         if (downloadedLectures.isEmpty()) {
             EmptyDownloadMessage(
                 "Downloaded lectures will appear here."
             )
+        } else if (filteredLectures.isEmpty()) {
+            EmptyDownloadMessage("No offline lectures match your search.")
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(
-                    downloadedLectures,
-                    key = { it.fileId }
+                    filteredLectures,
+                    key = { it.accountId + ":" + it.fileId }
                 ) { lecture ->
                     OfflineLectureCard(
                         lecture = lecture,
@@ -199,7 +263,9 @@ fun DownloadManagerScreen(
                         onPause = { onPause(work) },
                         onResume = { onResume(work) },
                         onCancel = { onCancel(work) },
-                        onRetry = { onRetry(work) }
+                        onRetry = { onRetry(work) },
+                        isPaused = work.tags.firstOrNull { it.startsWith("medvault_download_") }
+                            ?.removePrefix("medvault_download_") in pausedIds
                     )
                 }
             }
@@ -213,7 +279,8 @@ private fun DownloadWorkCard(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    isPaused: Boolean = false
 ) {
     val name =
         work.progress.getString(DriveDownloadWorker.KEY_FILE_NAME)
@@ -225,7 +292,7 @@ private fun DownloadWorkCard(
         0
     ).coerceIn(0, 100)
 
-    val stateText = when (work.state) {
+    val stateText = if (isPaused) "Paused · partial file retained" else when (work.state) {
         WorkInfo.State.ENQUEUED -> "Queued"
         WorkInfo.State.RUNNING -> "Downloading"
         WorkInfo.State.SUCCEEDED -> "Downloaded"
@@ -242,7 +309,7 @@ private fun DownloadWorkCard(
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(14.dp).animateContentSize()
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
@@ -283,6 +350,11 @@ private fun DownloadWorkCard(
                 color = DownloadMuted,
                 fontSize = 12.sp
             )
+
+            work.outputData.getString("error")?.takeIf { it.isNotBlank() }?.let { message ->
+                Spacer(Modifier.size(5.dp))
+                Text(message, color = Color(0xFFFF9B91), fontSize = 11.sp)
+            }
 
             if (
                 work.state == WorkInfo.State.RUNNING ||
@@ -343,10 +415,10 @@ private fun DownloadWorkCard(
 
                     WorkInfo.State.FAILED,
                     WorkInfo.State.CANCELLED -> {
-                        IconButton(onClick = onRetry) {
+                        IconButton(onClick = if (isPaused) onResume else onRetry) {
                             Icon(
                                 Icons.Default.Refresh,
-                                contentDescription = "Retry",
+                                contentDescription = if (isPaused) "Resume" else "Retry",
                                 tint = DownloadAccent
                             )
                         }

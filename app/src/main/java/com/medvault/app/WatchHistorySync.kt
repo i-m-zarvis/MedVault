@@ -7,15 +7,30 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class WatchHistorySync(context: Context) {
+class WatchHistorySync(
+    context: Context,
+    private val accountId: String = "default",
+    private val migrateLegacy: Boolean = false
+) {
 
-    private val historyFile = File(
-        context.filesDir,
+    private val fileName = if (accountId == "default") {
         "medvault_watch_history.json"
-    )
+    } else {
+        "medvault_watch_history_${DownloadRepository.accountKey(accountId)}.json"
+    }
+    private val historyFile = File(context.filesDir, fileName)
+
+    init {
+        if (migrateLegacy && accountId != "default" && !historyFile.exists()) {
+            val legacy = File(context.filesDir, LEGACY_FILE_NAME)
+            if (legacy.isFile) {
+                try { legacy.copyTo(historyFile, overwrite = false) } catch (_: Exception) { }
+            }
+        }
+    }
 
     companion object {
-        private const val FILE_NAME = "medvault_watch_history.json"
+        private const val LEGACY_FILE_NAME = "medvault_watch_history.json"
         private const val APPDATA_URL =
             "https://www.googleapis.com/drive/v3/files"
         private const val UPLOAD_URL =
@@ -23,39 +38,64 @@ class WatchHistorySync(context: Context) {
     }
 
     fun loadLocal(): MutableMap<String, WatchRecord> {
-        val result = mutableMapOf<String, WatchRecord>()
-
-        if (!historyFile.exists()) return result
+        if (!historyFile.exists()) return mutableMapOf()
 
         val json = JSONObject(historyFile.readText())
         val records = json.optJSONArray("records") ?: JSONArray()
-
-        for (i in 0 until records.length()) {
-            val obj = records.getJSONObject(i)
-            val record = WatchRecord(
-                fileId = obj.getString("fileId"),
-                name = obj.getString("name"),
-                positionMs = obj.optLong("positionMs"),
-                durationMs = obj.optLong("durationMs"),
-                updatedAt = obj.optLong("updatedAt"),
-                completed = obj.optBoolean("completed")
-            )
-            result[record.fileId] = record
-        }
-
-        return result
+        return parseRecords(records)
     }
 
     fun saveLocal(records: Map<String, WatchRecord>) {
         val root = JSONObject()
         val array = JSONArray()
 
-        records.values.forEach { record ->
-            array.put(record.toJson())
-        }
+        records.values
+            .distinctBy { it.fileId }
+            .forEach { record -> array.put(record.toJson()) }
 
         root.put("records", array)
-        historyFile.writeText(root.toString())
+        val temporaryFile = File(historyFile.parentFile, "${historyFile.name}.tmp")
+        temporaryFile.writeText(root.toString())
+
+        try {
+            java.nio.file.Files.move(
+                temporaryFile.toPath(),
+                historyFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE
+            )
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            java.nio.file.Files.move(
+                temporaryFile.toPath(),
+                historyFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            )
+        }
+    }
+
+    private fun parseRecords(array: JSONArray): MutableMap<String, WatchRecord> {
+        val result = mutableMapOf<String, WatchRecord>()
+
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val fileId = obj.optString("fileId").takeIf { it.isNotBlank() } ?: continue
+            val record = WatchRecord(
+                fileId = fileId,
+                name = obj.optString("name", "Untitled lecture"),
+                positionMs = obj.optLong("positionMs").coerceAtLeast(0L),
+                durationMs = obj.optLong("durationMs").coerceAtLeast(0L),
+                updatedAt = obj.optLong("updatedAt").coerceAtLeast(0L),
+                completed = obj.optBoolean("completed"),
+                accountId = obj.optString("accountId", accountId)
+            )
+
+            val existing = result[fileId]
+            if (existing == null || record.updatedAt > existing.updatedAt) {
+                result[fileId] = record
+            }
+        }
+
+        return result
     }
 
     fun sync(token: String, local: Map<String, WatchRecord>): Map<String, WatchRecord> {
@@ -83,7 +123,7 @@ class WatchHistorySync(context: Context) {
     }
 
     private fun downloadRemote(token: String): MutableMap<String, WatchRecord> {
-        val query = "name='$FILE_NAME' and trashed=false"
+        val query = "name='$fileName' and trashed=false"
 
         val url = URL(
             "$APPDATA_URL?spaces=appDataFolder&q=" +
@@ -92,8 +132,17 @@ class WatchHistorySync(context: Context) {
         )
 
         val response = request(url, "GET", token)
-        val files = JSONObject(response).optJSONArray("files")
-            ?: JSONArray()
+        var files = JSONObject(response).optJSONArray("files") ?: JSONArray()
+
+        if (files.length() == 0 && migrateLegacy && accountId != "default") {
+            val legacyQuery = "name='$LEGACY_FILE_NAME' and trashed=false"
+            val legacyUrl = URL(
+                "$APPDATA_URL?spaces=appDataFolder&q=" +
+                    java.net.URLEncoder.encode(legacyQuery, "UTF-8") +
+                    "&fields=files(id,name)"
+            )
+            files = JSONObject(request(legacyUrl, "GET", token)).optJSONArray("files") ?: JSONArray()
+        }
 
         if (files.length() == 0) return mutableMapOf()
 
@@ -107,29 +156,14 @@ class WatchHistorySync(context: Context) {
         val array = JSONObject(content).optJSONArray("records")
             ?: JSONArray()
 
-        val result = mutableMapOf<String, WatchRecord>()
-
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val record = WatchRecord(
-                fileId = obj.getString("fileId"),
-                name = obj.getString("name"),
-                positionMs = obj.optLong("positionMs"),
-                durationMs = obj.optLong("durationMs"),
-                updatedAt = obj.optLong("updatedAt"),
-                completed = obj.optBoolean("completed")
-            )
-            result[record.fileId] = record
-        }
-
-        return result
+        return parseRecords(array)
     }
 
     private fun uploadRemote(
         token: String,
         records: Map<String, WatchRecord>
     ) {
-        val query = "name='$FILE_NAME' and trashed=false"
+        val query = "name='$fileName' and trashed=false"
 
         val listUrl = URL(
             "$APPDATA_URL?spaces=appDataFolder&q=" +
@@ -152,7 +186,7 @@ class WatchHistorySync(context: Context) {
             fileId = files.getJSONObject(0).getString("id")
         } else {
             val metadata = JSONObject()
-                .put("name", FILE_NAME)
+                .put("name", fileName)
                 .put("mimeType", "application/json")
                 .put("parents", JSONArray().put("appDataFolder"))
 
@@ -246,5 +280,6 @@ class WatchHistorySync(context: Context) {
             .put("durationMs", durationMs)
             .put("updatedAt", updatedAt)
             .put("completed", completed)
+            .put("accountId", accountId)
     }
 }

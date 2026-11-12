@@ -9,117 +9,107 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import java.io.File
+import java.security.MessageDigest
 import java.util.UUID
 
 class DownloadRepository(context: Context) {
-
     private val appContext = context.applicationContext
-
     private val workManager = WorkManager.getInstance(appContext)
 
     companion object {
         private const val DOWNLOAD_TAG = "medvault_download"
         private const val UNIQUE_WORK_PREFIX = "medvault_download_"
+        private const val ACCOUNT_TAG_PREFIX = "medvault_account_"
+        private const val PREFS = "medvault_download_controls"
+        private const val PAUSED_IDS = "paused_file_ids"
 
-        fun displayState(state: WorkInfo.State): String {
-            return when (state) {
-                WorkInfo.State.ENQUEUED -> "Queued"
-                WorkInfo.State.RUNNING -> "Downloading"
-                WorkInfo.State.SUCCEEDED -> "Downloaded"
-                WorkInfo.State.FAILED -> "Failed"
-                WorkInfo.State.BLOCKED -> "Waiting"
-                WorkInfo.State.CANCELLED -> "Cancelled"
-            }
+        fun accountKey(accountId: String): String {
+            val bytes = MessageDigest.getInstance("SHA-256")
+                .digest(accountId.toByteArray(Charsets.UTF_8))
+            return bytes.take(8).joinToString("") { "%02x".format(it) }
+        }
+
+        private fun workName(file: DriveItem) =
+            "$UNIQUE_WORK_PREFIX" + accountKey(file.accountId) + "_" + file.id
+
+        private fun pausedKey(fileId: String, accountId: String) =
+            accountKey(accountId) + ":" + fileId
+
+        fun pausedIds(context: Context): Set<String> =
+            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getStringSet(PAUSED_IDS, emptySet())?.toSet() ?: emptySet()
+
+        fun isPaused(context: Context, fileId: String, accountId: String = "default"): Boolean =
+            pausedKey(fileId, accountId) in pausedIds(context)
+
+        private fun setPaused(context: Context, fileId: String, accountId: String, paused: Boolean) {
+            val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet(PAUSED_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
+            val key = pausedKey(fileId, accountId)
+            if (paused) ids.add(key) else ids.remove(key)
+            prefs.edit().putStringSet(PAUSED_IDS, ids).apply()
+        }
+
+        fun displayState(state: WorkInfo.State): String = when (state) {
+            WorkInfo.State.ENQUEUED -> "Queued"
+            WorkInfo.State.RUNNING -> "Downloading"
+            WorkInfo.State.SUCCEEDED -> "Downloaded"
+            WorkInfo.State.FAILED -> "Failed"
+            WorkInfo.State.BLOCKED -> "Waiting"
+            WorkInfo.State.CANCELLED -> "Cancelled"
         }
     }
 
-    /**
-     * Add a lecture to the download queue.
-     * Existing unfinished downloads are not duplicated.
-     */
-    fun enqueue(file: DriveItem): UUID {
-        val input = Data.Builder()
-            .putString(DriveDownloadWorker.KEY_FILE_ID, file.id)
-            .putString(DriveDownloadWorker.KEY_FILE_NAME, file.name)
-            .build()
-
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val request = OneTimeWorkRequestBuilder<DriveDownloadWorker>()
-            .setInputData(input)
-            .setConstraints(constraints)
+    private fun request(file: DriveItem) =
+        OneTimeWorkRequestBuilder<DriveDownloadWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putString(DriveDownloadWorker.KEY_FILE_ID, file.id)
+                    .putString(DriveDownloadWorker.KEY_FILE_NAME, file.name)
+                    .putString(DriveDownloadWorker.KEY_ACCOUNT_ID, file.accountId)
+                    .build()
+            )
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .addTag(DOWNLOAD_TAG)
-            .addTag("$UNIQUE_WORK_PREFIX${file.id}")
+            .addTag("$UNIQUE_WORK_PREFIX" + file.id)
+            .addTag(ACCOUNT_TAG_PREFIX + accountKey(file.accountId))
             .build()
 
-        workManager.enqueueUniqueWork(
-            "$UNIQUE_WORK_PREFIX${file.id}",
-            ExistingWorkPolicy.KEEP,
-            request
-        )
-
+    fun enqueue(file: DriveItem): UUID {
+        setPaused(appContext, file.id, file.accountId, false)
+        val request = request(file)
+        workManager.enqueueUniqueWork(workName(file), ExistingWorkPolicy.KEEP, request)
         return request.id
     }
 
-    /**
-     * Observe all download tasks.
-     */
-    fun observeAll() =
-        workManager.getWorkInfosByTagLiveData(DOWNLOAD_TAG)
+    fun observeAll() = workManager.getWorkInfosByTagLiveData(DOWNLOAD_TAG)
+    fun observe(id: UUID) = workManager.getWorkInfoByIdLiveData(id)
 
-    /**
-     * Observe a particular download.
-     */
-    fun observe(id: UUID) =
-        workManager.getWorkInfoByIdLiveData(id)
-
-    /**
-     * Pause by stopping the worker.
-     * The worker's partial file is retained.
-     */
-    fun pause(id: UUID) {
+    fun pause(id: UUID, fileId: String, accountId: String = "default") {
+        setPaused(appContext, fileId, accountId, true)
         workManager.cancelWorkById(id)
     }
 
-    /**
-     * Resume by enqueueing the same lecture again.
-     * The worker can continue from its partial file
-     * when the Drive server supports HTTP Range requests.
-     */
     fun resume(file: DriveItem): UUID {
-        return enqueue(file)
+        setPaused(appContext, file.id, file.accountId, false)
+        val request = request(file)
+        workManager.enqueueUniqueWork(workName(file), ExistingWorkPolicy.REPLACE, request)
+        return request.id
     }
 
-    /**
-     * Cancel a download.
-     * This stops the worker but does not delete its partial file.
-     */
-    fun cancel(id: UUID) {
+    fun cancel(id: UUID, fileId: String, accountId: String = "default") {
+        setPaused(appContext, fileId, accountId, false)
         workManager.cancelWorkById(id)
+        val prefix = accountKey(accountId) + "_" + fileId + "_"
+        File(appContext.filesDir, "downloads").listFiles()
+            ?.filter { it.name.startsWith(prefix) && it.name.endsWith(".part") }
+            ?.forEach { it.delete() }
     }
 
-    /**
-     * Cancel every MedVault download task.
-     */
     fun cancelAll() {
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(PAUSED_IDS).apply()
         workManager.cancelAllWorkByTag(DOWNLOAD_TAG)
     }
 
-    /**
-     * Retrieve the WorkManager task ID for a lecture.
-     */
-    fun findDownload(fileId: String) =
-        workManager.getWorkInfosByTagLiveData(
-            "$UNIQUE_WORK_PREFIX$fileId"
-        )
-
-    /**
-     * Remove completed WorkManager records when safe.
-     * This does not delete downloaded lecture files.
-     */
-    fun pruneWork() {
-        workManager.pruneWork()
-    }
+    fun pruneWork() = workManager.pruneWork()
 }

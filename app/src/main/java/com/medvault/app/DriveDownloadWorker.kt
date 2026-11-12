@@ -15,6 +15,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -25,16 +26,18 @@ class DriveDownloadWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
+    private val notificationId = (id.hashCode() and 0x7fffffff).coerceAtLeast(4101)
+
     companion object {
         const val KEY_FILE_ID = "file_id"
         const val KEY_FILE_NAME = "file_name"
+        const val KEY_ACCOUNT_ID = "account_id"
 
         const val KEY_PROGRESS = "progress"
         const val KEY_DOWNLOADED = "downloaded"
         const val KEY_TOTAL = "total"
 
         private const val CHANNEL_ID = "medvault_downloads"
-        private const val NOTIFICATION_ID = 4101
 
         // Avoid flooding WorkManager's database with progress updates.
         private const val PROGRESS_UPDATE_INTERVAL = 1000L
@@ -48,6 +51,8 @@ class DriveDownloadWorker(
         val fileId = inputData.getString(KEY_FILE_ID)
             ?: return@withContext Result.failure()
 
+        val accountId = inputData.getString(KEY_ACCOUNT_ID) ?: "default"
+
         val fileName = inputData.getString(KEY_FILE_NAME)
             ?: "lecture_$fileId.mp4"
 
@@ -56,7 +61,7 @@ class DriveDownloadWorker(
             .trim()
             .ifBlank { "lecture_$fileId.mp4" }
 
-        val token = DriveTokenVault.get(applicationContext)
+        val token = DriveTokenVault.get(applicationContext, accountId)
             ?: return@withContext Result.failure(
                 Data.Builder()
                     .putString(
@@ -81,12 +86,12 @@ class DriveDownloadWorker(
 
         val finalFile = File(
             downloadDirectory,
-            "${fileId}_$safeName"
+            "${DownloadRepository.accountKey(accountId)}_${fileId}_$safeName"
         )
 
         val partialFile = File(
             downloadDirectory,
-            "${fileId}_$safeName.part"
+            "${DownloadRepository.accountKey(accountId)}_${fileId}_$safeName.part"
         )
 
         fun resultData(file: File): Data {
@@ -109,7 +114,8 @@ class DriveDownloadWorker(
                     name = safeName,
                     localPath = file.absolutePath,
                     downloadId = 0L,
-                    downloadedAt = System.currentTimeMillis()
+                    downloadedAt = System.currentTimeMillis(),
+                    accountId = accountId
                 )
             )
         }
@@ -148,7 +154,7 @@ class DriveDownloadWorker(
 
             val url = URL(
                 "https://www.googleapis.com/drive/v3/files/" +
-                    "$encodedId?alt=media"
+                    "$encodedId?alt=media&supportsAllDrives=true"
             )
 
             connection = (url.openConnection() as HttpURLConnection).apply {
@@ -199,12 +205,24 @@ class DriveDownloadWorker(
                 return@withContext Result.retry()
             }
 
-            // Append only when the server confirms a partial response.
+            // Append only when the server confirms the exact requested byte offset.
             val append = responseCode == 206
+            val contentRange = connection.getHeaderField("Content-Range")
+            if (append) {
+                val returnedStart = contentRange
+                    ?.substringAfter("bytes ", "")
+                    ?.substringBefore("-")
+                    ?.toLongOrNull()
+                if (returnedStart == null || returnedStart != existingBytes) {
+                    return@withContext Result.failure(
+                        Data.Builder()
+                            .putString("error", "Drive returned an invalid resume range. Retry this download.")
+                            .putString(KEY_FILE_NAME, safeName)
+                            .build()
+                    )
+                }
+            }
             val startBytes = if (append) existingBytes else 0L
-
-            val contentRange =
-                connection.getHeaderField("Content-Range")
 
             val rangeTotal = contentRange
                 ?.substringAfterLast("/")
@@ -351,9 +369,23 @@ class DriveDownloadWorker(
             Result.success(resultData(finalFile))
 
         } catch (e: CancellationException) {
+            // Pause keeps the partial file; explicit cancel removes it in the repository.
+            if (!DownloadRepository.isPaused(applicationContext, fileId, accountId)) {
+                partialFile.delete()
+            }
             throw e
         } catch (e: Exception) {
-            Result.retry()
+            val message = e.message.orEmpty()
+            if (e is IOException && (message.contains("no space", ignoreCase = true) || message.contains("ENOSPC", ignoreCase = true))) {
+                Result.failure(
+                    Data.Builder()
+                        .putString("error", "Not enough device storage. Free space and retry.")
+                        .putString(KEY_FILE_NAME, safeName)
+                        .build()
+                )
+            } else {
+                Result.retry()
+            }
         } finally {
             connection?.disconnect()
         }
@@ -402,14 +434,14 @@ class DriveDownloadWorker(
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
-                NOTIFICATION_ID,
+                notificationId,
                 notification,
                 android.content.pm.ServiceInfo
                     .FOREGROUND_SERVICE_TYPE_DATA_SYNC
             )
         } else {
             ForegroundInfo(
-                NOTIFICATION_ID,
+                notificationId,
                 notification
             )
         }
