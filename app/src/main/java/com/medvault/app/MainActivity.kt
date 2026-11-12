@@ -1498,8 +1498,8 @@ class MainActivity : ComponentActivity() {
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 runOnUiThread {
-                    status = "Telegram playback error: ${error.message ?: error.errorCodeName}"
-                    Toast.makeText(this@MainActivity, "Telegram playback failed: ${error.errorCodeName}", Toast.LENGTH_LONG).show()
+                    status = "Video playback error: ${error.message ?: error.errorCodeName}"
+                    Toast.makeText(this@MainActivity, "Video playback failed: ${error.errorCodeName}", Toast.LENGTH_LONG).show()
                 }
             }
         })
@@ -1742,7 +1742,7 @@ private fun SettingsScreen(
                 Icon(Icons.Default.Send, null, tint = AppAccent, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Telegram", fontWeight = FontWeight.SemiBold)
+                    Text("Content account", fontWeight = FontWeight.SemiBold)
                     Text("Account, source groups and lecture library settings", color = AppMuted, fontSize = 12.sp)
                 }
                 Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
@@ -1784,15 +1784,15 @@ private fun TelegramSettingsScreen(onBack: () -> Unit, onConnect: () -> Unit, on
     Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
-            Text("Telegram", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Content account", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-        Text("Telegram account and configured lecture sources", color = AppMuted)
-        Text("Edition M · Marrow", fontWeight = FontWeight.SemiBold)
+        Text("Account and configured content sources", color = AppMuted)
+        Text("Edition M", fontWeight = FontWeight.SemiBold)
         Text(marrow ?: "Not configured", color = AppMuted)
         Divider(color = AppMuted.copy(alpha = 0.25f))
-        Text("Edition P · PrepLadder", fontWeight = FontWeight.SemiBold)
+        Text("Edition P", fontWeight = FontWeight.SemiBold)
         Text(prep ?: "Not configured", color = AppMuted)
-        Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text("Connect / manage Telegram account") }
+        Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text("Connect / manage account") }
         OutlinedButton(onClick = onManageGroups, modifier = Modifier.fillMaxWidth()) { Text("Change source groups") }
     }
 }
@@ -1821,20 +1821,20 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(AppBg).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
-            Text("Connect Telegram", fontSize = 23.sp, fontWeight = FontWeight.Bold)
+            Text("Connect account", fontSize = 23.sp, fontWeight = FontWeight.Bold)
         }
-        Text("Sign in with your Telegram account. Your login code and two-step password are handled locally by TDLib, not sent to MedVault servers.", color = AppMuted, fontSize = 13.sp)
+        Text("Sign in to your content account. Authentication is handled locally on this device.", color = AppMuted, fontSize = 13.sp)
         when (val state = authState) {
             TelegramAuthManager.State.Starting -> {
                 CircularProgressIndicator()
-                Text("Starting secure Telegram client…", color = AppMuted)
+                Text("Starting secure content service…", color = AppMuted)
             }
             TelegramAuthManager.State.WaitingForPhone -> {
                 OutlinedTextField(value = phone, onValueChange = { phone = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Phone number with country code") }, placeholder = { Text("+919876543210") }, singleLine = true)
-                Button(onClick = { busy = true; manager?.submitPhoneNumber(phone) }, enabled = !busy && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Sending…" else "Send Telegram code") }
+                Button(onClick = { busy = true; manager?.submitPhoneNumber(phone) }, enabled = !busy && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Sending…" else "Send login code") }
             }
             TelegramAuthManager.State.WaitingForCode -> {
-                OutlinedTextField(value = code, onValueChange = { code = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Telegram login code") }, singleLine = true)
+                OutlinedTextField(value = code, onValueChange = { code = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Login code") }, singleLine = true)
                 Button(onClick = { busy = true; manager?.submitCode(code) }, enabled = !busy && code.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Verifying…" else "Verify code") }
             }
             TelegramAuthManager.State.WaitingForPassword -> {
@@ -1845,8 +1845,8 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF4ADE80), modifier = Modifier.size(36.dp))
-                        Text("Telegram connected", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Telegram user ID: ${state.userId}", color = AppMuted)
+                        Text("Account connected", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Account verified", color = AppMuted)
                         Text("Your session is stored locally on this device.", color = AppMuted)
                     }
                 }
@@ -1856,7 +1856,7 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
                 Button(onClick = { authState = TelegramAuthManager.State.Starting; manager?.start() }) { Text("Retry") }
             }
             TelegramAuthManager.State.Closed -> {
-                Text("Telegram client closed.", color = AppMuted)
+                Text("Content service closed.", color = AppMuted)
                 Button(onClick = { manager?.start() }) { Text("Reconnect") }
             }
         }
@@ -1902,22 +1902,22 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
-                Text(topic?.name ?: "Telegram Library", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Telegram video sources", color = AppMuted, fontSize = 12.sp)
+                Text(topic?.name ?: "Video Library", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Video library", color = AppMuted, fontSize = 12.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
         if (authState !is TelegramAuthManager.State.Ready) {
-            Text("Telegram is not connected.", color = AppMuted)
-            Button(onClick = onConnect) { Text("Connect Telegram") }
+            Text("Content account is not connected.", color = AppMuted)
+            Button(onClick = onConnect) { Text("Connect account") }
         } else if (topic == null && setupMode) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M · Marrow") })
-                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P · PrepLadder") })
+                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M") })
+                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P") })
             }
             Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (edition == MedVaultEdition.M) "Marrow" else "PrepLadder", fontWeight = FontWeight.Bold)
+                    Text(if (edition == MedVaultEdition.M) "Edition M" else "Edition P", fontWeight = FontWeight.Bold)
                     Text(activeTitle ?: "No forum group assigned", color = AppMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = !busy, onClick = {
@@ -1982,8 +1982,8 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             }
         } else if (topic == null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Marrow") })
-                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("PrepLadder") })
+                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M") })
+                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P") })
             }
             LaunchedEffect(repo, edition, authState) {
                 val sourceRepo = repo ?: return@LaunchedEffect
@@ -2349,7 +2349,7 @@ private fun VideosDashboard(
                 selected = false,
                 onClick = onTelegram,
                 icon = { Icon(Icons.Default.Send, contentDescription = null) },
-                label = { Text("Telegram") },
+                label = { Text("Content account") },
                 alwaysShowLabel = true
             )
         }
