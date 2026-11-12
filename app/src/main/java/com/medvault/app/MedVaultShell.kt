@@ -70,8 +70,8 @@ fun MedVaultHomeScreen(
                         StudyHubCard("Tests", "Test papers", Icons.Default.Assignment, onTests, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StudyHubCard("Daily Dose", "MCQs and high-yield facts", Icons.Default.Bolt, onDailyDose, Modifier.weight(1f))
-                        StudyHubCard("Medical Updates", "Exams and medical news", Icons.Default.Newspaper, onUpdates, Modifier.weight(1f))
+                        StudyHubCard("Daily Dose", "MCQs and high-yield facts", Icons.Default.FlashOn, onDailyDose, Modifier.weight(1f))
+                        StudyHubCard("Medical Updates", "Exams and medical news", Icons.Default.Article, onUpdates, Modifier.weight(1f))
                     }
                 }
             }
@@ -267,7 +267,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
         }
         Card(Modifier.fillMaxWidth().clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.White)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.FolderSpecial, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
+                Icon(Icons.Default.FolderOpen, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Library sources", color = ShellInk, fontWeight = FontWeight.SemiBold)
