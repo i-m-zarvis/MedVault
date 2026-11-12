@@ -63,8 +63,18 @@ class TelegramAuthManager private constructor(
     fun addUpdateListener(listener: (TdApi.Object) -> Unit) { updateListeners.add(listener) }
     fun removeUpdateListener(listener: (TdApi.Object) -> Unit) { updateListeners.remove(listener) }
 
+    /**
+     * Sends non-authentication TDLib work (media ranges, metadata, etc.).
+     * Errors from these requests must reach their caller only; they must not
+     * change the Telegram login state to Failed.
+     */
     fun sendRequest(request: TdApi.Function<*>, callback: (TdApi.Object) -> Unit) {
-        send(request, callback)
+        val active = client
+        if (active == null) {
+            callback(TdApi.Error(500, "Telegram client is not running."))
+            return
+        }
+        active.send(request) { result -> callback(result) }
     }
 
     @Synchronized
