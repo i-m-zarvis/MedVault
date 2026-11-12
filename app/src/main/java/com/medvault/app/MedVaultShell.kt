@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -118,7 +119,13 @@ fun MedVaultHomeScreen(
     Box(Modifier.fillMaxSize().background(HomeBackground).nestedScroll(refreshConnection)) {
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                translationY = pullPx * 0.82f
+                scaleY = 1f + (pullPx / with(density) { 1800.dp.toPx() }).coerceAtMost(0.075f)
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+            },
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
