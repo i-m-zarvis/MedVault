@@ -37,10 +37,10 @@ import java.util.concurrent.Executors
 
 private val StudyIo = Executors.newSingleThreadExecutor()
 private val StudyMain = Handler(Looper.getMainLooper())
-private val StudyBg = Color(0xFF0B1020)
-private val StudyPanel = Color(0xFF151E30)
+private val StudyBg = Color(0xFF080B12)
+private val StudyPanel = Color(0xFF171D30)
 private val StudyAccent = Color(0xFF78AFFF)
-private val StudyMuted = Color(0xFF9EABC0)
+private val StudyMuted = Color(0xFF9299AA)
 
 data class TelegramPdfDocument(
     val stableId: String,
@@ -198,7 +198,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                     }
                 }
             }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2038)), shape = RoundedCornerShape(26.dp)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Configure " + label(target), fontWeight = FontWeight.Bold)
                     Button(enabled = !busy, onClick = {
@@ -309,7 +309,7 @@ fun TelegramDocumentLibraryScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
-                Text(if (edition == MedVaultEdition.QBANK) "QBank Vault" else "Notes Library", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(if (edition == MedVaultEdition.QBANK) "QBank Vault" else "Notes Library", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Text(selectedTopic?.name ?: selectedGroup ?: "PRACTICE MODULES  ·  PDF LIBRARY", color = StudyAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (edition == MedVaultEdition.QBANK) {
@@ -386,7 +386,7 @@ fun TelegramDocumentLibraryScreen(
             LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
                 items(documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { document ->
                     val local = TelegramPdfStore.localFile(context, sourceEdition, document)
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2038)), shape = RoundedCornerShape(26.dp)) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFFF7777), modifier = Modifier.size(28.dp))
