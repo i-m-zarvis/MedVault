@@ -1670,7 +1670,7 @@ private fun MedVaultRoot(
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
                         onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
-                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
+                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, onOpenPractice = { screen = "practice" })
                     "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
                     "pdf_reader" -> {
@@ -1680,8 +1680,8 @@ private fun MedVaultRoot(
                     }
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
-                    "daily_dose" -> MedVaultPlaceholderScreen("Daily Dose",
-                        "Randomized MCQs, explanations and high-yield facts are planned as the next module.", onHome)
+                    "daily_dose" -> MedVaultQuestionScreen(onBack = onHome, dailyMode = true)
+                    "practice" -> MedVaultQuestionScreen(onBack = onHome, dailyMode = false)
                     "updates" -> MedVaultPlaceholderScreen("Medical Updates",
                         "Official exam notifications and medical news aggregation are planned as the next module.", onHome)
                     "player" -> {
