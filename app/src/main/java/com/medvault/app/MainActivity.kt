@@ -224,7 +224,11 @@ class MainActivity : ComponentActivity() {
             val editionPrefs = remember { getSharedPreferences("medvault_app_settings", MODE_PRIVATE) }
             var activeEdition by remember {
                 mutableStateOf(
-                    if (editionPrefs.getString("active_edition", "M") == "P") MedVaultEdition.P else MedVaultEdition.M
+                    when (editionPrefs.getString("active_edition", "M")) {
+                        "P" -> MedVaultEdition.P
+                        "U" -> MedVaultEdition.U
+                        else -> MedVaultEdition.M
+                    }
                 )
             }
 
@@ -1895,6 +1899,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var topic by remember { mutableStateOf<TelegramForumTopic?>(null) }
     var titleM by remember { mutableStateOf<String?>(null) }
     var titleP by remember { mutableStateOf<String?>(null) }
+    var titleU by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1909,10 +1914,15 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         repo?.let {
             titleM = it.selectedTitle(MedVaultEdition.M)
             titleP = it.selectedTitle(MedVaultEdition.P)
+            titleU = it.selectedTitle(MedVaultEdition.U)
         }
     }
     BackHandler { if (topic != null) { topic = null; messages = emptyList() } else onBack() }
-    val activeTitle = if (activeEdition == MedVaultEdition.M) titleM else titleP
+    val activeTitle = when (activeEdition) {
+        MedVaultEdition.M -> titleM
+        MedVaultEdition.P -> titleP
+        else -> titleU
+    }
     Column(Modifier.fillMaxSize().background(AppBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
@@ -1928,7 +1938,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         } else if (topic == null && setupMode) {
             Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (activeEdition == MedVaultEdition.M) "Edition M" else "Edition P", fontWeight = FontWeight.Bold)
+                    Text("Edition " + activeEdition.name, fontWeight = FontWeight.Bold)
                     Text(activeTitle ?: "No forum group assigned", color = AppMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = !busy, onClick = {
@@ -1960,7 +1970,11 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                 TextButton(onClick = {
                                     runCatching { repo?.assignSource(activeEdition, group) }
                                         .onSuccess {
-                                            if (activeEdition == MedVaultEdition.M) titleM = group.title else titleP = group.title
+                                            when (activeEdition) {
+                                                MedVaultEdition.M -> titleM = group.title
+                                                MedVaultEdition.P -> titleP = group.title
+                                                else -> titleU = group.title
+                                            }
                                             status = "Assigned " + group.title
                                             error = null
                                         }.onFailure { error = it.message }
