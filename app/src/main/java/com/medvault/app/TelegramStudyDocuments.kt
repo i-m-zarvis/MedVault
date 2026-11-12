@@ -264,7 +264,8 @@ fun TelegramDocumentLibraryScreen(
     onBack: () -> Unit,
     onOpenPdf: (File, String) -> Unit,
     onManageSources: () -> Unit,
-    onConnectAccount: () -> Unit
+    onConnectAccount: () -> Unit,
+    onOpenPractice: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
@@ -303,6 +304,9 @@ fun TelegramDocumentLibraryScreen(
             Column(Modifier.weight(1f)) {
                 Text(if (edition == MedVaultEdition.QBANK) "QBank" else "Tests", fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 Text(selectedTopic?.name ?: selectedGroup ?: "PDF study library", color = AppMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (edition == MedVaultEdition.QBANK) {
+                TextButton(onClick = onOpenPractice) { Text("Practice MCQs") }
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
