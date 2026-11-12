@@ -169,7 +169,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
         auth.start()
         repo = TelegramLibraryRepository(context, auth)
     }
-    Column(Modifier.fillMaxSize().background(StudyBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(StudyBg).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -177,6 +177,23 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                 Text("Independent Telegram groups for Video, QBank and Notes", color = StudyMuted, fontSize = 12.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+        }
+        if (selectedTopic != null && documents.isNotEmpty()) {
+            OutlinedTextField(
+                value = documentSearch,
+                onValueChange = { documentSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Search PDFs…", color = StudyMuted) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = StudyMuted) },
+                shape = RoundedCornerShape(22.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = StudyAccent,
+                    unfocusedBorderColor = StudyPanel,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
         }
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Connect your content account before selecting source groups.", color = StudyMuted)
@@ -196,7 +213,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                     }
                 }
             }
-            Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Configure " + label(target), fontWeight = FontWeight.Bold)
                     Button(enabled = !busy, onClick = {
@@ -257,6 +274,7 @@ fun TelegramDocumentLibraryScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf<String?>(null) }
+    var documentSearch by remember { mutableStateOf("") }
     val sourceEdition = when (edition) {
         MedVaultEdition.QBANK -> when (activeEdition) {
             MedVaultEdition.M -> MedVaultEdition.QBANK_M
@@ -306,8 +324,8 @@ fun TelegramDocumentLibraryScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
-                Text(if (edition == MedVaultEdition.QBANK) "QBank" else "Notes", fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text(selectedTopic?.name ?: selectedGroup ?: "PDF study library", color = StudyMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (edition == MedVaultEdition.QBANK) "QBank Vault" else "Notes Library", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(selectedTopic?.name ?: selectedGroup ?: "PRACTICE MODULES  ·  PDF LIBRARY", color = StudyAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (edition == MedVaultEdition.QBANK) {
                 TextButton(onClick = onOpenPractice) { Text("Practice MCQs") }
@@ -349,7 +367,8 @@ fun TelegramDocumentLibraryScreen(
                                 }
                             }
                         },
-                        colors = CardDefaults.cardColors(containerColor = StudyPanel)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)),
+                        shape = RoundedCornerShape(22.dp)
                     ) {
                         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.FolderOpen, null, tint = StudyAccent)
@@ -362,10 +381,10 @@ fun TelegramDocumentLibraryScreen(
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-                items(documents, key = { it.stableId }) { document ->
+                items(documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { document ->
                     val local = TelegramPdfStore.localFile(context, sourceEdition, document)
-                    Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
-                        Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFFF7777), modifier = Modifier.size(28.dp))
                                 Spacer(Modifier.width(10.dp))

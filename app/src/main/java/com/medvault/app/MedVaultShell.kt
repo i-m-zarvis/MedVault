@@ -514,7 +514,10 @@ fun MedVaultOfflineScreen(
     Column(Modifier.fillMaxSize().background(HomeBackground)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
-            Text("Offline library", color = ShellInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Column {
+                Text("Downloads", color = ShellInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text("OFFLINE VAULT", color = ShellBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            }
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
@@ -565,16 +568,19 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
     Column(Modifier.fillMaxSize().background(ShellBackground).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
-            Text("Profile & Settings", color = ShellInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Column {
+                Text("ACCOUNT", color = ShellBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text("Profile & Settings", color = ShellInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = HomePanel), shape = RoundedCornerShape(18.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(24.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AccountCircle, null, tint = ShellBlue, modifier = Modifier.size(42.dp))
+                    Icon(Icons.Default.AccountCircle, null, tint = ShellBlue, modifier = Modifier.size(52.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(displayName, color = ShellInk, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Medical student", color = ShellMuted, fontSize = 12.sp)
+                        Text("Medical student", color = ShellBlue, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                     TextButton(onClick = { editing = !editing }) { Text(if (editing) "Close" else "Edit") }
                 }
@@ -593,8 +599,8 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 }
             }
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = HomePanel)) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBox, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -615,8 +621,8 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Card(Modifier.fillMaxWidth().clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = ShellBlue, modifier = Modifier.size(25.dp))
                     Spacer(Modifier.width(12.dp))

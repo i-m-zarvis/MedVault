@@ -1911,6 +1911,10 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var topicSearch by remember { mutableStateOf("") }
+    val visibleTopics = remember(topics, topicSearch) {
+        topics.filter { it.name.contains(topicSearch.trim(), ignoreCase = true) }
+    }
 
     LaunchedEffect(Unit) {
         val auth = TelegramAuthManager.getInstance(context) { authState = it }
@@ -1931,14 +1935,32 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         MedVaultEdition.P -> titleP
         else -> titleU
     }
-    Column(Modifier.fillMaxSize().background(AppBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(AppBg).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
-                Text(topic?.name ?: "Lectures", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                if (topic == null) Text("Browse your study library", color = AppMuted, fontSize = 12.sp)
+                Text(topic?.name ?: "Video Library", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (topic == null) Text("HIGH-YIELD MEDIA  ·  EDITION ${activeEdition.name}", color = AppAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+        }
+        if (topic == null && authState is TelegramAuthManager.State.Ready) {
+            OutlinedTextField(
+                value = topicSearch,
+                onValueChange = { topicSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Search subjects and topics…", color = AppMuted) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = AppMuted) },
+                shape = RoundedCornerShape(22.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AppAccent,
+                    unfocusedBorderColor = AppPanel,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = AppAccent
+                )
+            )
         }
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Content account is not connected.", color = AppMuted)
@@ -1994,7 +2016,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             } else if (topics.isNotEmpty()) {
                 Text("SUBJECTS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(topics, key = { it.topicId }) { item ->
+                    items(visibleTopics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
                             topic = item; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
                             repo?.loadTopicMessages(item) { result ->
@@ -2042,8 +2064,8 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             busy = false
                             result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
                         }
-                    }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                             Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
                         }
@@ -2057,7 +2079,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(lectures, key = { it.stableId }) { lecture ->
+                items(lectures.filter { it.title.contains(topicSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { lecture ->
                     var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
                     LaunchedEffect(lecture.thumbnailFileId) {
                         val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
@@ -2067,7 +2089,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
                         }
                     }
-                    Card(Modifier.clickable { onPlayLecture(lecture) }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                    Card(Modifier.fillMaxWidth().clickable { onPlayLecture(lecture) }, colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(20.dp)) {
                         Row(
                             Modifier.fillMaxWidth().padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,

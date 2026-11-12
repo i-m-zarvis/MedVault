@@ -1,6 +1,7 @@
 package com.medvault.app
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,7 +50,7 @@ import java.io.File
 
 private val DownloadAccent = Color(0xFF78AFFF)
 private val DownloadMuted = Color(0xFF9EABC0)
-private val DownloadPanel = Color(0xFF151E30)
+private val DownloadPanel = Color(0xFF1A2033)
 
 @Composable
 fun DownloadManagerScreen(
@@ -98,7 +99,9 @@ fun DownloadManagerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(Color(0xFF090B10))
+            .padding(horizontal = 18.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically
@@ -115,13 +118,13 @@ fun DownloadManagerScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    "Download Manager",
-                    fontSize = 22.sp,
+                    "Downloads",
+                    fontSize = 27.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Text(
-                    "Manage your offline lectures",
+                    "OFFLINE VAULT  ·  YOUR SAVED MATERIAL",
                     color = DownloadMuted,
                     fontSize = 12.sp
                 )
@@ -138,7 +141,7 @@ fun DownloadManagerScreen(
         Card(
             modifier = Modifier.fillMaxWidth().animateContentSize(),
             colors = CardDefaults.cardColors(containerColor = DownloadPanel),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(22.dp)
         ) {
             Column(Modifier.padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
