@@ -239,6 +239,7 @@ fun TelegramDocumentLibraryScreen(
     onOpenPdf: (File, String) -> Unit,
     onManageSources: () -> Unit,
     onConnectAccount: () -> Unit,
+    activeEdition: MedVaultEdition,
     onOpenPractice: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -253,12 +254,10 @@ fun TelegramDocumentLibraryScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf<String?>(null) }
-    var qbankEdition by remember { mutableStateOf(MedVaultEdition.M) }
-    var notesEdition by remember { mutableStateOf(MedVaultEdition.M) }
     val sourceEdition = when (edition) {
-        MedVaultEdition.QBANK -> if (qbankEdition == MedVaultEdition.M) MedVaultEdition.QBANK_M else MedVaultEdition.QBANK_P
-        MedVaultEdition.TESTS -> if (notesEdition == MedVaultEdition.M) MedVaultEdition.NOTES_M else MedVaultEdition.NOTES_P
-        else -> edition
+        MedVaultEdition.QBANK -> if (activeEdition == MedVaultEdition.M) MedVaultEdition.QBANK_M else MedVaultEdition.QBANK_P
+        MedVaultEdition.TESTS -> if (activeEdition == MedVaultEdition.M) MedVaultEdition.NOTES_M else MedVaultEdition.NOTES_P
+        else -> activeEdition
     }
 
     LaunchedEffect(Unit) {
@@ -303,19 +302,6 @@ fun TelegramDocumentLibraryScreen(
                 TextButton(onClick = onOpenPractice) { Text("Practice MCQs") }
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-        }
-
-        if (edition == MedVaultEdition.QBANK || edition == MedVaultEdition.TESTS) {
-            val currentEdition = if (edition == MedVaultEdition.QBANK) qbankEdition else notesEdition
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(MedVaultEdition.M, MedVaultEdition.P).forEach { option ->
-                    FilterChip(
-                        selected = currentEdition == option,
-                        onClick = { if (edition == MedVaultEdition.QBANK) qbankEdition = option else notesEdition = option },
-                        label = { Text(if (option == MedVaultEdition.M) "Edition M" else "Edition P") }
-                    )
-                }
-            }
         }
 
         if (authState !is TelegramAuthManager.State.Ready) {
