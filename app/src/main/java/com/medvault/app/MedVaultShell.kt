@@ -33,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -119,7 +120,7 @@ fun MedVaultHomeScreen(
             animation = androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)
         ), label = "vault-rotation"
     )
-    Box(Modifier.fillMaxSize().background(HomeBackground).nestedScroll(refreshConnection)) {
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).nestedScroll(refreshConnection)) {
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -442,7 +443,7 @@ fun MedVaultBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(HomeBackground)
+            .background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))
             .padding(start = 12.dp, end = 12.dp, top = 5.dp, bottom = 9.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -521,7 +522,7 @@ fun MedVaultOfflineScreen(
         bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
         else -> "${(bytes / 1024L).coerceAtLeast(0L)} KB"
     }
-    Column(Modifier.fillMaxSize().background(HomeBackground)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Column {
@@ -595,7 +596,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
     var editing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showAbout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().background(ShellBackground).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Column {
@@ -712,7 +713,7 @@ fun MedVaultQuestionScreen(onBack: () -> Unit, dailyMode: Boolean) {
     var completed by remember { mutableIntStateOf(0) }
     val question = starterMcqs[index]
 
-    Column(Modifier.fillMaxSize().background(ShellBackground)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Column(Modifier.weight(1f)) {
