@@ -90,13 +90,11 @@ fun MedVaultHomeScreen(
                 if (pullPx >= thresholdPx && !refreshRequested) {
                     refreshRequested = true
                     ContentFeedScheduler.refresh(context)
-                    scope.launch {
-                        animate(pullPx, with(density) { 62.dp.toPx() }, animationSpec = spring(dampingRatio = 0.72f, stiffness = 360f)) { value, _ -> pullPx = value }
-                    }
-                } else {
-                    scope.launch {
-                        animate(pullPx, 0f, animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f)) { value, _ -> pullPx = value }
-                    }
+                }
+                // The content surface must spring home as soon as the finger is released.
+                // Keep the refresh indicator independently pinned while background sync runs.
+                scope.launch {
+                    animate(pullPx, 0f, animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f)) { value, _ -> pullPx = value }
                 }
                 return Velocity.Zero
             }
@@ -251,7 +249,11 @@ fun MedVaultHomeScreen(
     if (pullPx > 1f || refreshRequested || showRefreshResult) {
         Canvas(
             Modifier.align(Alignment.TopCenter)
-                .offset { IntOffset(0, (pullPx - with(density) { 42.dp.toPx() }).toInt()) }
+                .offset {
+                    val indicatorY = if (refreshRequested) with(density) { 12.dp.toPx() }
+                        else pullPx - with(density) { 42.dp.toPx() }
+                    IntOffset(0, indicatorY.toInt())
+                }
                 .size(38.dp)
         ) {
             val center = Offset(size.width / 2f, size.height / 2f)
