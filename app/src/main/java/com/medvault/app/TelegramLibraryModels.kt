@@ -98,4 +98,4 @@ data class TelegramLecture(
 }
 
 /** Each source role is configured independently in Settings. */
-enum class MedVaultEdition { M, P, QBANK_M, QBANK_P, NOTES_M, NOTES_P, QBANK, TESTS }
+enum class MedVaultEdition { M, P, U, QBANK_M, QBANK_P, QBANK_U, NOTES_M, NOTES_P, NOTES_U, QBANK, TESTS }
