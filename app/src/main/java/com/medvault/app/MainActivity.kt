@@ -270,6 +270,7 @@ class MainActivity : ComponentActivity() {
                     screen = screen,
                     activeAccountEmail = activeAccountEmail,
                     onOpenTelegram = { screen = "telegram" },
+                    onSettings = { screen = "settings" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
                     fullscreen = fullscreen,
@@ -1544,6 +1545,7 @@ private fun MedVaultRoot(
     screen: String,
     activeAccountEmail: String,
     onOpenTelegram: () -> Unit,
+    onSettings: () -> Unit,
     accountMenu: Boolean,
     pipMode: Boolean,
     fullscreen: Boolean,
@@ -1583,6 +1585,7 @@ private fun MedVaultRoot(
     ) {
         when (screen) {
             "player" -> onHome()
+            "settings", "telegram" -> onHome()
             "drive" -> onFolderBack()
             "videos", "history", "continue", "downloads" -> onHome()
         }
@@ -1606,7 +1609,19 @@ private fun MedVaultRoot(
         ) {
             when {
             targetScreen == "telegram" -> {
-                TelegramLoginScreen(onBack = { onHome() })
+                TelegramLoginScreen(onBack = { screen = "settings" })
+            }
+
+            targetScreen == "settings" -> {
+                SettingsScreen(
+                    connected = connected,
+                    activeAccountEmail = activeAccountEmail,
+                    onBack = onHome,
+                    onConnectGoogle = onConnect,
+                    onDisconnectGoogle = onDisconnect,
+                    onConnectTelegram = onOpenTelegram,
+                    onBrowseDrive = onRawDrive
+                )
             }
 
             targetScreen == "player" &&
@@ -1644,7 +1659,8 @@ private fun MedVaultRoot(
                     onDownloads = onDownloads,
                     onContinue = onContinue,
                     onHistory = onHistory,
-                    onTelegram = onOpenTelegram
+                    onTelegram = onOpenTelegram,
+                    onSettings = onSettings
                 )
             }
 
@@ -1712,6 +1728,7 @@ private fun MedVaultRoot(
                     onHistory = onHistory,
                     onContinue = onContinue,
                     onDownloads = onDownloads,
+                    onSettings = onSettings,
                     downloadCount = downloadedLectures.size,
                     activeDownloadCount = downloadWorkItems.count {
                         it.state == WorkInfo.State.RUNNING ||
@@ -1725,6 +1742,73 @@ private fun MedVaultRoot(
     }
 }
 
+
+@Composable
+private fun SettingsScreen(
+    connected: Boolean,
+    activeAccountEmail: String,
+    onBack: () -> Unit,
+    onConnectGoogle: () -> Unit,
+    onDisconnectGoogle: () -> Unit,
+    onConnectTelegram: () -> Unit,
+    onBrowseDrive: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().background(AppBg).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            Text("Settings", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("CONNECTED ACCOUNTS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Cloud, null, tint = AppAccent, modifier = Modifier.size(25.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Google Drive", fontWeight = FontWeight.SemiBold)
+                        Text(if (connected) activeAccountEmail else "Not connected", color = AppMuted, fontSize = 12.sp)
+                    }
+                    Text(if (connected) "Connected" else "Disconnected", color = if (connected) Color(0xFF4ADE80) else AppMuted, fontSize = 11.sp)
+                }
+                OutlinedButton(onClick = onConnectGoogle, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Sync, null); Spacer(Modifier.width(8.dp))
+                    Text(if (connected) "Add / switch Google account" else "Connect Google account")
+                }
+                if (connected) {
+                    TextButton(onClick = onDisconnectGoogle, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Logout, null); Spacer(Modifier.width(8.dp)); Text("Disconnect Google account")
+                    }
+                }
+            }
+        }
+        Text("VIDEO SOURCES", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Send, null, tint = AppAccent, modifier = Modifier.size(25.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Telegram", fontWeight = FontWeight.SemiBold)
+                        Text("Configure Edition M (Marrow) and Edition P (PrepLadder)", color = AppMuted, fontSize = 12.sp)
+                    }
+                }
+                Button(onClick = onConnectTelegram, modifier = Modifier.fillMaxWidth()) { Text("Connect / manage Telegram") }
+            }
+        }
+        Text("GOOGLE DRIVE", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
+            TextButton(onClick = onBrowseDrive, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(10.dp)); Text("Browse raw Drive")
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Text("MedVault  •  Version 1.0", color = AppMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+        Text("BY AFTAB", color = AppMuted, fontSize = 10.sp, letterSpacing = 2.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+    }
+}
 
 @Composable
 private fun TelegramLoginScreen(onBack: () -> Unit) {
@@ -1817,7 +1901,8 @@ private fun VideosDashboard(
     onDownloads: () -> Unit,
     onContinue: () -> Unit,
     onHistory: () -> Unit,
-    onTelegram: () -> Unit
+    onTelegram: () -> Unit,
+    onSettings: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
@@ -1841,8 +1926,8 @@ private fun VideosDashboard(
                 .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { onMenu(true) }) {
-                Icon(Icons.Default.Menu, "Account menu", tint = Color.White, modifier = Modifier.size(29.dp))
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Default.Settings, "Settings", tint = Color.White, modifier = Modifier.size(27.dp))
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -1864,38 +1949,6 @@ private fun VideosDashboard(
             }
             IconButton(onClick = { searchExpanded = !searchExpanded }) {
                 Icon(Icons.Default.Search, "Search Google Drive", tint = Color.White, modifier = Modifier.size(30.dp))
-            }
-            DropdownMenu(
-                expanded = menu,
-                onDismissRequest = { onMenu(false) }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (connected) activeAccountEmail else "No Google account connected") },
-                    onClick = { onMenu(false) },
-                    leadingIcon = { Icon(Icons.Default.AccountCircle, null) }
-                )
-                DropdownMenuItem(
-                    text = { Text("Add / switch Google account") },
-                    onClick = { onMenu(false); onConnect() },
-                    leadingIcon = { Icon(Icons.Default.Sync, null) }
-                )
-                if (connected) {
-                    DropdownMenuItem(
-                        text = { Text("Disconnect Google account") },
-                        onClick = { onMenu(false); onDisconnect() },
-                        leadingIcon = { Icon(Icons.Default.Logout, null) }
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text("Connect Telegram") },
-                    onClick = { onMenu(false); onTelegram() },
-                    leadingIcon = { Icon(Icons.Default.Send, null) }
-                )
-                DropdownMenuItem(
-                    text = { Text("Browse raw Drive") },
-                    onClick = { onMenu(false); onRawDrive() },
-                    leadingIcon = { Icon(Icons.Default.FolderOpen, null) }
-                )
             }
         }
 
@@ -2130,6 +2183,7 @@ private fun Dashboard(
     onHistory: () -> Unit,
     onContinue: () -> Unit,
     onDownloads: () -> Unit,
+    onSettings: () -> Unit,
     downloadCount: Int,
     activeDownloadCount: Int
 ) {
@@ -2163,72 +2217,8 @@ private fun Dashboard(
                 )
             }
 
-            Box {
-                IconButton(
-                    onClick = { onMenu(true) }
-                ) {
-                    Icon(
-                        Icons.Default.AccountCircle,
-                        "Account settings",
-                        tint = AppAccent,
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = menu,
-                    onDismissRequest = { onMenu(false) }
-                ) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (connected) {
-                                    "Google Drive connected"
-                                } else {
-                                    "Google Drive not connected"
-                                }
-                            )
-                        },
-                        onClick = { onMenu(false) },
-                        leadingIcon = {
-                            Icon(Icons.Default.Cloud, null)
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (connected) {
-                                    "Reconnect Google Drive"
-                                } else {
-                                    "Connect Google Drive"
-                                }
-                            )
-                        },
-                        onClick = {
-                            onMenu(false)
-                            onConnect()
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Default.Sync, null)
-                        }
-                    )
-
-                    if (connected) {
-                        DropdownMenuItem(
-                            text = {
-                                Text("Disconnect Google account")
-                            },
-                            onClick = {
-                                onMenu(false)
-                                onDisconnect()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Logout, null)
-                            }
-                        )
-                    }
-                }
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Default.Settings, "Settings", tint = AppAccent, modifier = Modifier.size(30.dp))
             }
         }
 
