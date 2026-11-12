@@ -4,7 +4,6 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import android.util.Log
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.nio.ByteBuffer
@@ -119,7 +118,7 @@ class TelegramAuthManager(
             true, true, true, false,
             BuildConfig.TELEGRAM_API_ID, BuildConfig.TELEGRAM_API_HASH,
             "en", android.os.Build.MODEL ?: "Android",
-            android.os.Build.VERSION.RELEASE ?: "Android", "MedVault", true, false
+            android.os.Build.VERSION.RELEASE ?: "Android", "1.0"
         )
         send(parameters)
     }
@@ -127,9 +126,6 @@ class TelegramAuthManager(
         if (update !is TdApi.UpdateAuthorizationState) return
         when (val auth = update.authorizationState) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> sendTdlibParameters()
-            is TdApi.AuthorizationStateWaitEncryptionKey -> {
-                send(TdApi.CheckDatabaseEncryptionKey(databaseEncryptionKey()))
-            }
             is TdApi.AuthorizationStateWaitPhoneNumber -> publish(State.WaitingForPhone)
             is TdApi.AuthorizationStateWaitCode -> publish(State.WaitingForCode)
             is TdApi.AuthorizationStateWaitPassword -> publish(State.WaitingForPassword)
