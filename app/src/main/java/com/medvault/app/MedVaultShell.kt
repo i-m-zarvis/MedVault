@@ -34,23 +34,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
 
-private val ShellBackground = Color(0xFF0B1020)
-private val ShellInk = Color(0xFFF3F6FC)
-private val ShellMuted = Color(0xFF9EABC0)
-private val ShellBlue = Color(0xFF78AFFF)
-private val HomeBackground = Color(0xFF0B1020)
-private val HomeInk = Color(0xFFF3F6FC)
-private val HomeMuted = Color(0xFF9EABC0)
-private val HomeBlue = Color(0xFF78AFFF)
-private val HomePanel = Color(0xFF151E30)
-private val HomePanelAlt = Color(0xFF1B2B40)
-private val HomeBorder = Color(0xFF29384D)
+// MedVault's iOS-inspired dark surface system: quiet graphite layers and a cool periwinkle accent.
+private val ShellBackground = Color(0xFF090B10)
+private val ShellInk = Color(0xFFF5F6FA)
+private val ShellMuted = Color(0xFF9299A8)
+private val ShellBlue = Color(0xFFA8B9FF)
+private val HomeBackground = Color(0xFF090B10)
+private val HomeInk = Color(0xFFF5F6FA)
+private val HomeMuted = Color(0xFF9299A8)
+private val HomeBlue = Color(0xFFA8B9FF)
+private val HomePanel = Color(0xFF151922)
+private val HomePanelAlt = Color(0xFF202635)
+private val HomeBorder = Color(0xFF2A3040)
 
 @Composable
 fun MedVaultHomeScreen(
@@ -402,30 +404,76 @@ fun MedVaultBottomBar(
     onTests: () -> Unit,
     onOffline: () -> Unit
 ) {
-    NavigationBar(containerColor = Color(0xFF111A2A), contentColor = HomeInk, tonalElevation = 0.dp) {
-        val items = listOf(
-            Triple("home", "Home", Icons.Default.Home),
-            Triple("videos", "Lectures", Icons.Default.PlayCircle),
-            Triple("qbank", "QBank", Icons.Default.MenuBook),
-            Triple("tests", "Notes", Icons.Default.Assignment),
-            Triple("offline", "Downloads", Icons.Default.Download)
-        )
-        val actions = listOf(onHome, onVideos, onQBank, onTests, onOffline)
-        items.forEachIndexed { index, item ->
-            NavigationBarItem(
-                selected = selected == item.first,
-                onClick = actions[index],
-                icon = { Icon(item.third, contentDescription = item.second) },
-                label = { Text(item.second, fontSize = 10.sp) },
-                alwaysShowLabel = true,
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = HomeBlue,
-                    selectedTextColor = HomeBlue,
-                    indicatorColor = HomePanelAlt,
-                    unselectedIconColor = HomeMuted,
-                    unselectedTextColor = HomeMuted
-                )
-            )
+    val items = listOf(
+        Triple("home", "Home", Icons.Default.Home),
+        Triple("videos", "Lectures", Icons.Default.PlayCircle),
+        Triple("qbank", "QBank", Icons.Default.MenuBook),
+        Triple("tests", "Notes", Icons.Default.Assignment),
+        Triple("offline", "Downloads", Icons.Default.Download)
+    )
+    val actions = listOf(onHome, onVideos, onQBank, onTests, onOffline)
+
+    // A compact floating dock: familiar Android destinations, with the quieter
+    // translucent treatment and selected-state capsule used by iOS tab bars.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(HomeBackground)
+            .padding(start = 12.dp, end = 12.dp, top = 5.dp, bottom = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xE91A1E28),
+            shape = RoundedCornerShape(28.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+            shadowElevation = 12.dp
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEachIndexed { index, item ->
+                    val isSelected = selected == item.first
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable(onClick = actions[index])
+                            .padding(vertical = 3.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(31.dp)
+                                .width(52.dp)
+                                .background(
+                                    if (isSelected) HomeBlue.copy(alpha = 0.16f) else Color.Transparent,
+                                    RoundedCornerShape(16.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                item.third,
+                                contentDescription = item.second,
+                                tint = if (isSelected) HomeBlue else HomeMuted,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            item.second,
+                            color = if (isSelected) HomeBlue else HomeMuted,
+                            fontSize = 9.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
         }
     }
 }
