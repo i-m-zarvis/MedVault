@@ -48,29 +48,7 @@ class TelegramAuthManager(
         try {
             val tdClient = TelegramTdLib.createClient(::onUpdate)
             client = tdClient
-            val parameters = TdApi.SetTdlibParameters(
-                false,
-                databaseDirectory,
-                filesDirectory,
-                databaseEncryptionKey(),
-                true,
-                true,
-                true,
-                false,
-                BuildConfig.TELEGRAM_API_ID,
-                BuildConfig.TELEGRAM_API_HASH,
-                "en",
-                android.os.Build.MODEL ?: "Android",
-                android.os.Build.VERSION.RELEASE ?: "Android",
-                "MedVault",
-                true,
-                false
-            )
-            tdClient.send(parameters) { result ->
-                if (result is TdApi.Error) {
-                    publish(State.Failed("TDLib setup failed: ${result.message}"))
-                }
-            }
+            // Parameters are sent when TDLib emits WaitTdlibParameters.
         } catch (error: Exception) {
             publish(State.Failed(error.message ?: "Could not start Telegram."))
         }
@@ -135,12 +113,20 @@ class TelegramAuthManager(
         }
     }
 
+    private fun sendTdlibParameters() {
+        val parameters = TdApi.SetTdlibParameters(
+            false, databaseDirectory, filesDirectory, databaseEncryptionKey(),
+            true, true, true, false,
+            BuildConfig.TELEGRAM_API_ID, BuildConfig.TELEGRAM_API_HASH,
+            "en", android.os.Build.MODEL ?: "Android",
+            android.os.Build.VERSION.RELEASE ?: "Android", "MedVault", true, false
+        )
+        send(parameters)
+    }
     private fun onUpdate(update: TdApi.Object) {
         if (update !is TdApi.UpdateAuthorizationState) return
         when (val auth = update.authorizationState) {
-            is TdApi.AuthorizationStateWaitTdlibParameters -> {
-                // TDLib parameters are sent immediately after client creation.
-            }
+            is TdApi.AuthorizationStateWaitTdlibParameters -> sendTdlibParameters()
             is TdApi.AuthorizationStateWaitEncryptionKey -> {
                 send(TdApi.CheckDatabaseEncryptionKey(databaseEncryptionKey()))
             }
