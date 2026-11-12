@@ -24,11 +24,12 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
             .any { selectedChatId(it) == candidate.chatId }
         require(!alreadyUsed) { "This group is already assigned to another MedVault library." }
         prefs.edit().putLong(key(edition), candidate.chatId)
-            .putString(titleKey(edition), candidate.title).apply()
+            .putString(titleKey(edition), candidate.title)
+            .putBoolean(forumKey(edition), candidate.isForum).apply()
     }
 
     fun clearSource(edition: MedVaultEdition) {
-        prefs.edit().remove(key(edition)).remove(titleKey(edition)).apply()
+        prefs.edit().remove(key(edition)).remove(titleKey(edition)).remove(forumKey(edition)).apply()
     }
 
     fun discoverForumSources(callback: (Result<List<TelegramSourceCandidate>>) -> Unit) {
@@ -59,8 +60,8 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
                     val type = (chatResult as? TdApi.Chat)?.type as? TdApi.ChatTypeSupergroup
                     if (chatResult is TdApi.Chat && type != null && !type.isChannel) {
                         auth.sendRequest(TdApi.GetSupergroup(type.supergroupId)) { supergroup ->
-                            if (supergroup is TdApi.Supergroup && supergroup.isForum) {
-                                candidates.add(TelegramSourceCandidate(chatResult.id, chatResult.title))
+                            if (supergroup is TdApi.Supergroup) {
+                                candidates.add(TelegramSourceCandidate(chatResult.id, chatResult.title, isForum = supergroup.isForum))
                             }
                             finishOne()
                         }
@@ -74,6 +75,10 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         val chatId = selectedChatId(edition)
         if (chatId == null) {
             callback(Result.failure(IllegalStateException("No source group is assigned to this library.")))
+            return
+        }
+        if (!prefs.getBoolean(forumKey(edition), false)) {
+            callback(Result.success(listOf(TelegramForumTopic(chatId, 0, "General", true, false))))
             return
         }
         val collected = linkedMapOf<Int, TelegramForumTopic>()
@@ -113,7 +118,12 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         limit: Int = 100,
         callback: (Result<List<TdApi.Message>>) -> Unit
     ) {
-        auth.sendRequest(TdApi.GetForumTopicHistory(topic.chatId, topic.topicId, fromMessageId, 0, limit.coerceIn(1, 100))) { result ->
+        val request: TdApi.Function<*> = if (topic.topicId == 0) {
+            TdApi.GetChatHistory(topic.chatId, fromMessageId, 0, limit.coerceIn(1, 100), false)
+        } else {
+            TdApi.GetForumTopicHistory(topic.chatId, topic.topicId, fromMessageId, 0, limit.coerceIn(1, 100))
+        }
+        auth.sendRequest(request) { result ->
             when (result) {
                 is TdApi.Messages -> callback(Result.success(result.messages.sortedByDescending { it.id }))
                 is TdApi.Error -> callback(Result.failure(IllegalStateException(result.message)))
@@ -128,4 +138,5 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
 
     private fun key(edition: MedVaultEdition) = "source_${edition.name}"
     private fun titleKey(edition: MedVaultEdition) = "source_title_${edition.name}"
+    private fun forumKey(edition: MedVaultEdition) = "source_forum_${edition.name}"
 }
