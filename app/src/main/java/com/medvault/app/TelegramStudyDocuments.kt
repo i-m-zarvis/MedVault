@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -171,7 +172,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
         auth.start()
         repo = TelegramLibraryRepository(context, auth)
     }
-    Column(Modifier.fillMaxSize().background(StudyBg).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -305,7 +306,7 @@ fun TelegramDocumentLibraryScreen(
 
     BackHandler(enabled = selectedTopic != null) { selectedTopic = null; documents = emptyList() }
 
-    Column(Modifier.fillMaxSize().background(StudyBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
