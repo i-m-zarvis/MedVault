@@ -93,8 +93,8 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
                     callback(Result.failure(IllegalStateException("TDLib did not return forum topics.")))
                     return@sendRequest
                 }
-                val page = result.topics
-                page.forEach { item ->
+                val topicPage = result.topics
+                topicPage.forEach { item ->
                     val info = item.info
                     collected[info.forumTopicId] = TelegramForumTopic(
                         chatId = chatId,
@@ -106,10 +106,10 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
                         lastMessageDate = item.lastMessage?.date ?: 0
                     )
                 }
-                if (page.size < 100) {
+                if (topicPage.size < 100) {
                     callback(Result.success(collected.values.toList()))
                 } else {
-                    val last = page.last()
+                    val last = topicPage.last()
                     val lastMessage = last.lastMessage
                     if (lastMessage == null) {
                         callback(Result.success(collected.values.toList()))
