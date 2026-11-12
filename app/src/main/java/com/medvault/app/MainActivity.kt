@@ -126,6 +126,7 @@ class MainActivity : ComponentActivity() {
     private var selectedTelegramLecture by mutableStateOf<TelegramLecture?>(null)
     private var selectedPdfFile by mutableStateOf<File?>(null)
     private var selectedPdfTitle by mutableStateOf("Document")
+    private var pdfReturnScreen by mutableStateOf("qbank")
     private var screen by mutableStateOf("home")
     private var accountMenu by mutableStateOf(false)
     private var pipMode by mutableStateOf(false)
@@ -282,8 +283,8 @@ class MainActivity : ComponentActivity() {
                     onOpenUpdates = { screen = "updates" },
                     selectedPdfFile = selectedPdfFile,
                     selectedPdfTitle = selectedPdfTitle,
-                    onOpenPdf = { file, title -> selectedPdfFile = file; selectedPdfTitle = title; screen = "pdf_reader" },
-                    onClosePdf = { selectedPdfFile = null; screen = "qbank" },
+                    onOpenPdf = { file, title -> pdfReturnScreen = screen; selectedPdfFile = file; selectedPdfTitle = title; screen = "pdf_reader" },
+                    onClosePdf = { selectedPdfFile = null; screen = pdfReturnScreen },
                     onOpenTelegram = { screen = "telegram" },
                     onOpenTelegramLibrary = { screen = "videos" },
                     onPlayTelegramLecture = { startTelegramVideo(it) },
