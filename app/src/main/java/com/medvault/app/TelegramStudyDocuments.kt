@@ -160,8 +160,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
     var target by remember { mutableStateOf(MedVaultEdition.M) }
     var selectedM by remember { mutableStateOf<String?>(null) }
     var selectedP by remember { mutableStateOf<String?>(null) }
-    var selectedQbank by remember { mutableStateOf<String?>(null) }
-    var selectedTests by remember { mutableStateOf<String?>(null) }
+    var selectedNotes by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -173,8 +172,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
         repo = TelegramLibraryRepository(context, auth)
         selectedM = repo?.selectedTitle(MedVaultEdition.M)
         selectedP = repo?.selectedTitle(MedVaultEdition.P)
-        selectedQbank = repo?.selectedTitle(MedVaultEdition.QBANK)
-        selectedTests = repo?.selectedTitle(MedVaultEdition.TESTS)
+        selectedNotes = repo?.selectedTitle(MedVaultEdition.TESTS)
     }
 
     Column(Modifier.fillMaxSize().background(StudyBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -182,7 +180,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text("Study library sources", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Choose separate groups for video editions, QBank and Tests", color = StudyMuted, fontSize = 12.sp)
+                Text("Choose source groups for each video edition and Notes", color = StudyMuted, fontSize = 12.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
@@ -191,15 +189,14 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
             Button(onClick = onConnectAccount) { Text("Connect account") }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.QBANK, MedVaultEdition.TESTS).forEach { role ->
+                listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.TESTS).forEach { role ->
                     FilterChip(
                         selected = target == role,
                         onClick = { target = role },
                         label = { Text(when (role) {
                             MedVaultEdition.M -> "Edition M"
                             MedVaultEdition.P -> "Edition P"
-                            MedVaultEdition.QBANK -> "QBank"
-                            MedVaultEdition.TESTS -> "Tests"
+                            else -> "Notes"
                         }) }
                     )
                 }
@@ -209,14 +206,12 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                     Text(when (target) {
                         MedVaultEdition.M -> "Edition M source"
                         MedVaultEdition.P -> "Edition P source"
-                        MedVaultEdition.QBANK -> "QBank source"
-                        MedVaultEdition.TESTS -> "Tests source"
+                        else -> "Notes source"
                     }, fontWeight = FontWeight.Bold)
                     val activeSourceTitle = when (target) {
                         MedVaultEdition.M -> selectedM
                         MedVaultEdition.P -> selectedP
-                        MedVaultEdition.QBANK -> selectedQbank
-                        MedVaultEdition.TESTS -> selectedTests
+                        else -> selectedNotes
                     }
                     Text(activeSourceTitle ?: "No group selected", color = StudyMuted)
                     Button(enabled = !busy, onClick = {
@@ -236,8 +231,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                             when (target) {
                                 MedVaultEdition.M -> selectedM = null
                                 MedVaultEdition.P -> selectedP = null
-                                MedVaultEdition.QBANK -> selectedQbank = null
-                                MedVaultEdition.TESTS -> selectedTests = null
+                                else -> selectedNotes = null
                             }
                         }
                     ) { Text("Clear selection") }
@@ -253,7 +247,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(group.title, fontWeight = FontWeight.SemiBold)
-                                    Text("Private content source", color = StudyMuted, fontSize = 11.sp)
+                                    Text("Telegram content source", color = StudyMuted, fontSize = 11.sp)
                                 }
                                 TextButton(onClick = {
                                     runCatching { repo?.assignSource(target, group) }
@@ -261,8 +255,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                                             when (target) {
                                                 MedVaultEdition.M -> selectedM = group.title
                                                 MedVaultEdition.P -> selectedP = group.title
-                                                MedVaultEdition.QBANK -> selectedQbank = group.title
-                                                MedVaultEdition.TESTS -> selectedTests = group.title
+                                                else -> selectedNotes = group.title
                                             }
                                             status = "Source saved."
                                             error = null
@@ -298,6 +291,8 @@ fun TelegramDocumentLibraryScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf<String?>(null) }
+    var qbankEdition by remember { mutableStateOf(MedVaultEdition.M) }
+    val sourceEdition = if (edition == MedVaultEdition.QBANK) qbankEdition else edition
 
     LaunchedEffect(Unit) {
         val manager = TelegramAuthManager.getInstance(context) { authState = it }
@@ -305,13 +300,26 @@ fun TelegramDocumentLibraryScreen(
         authState = manager.currentState
         manager.start()
         repo = TelegramLibraryRepository(context, manager)
-        selectedGroup = repo?.selectedTitle(edition)
-        if (repo?.selectedChatId(edition) != null) {
+    }
+
+    LaunchedEffect(repo, sourceEdition) {
+        selectedTopic = null
+        documents = emptyList()
+        topics = emptyList()
+        error = null
+        status = null
+        val library = repo ?: return@LaunchedEffect
+        selectedGroup = library.selectedTitle(sourceEdition)
+        if (library.selectedChatId(sourceEdition) != null) {
             busy = true
-            repo?.loadTopics(edition) { result ->
-                busy = false
-                result.onSuccess { topics = it }.onFailure { error = it.message }
+            library.loadTopics(sourceEdition) { result ->
+                StudyMain.post {
+                    busy = false
+                    result.onSuccess { topics = it }.onFailure { error = it.message }
+                }
             }
+        } else {
+            busy = false
         }
     }
 
@@ -321,7 +329,7 @@ fun TelegramDocumentLibraryScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
-                Text(if (edition == MedVaultEdition.QBANK) "QBank" else "Tests", fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text(if (edition == MedVaultEdition.QBANK) "QBank" else "Notes", fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 Text(selectedTopic?.name ?: selectedGroup ?: "PDF study library", color = StudyMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (edition == MedVaultEdition.QBANK) {
@@ -330,13 +338,25 @@ fun TelegramDocumentLibraryScreen(
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
 
+        if (edition == MedVaultEdition.QBANK) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                listOf(MedVaultEdition.M, MedVaultEdition.P).forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = qbankEdition == option,
+                        onClick = { qbankEdition = option },
+                        shape = SegmentedButtonDefaults.itemShape(index, 2)
+                    ) { Text(if (option == MedVaultEdition.M) "Edition M" else "Edition P") }
+                }
+            }
+        }
+
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Connect your content account to access this library.", color = StudyMuted)
             Button(onClick = onConnectAccount) { Text("Connect account") }
-        } else if (repo?.selectedChatId(edition) == null) {
+        } else if (repo?.selectedChatId(sourceEdition) == null) {
             Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("No source group configured", fontWeight = FontWeight.SemiBold)
+                    Text("No source group configured for ${if (sourceEdition == MedVaultEdition.M) "Edition M" else if (sourceEdition == MedVaultEdition.P) "Edition P" else "Notes"}.", fontWeight = FontWeight.SemiBold)
                     Text("Choose a source group in Settings to populate this library.", color = StudyMuted, fontSize = 13.sp)
                     Button(onClick = onManageSources) { Icon(Icons.Default.Settings, null); Spacer(Modifier.width(6.dp)); Text("Configure library") }
                 }
@@ -351,11 +371,13 @@ fun TelegramDocumentLibraryScreen(
                             busy = true
                             error = null
                             repo?.loadTopicMessages(topic) { result ->
-                                busy = false
-                                result.onSuccess { messages ->
-                                    documents = messages.mapNotNull { TelegramPdfDocument.fromMessage(topic.chatId, topic.topicId, it) }
-                                        .distinctBy { it.stableId }
-                                }.onFailure { error = it.message }
+                                StudyMain.post {
+                                    busy = false
+                                    result.onSuccess { messages ->
+                                        documents = messages.mapNotNull { TelegramPdfDocument.fromMessage(topic.chatId, topic.topicId, it) }
+                                            .distinctBy { it.stableId }
+                                    }.onFailure { error = it.message }
+                                }
                             }
                         },
                         colors = CardDefaults.cardColors(containerColor = StudyPanel)
@@ -372,7 +394,7 @@ fun TelegramDocumentLibraryScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
                 items(documents, key = { it.stableId }) { document ->
-                    val local = TelegramPdfStore.localFile(context, edition, document)
+                    val local = TelegramPdfStore.localFile(context, sourceEdition, document)
                     Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
                         Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -395,7 +417,7 @@ fun TelegramDocumentLibraryScreen(
                                         val manager = auth ?: return@OutlinedButton
                                         downloadingId = document.stableId
                                         error = null
-                                        TelegramPdfStore.download(context, manager, edition, document) { result ->
+                                        TelegramPdfStore.download(context, manager, sourceEdition, document) { result ->
                                             downloadingId = null
                                             result.onSuccess { file -> status = "Saved for offline use."; onOpenPdf(file, document.title) }
                                                 .onFailure { error = it.message }
@@ -411,7 +433,7 @@ fun TelegramDocumentLibraryScreen(
                         }
                     }
                 }
-                if (documents.isEmpty()) item { Text("No PDF documents found in this topic's latest messages.", color = StudyMuted) }
+                if (documents.isEmpty() && !busy) item { Text("No PDF documents found in this topic's latest messages.", color = StudyMuted) }
             }
         }
         status?.let { Text(it, color = StudyAccent, fontSize = 12.sp) }
