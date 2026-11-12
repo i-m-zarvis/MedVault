@@ -87,8 +87,6 @@ class ContentFeedSyncWorker(context: Context, params: WorkerParameters) : Corout
             val manifest = JSONObject(manifestResponse.body)
             require(manifest.optInt("schemaVersion") == 1) { "Unsupported manifest schema" }
             val feeds = manifest.optJSONArray("feeds") ?: error("Manifest has no feeds")
-            val manifestHash = sha256(manifestResponse.body)
-            val manifestChanged = prefs.getString("manifest_hash", null) != manifestHash
             val now = System.currentTimeMillis()
             var updated = 0
             var failed = 0
@@ -101,7 +99,10 @@ class ContentFeedSyncWorker(context: Context, params: WorkerParameters) : Corout
                 require(path.startsWith("feeds/") && !path.contains("..") && !path.startsWith("/")) { "Invalid feed path" }
                 val freshness = freshnessMillis(category)
                 val lastSuccess = prefs.getLong("last_success_$category", 0L)
-                if (!manifestChanged && now - lastSuccess < freshness) continue
+                val feedSignature = sha256(category + "|" + path + "|" + feed.optInt("count", -1) + "|" + feed.optString("updatedAt"))
+                val previousSignature = prefs.getString("signature_$category", null)
+                val metadataChanged = previousSignature != feedSignature
+                if (!metadataChanged && now - lastSuccess < freshness) continue
 
                 try {
                     val etag = prefs.getString("etag_$category", null)
@@ -138,14 +139,14 @@ class ContentFeedSyncWorker(context: Context, params: WorkerParameters) : Corout
                     prefs.edit()
                         .putLong("last_success_$category", now)
                         .putString("etag_$category", response.etag)
+                        .putString("signature_$category", feedSignature)
                         .apply()
                     updated++
                 } catch (_: Exception) {
                     failed++ // Keep the previous Room rows for this category.
                 }
             }
-            if (manifestChanged) prefs.edit().putString("manifest_hash", manifestHash).apply()
-            Result.success(workDataOf("updated_feeds" to updated, "failed_feeds" to failed, "manifest_changed" to manifestChanged))
+            Result.success(workDataOf("updated_feeds" to updated, "failed_feeds" to failed, "manifest_checked" to true))
         } catch (_: Exception) {
             retryOrFailure()
         }
