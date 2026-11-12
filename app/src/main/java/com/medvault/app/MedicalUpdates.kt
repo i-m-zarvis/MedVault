@@ -142,15 +142,15 @@ fun MedicalUpdatesScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { refresh() }
 
-    Column(Modifier.fillMaxSize().background(Color(0xFFF6F8FB))) {
+    Column(Modifier.fillMaxSize().background(Color(0xFF0B1020))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFF252A3A)) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFFF3F6FC)) }
             Column(Modifier.weight(1f)) {
                 Text("Medical Updates", color = Color(0xFF252A3A), fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("Medical news and research headlines", color = Color(0xFF81889A), fontSize = 11.sp)
+                Text("Medical news and research headlines", color = Color(0xFF9EABC0), fontSize = 11.sp)
             }
             IconButton(enabled = !loading, onClick = { scope.launch { refresh() } }) {
-                Icon(Icons.Default.Refresh, "Refresh", tint = Color(0xFF168FE5))
+                Icon(Icons.Default.Refresh, "Refresh", tint = Color(0xFF78AFFF))
             }
         }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -174,7 +174,7 @@ fun MedicalUpdatesScreen(onBack: () -> Unit) {
                     Card(
                         Modifier.fillMaxWidth().clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.url))) },
                         shape = RoundedCornerShape(15.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF151E30))
                     ) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -182,8 +182,8 @@ fun MedicalUpdatesScreen(onBack: () -> Unit) {
                                 Icon(Icons.Default.OpenInNew, null, tint = Color(0xFF81889A), modifier = Modifier.size(15.dp))
                             }
                             Text(item.title, color = Color(0xFF252A3A), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            if (item.summary.isNotBlank()) Text(item.summary, color = Color(0xFF687084), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            if (item.published.isNotBlank()) Text(item.published, color = Color(0xFF9299A8), fontSize = 10.sp)
+                            if (item.summary.isNotBlank()) Text(item.summary, color = Color(0xFFB4C0D2), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            if (item.published.isNotBlank()) Text(item.published, color = Color(0xFF9EABC0), fontSize = 10.sp)
                         }
                     }
                 }
