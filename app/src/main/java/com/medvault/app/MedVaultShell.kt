@@ -133,75 +133,99 @@ fun MedVaultHomeScreen(
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         item {
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("MedVault", color = HomeInk, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("Everything under one vault.", color = HomeMuted, fontSize = 12.sp)
-                }
-                IconButton(onClick = onSettings) {
-                    Icon(Icons.Default.AccountCircle, "Profile and settings", tint = HomeMuted, modifier = Modifier.size(29.dp))
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
-                listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
-                    val selected = activeEdition == edition
+            Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("MEDVAULT", color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
+                        Text("Your study space.", color = HomeInk, fontSize = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.7).sp)
+                    }
                     Surface(
-                        modifier = Modifier.clickable { onEditionChange(edition) },
-                        color = if (selected) HomePanelAlt else HomePanel,
-                        shape = RoundedCornerShape(50),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) HomeBlue else HomeBorder)
+                        onClick = onSettings,
+                        color = HomePanel,
+                        shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, HomeBorder)
                     ) {
-                        Text(
-                            "Edition " + edition.name,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            color = if (selected) HomeBlue else HomeMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.PersonOutline, "Profile and settings", tint = HomeInk, modifier = Modifier.size(23.dp))
+                        }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("YOUR LIBRARY", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .background(HomePanel, RoundedCornerShape(18.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
+                            val selected = activeEdition == edition
+                            Surface(
+                                modifier = Modifier.weight(1f).clickable { onEditionChange(edition) },
+                                color = if (selected) HomePanelAlt else Color.Transparent,
+                                shape = RoundedCornerShape(14.dp),
+                                border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, HomeBlue.copy(alpha = 0.35f)) else null
+                            ) {
+                                Column(
+                                    Modifier.padding(vertical = 9.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text("EDITION", color = if (selected) HomeBlue else HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                                    Text(edition.name, color = if (selected) HomeInk else HomeMuted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("DAILY LEARNING", "Your MBBS learning feed")
-                Card(
+            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("PICK UP WHERE YOU LEFT OFF", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text("A little learning, daily.", color = HomeInk, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Icon(Icons.Default.AutoStories, null, tint = HomeBlue.copy(alpha = 0.9f), modifier = Modifier.size(21.dp))
+                }
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = HomePanelAlt)
+                    color = Color(0xFF1B2231),
+                    shape = RoundedCornerShape(26.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            HomeTag("TODAY'S CONCEPT", HomeBlue)
+                            Surface(color = HomeBlue.copy(alpha = 0.13f), shape = RoundedCornerShape(50)) {
+                                Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AutoAwesome, null, tint = HomeBlue, modifier = Modifier.size(12.dp))
+                                    Text("TODAY'S CONCEPT", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                                }
+                            }
                             Spacer(Modifier.weight(1f))
-                            Icon(Icons.Default.AutoStories, null, tint = HomeBlue)
+                            Text("02 MIN READ", color = HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
                         }
-                        Text("ACE inhibitors and bradykinin", color = HomeInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("ACE inhibitors\nand bradykinin", color = HomeInk, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, lineHeight = 29.sp, letterSpacing = (-0.5).sp)
                         Text(
-                            "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, which contributes to the characteristic dry cough.",
-                            color = HomeMuted, fontSize = 13.sp, lineHeight = 19.sp
+                            "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, contributing to the characteristic dry cough.",
+                            color = HomeMuted, fontSize = 13.sp, lineHeight = 20.sp
                         )
-                        Text("PHARMACOLOGY · HIGH-YIELD CONCEPT", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("PHARMACOLOGY", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(Modifier.weight(1f))
+                            Surface(color = HomeBlue, shape = RoundedCornerShape(50), onClick = onDailyDose) {
+                                Row(Modifier.padding(horizontal = 13.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Study now", color = Color(0xFF111522), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Icon(Icons.Default.ArrowForward, null, tint = Color(0xFF111522), modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeActionTile(
-                        title = "Flashcards",
-                        subtitle = "Quick recall",
-                        icon = Icons.Default.Style,
-                        onClick = onDailyDose,
-                        modifier = Modifier.weight(1f)
-                    )
-                    HomeActionTile(
-                        title = "Daily MCQ",
-                        subtitle = "Test yourself",
-                        icon = Icons.Default.Psychology,
-                        onClick = onDailyDose,
-                        modifier = Modifier.weight(1f)
-                    )
+                    HomeActionTile("Flashcards", "Quick recall", Icons.Default.Style, onDailyDose, Modifier.weight(1f))
+                    HomeActionTile("Daily MCQ", "Test yourself", Icons.Default.Psychology, onDailyDose, Modifier.weight(1f))
                 }
             }
         }
@@ -355,7 +379,7 @@ private fun HomeActionTile(
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, null, tint = HomeBlue, modifier = Modifier.size(23.dp))
-            Text(title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = HomeMuted, fontSize = 11.sp)
         }
     }
