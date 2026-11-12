@@ -2302,7 +2302,7 @@ private fun VideosDashboard(
             NavigationBarItem(
                 selected = screen == "telegram_library",
                 onClick = onTelegram,
-                icon = { Icon(Icons.Default.Telegram, contentDescription = null) },
+                icon = { Icon(Icons.Default.Send, contentDescription = null) },
                 label = { Text("Telegram") },
                 alwaysShowLabel = true
             )
