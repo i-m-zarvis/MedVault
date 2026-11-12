@@ -2,10 +2,11 @@ package com.medvault.app
 
 import android.content.Intent
 import android.net.Uri
-import android.util.Xml
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,172 +25,124 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.xmlpull.v1.XmlPullParser
-import java.net.HttpURLConnection
-import java.net.URL
 
-private data class MedicalNewsItem(
-    val title: String,
-    val url: String,
-    val summary: String,
-    val published: String,
-    val source: String
+private data class ContentCategory(val id: String, val title: String)
+
+private val contentCategories = listOf(
+    ContentCategory("all", "All"),
+    ContentCategory("exam-radar", "Exam Radar"),
+    ContentCategory("neet-pg", "NEET PG"),
+    ContentCategory("mbbs-updates", "MBBS"),
+    ContentCategory("trending-medicine", "Trending"),
+    ContentCategory("medical-news", "Medical News")
 )
-
-private object MedicalUpdatesRepository {
-    private val feeds = listOf(
-        "Medical Dialogues" to "https://medicaldialogues.in/feed/",
-        "WHO" to "https://www.who.int/rss-feeds/news-english.xml",
-        "PubMed / NLM" to "https://www.nlm.nih.gov/rss/auto/PubMedNews.rss"
-    )
-
-    suspend fun fetch(): List<MedicalNewsItem> = withContext(Dispatchers.IO) {
-        feeds.flatMap { (source, address) ->
-            runCatching { parseFeed(source, address) }.getOrDefault(emptyList())
-        }.distinctBy { it.url }.sortedByDescending { it.published }.take(60)
-    }
-
-    private fun parseFeed(source: String, address: String): List<MedicalNewsItem> {
-        val connection = URL(address).openConnection() as HttpURLConnection
-        connection.connectTimeout = 12000
-        connection.readTimeout = 15000
-        connection.setRequestProperty("User-Agent", "MedVault/1.0 (medical education reader)")
-        try {
-            connection.inputStream.use { stream ->
-                val parser = Xml.newPullParser()
-                parser.setInput(stream, null)
-                val items = mutableListOf<MedicalNewsItem>()
-                var event = parser.eventType
-                var insideItem = false
-                var tag = ""
-                var title = ""
-                var link = ""
-                var description = ""
-                var date = ""
-                while (event != XmlPullParser.END_DOCUMENT) {
-                    when (event) {
-                        XmlPullParser.START_TAG -> {
-                            tag = parser.name.lowercase()
-                            if (tag == "item" || tag == "entry") {
-                                insideItem = true
-                                title = ""; link = ""; description = ""; date = ""
-                            } else if (insideItem && tag == "link" && parser.getAttributeValue(null, "href") != null) {
-                                link = parser.getAttributeValue(null, "href").orEmpty()
-                            }
-                        }
-                        XmlPullParser.TEXT, XmlPullParser.CDSECT -> {
-                            if (insideItem) {
-                                val value = parser.text.orEmpty().trim()
-                                when (tag) {
-                                    "title" -> title += value
-                                    "link" -> link += value
-                                    "description", "summary", "content:encoded" -> description += value
-                                    "pubdate", "published", "updated", "dc:date" -> date += value
-                                }
-                            }
-                        }
-                        XmlPullParser.END_TAG -> {
-                            val endTag = parser.name.lowercase()
-                            if (insideItem && (endTag == "item" || endTag == "entry")) {
-                                if (title.isNotBlank() && link.startsWith("http")) {
-                                    items += MedicalNewsItem(
-                                        title = title.cleanMarkup(),
-                                        url = link.trim(),
-                                        summary = description.cleanMarkup().take(260),
-                                        published = date.trim(),
-                                        source = source
-                                    )
-                                }
-                                insideItem = false
-                            }
-                            tag = ""
-                        }
-                    }
-                    event = parser.next()
-                }
-                return items
-            }
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun String.cleanMarkup(): String =
-        replace(Regex("<[^>]*>"), " ").replace("&nbsp;", " ")
-            .replace("&amp;", "&").replace("&quot;", "\"")
-            .replace("&#39;", "'").replace(Regex("\\s+"), " ").trim()
-}
 
 @Composable
 fun MedicalUpdatesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var news by remember { mutableStateOf<List<MedicalNewsItem>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+    val dao = remember { ContentFeedDatabase.get(context).contentDao() }
+    val cachedItems by dao.observeAll().collectAsState(initial = emptyList())
+    var selectedCategory by remember { mutableStateOf("all") }
 
-    suspend fun refresh() {
-        loading = true
-        error = null
-        val result = runCatching { MedicalUpdatesRepository.fetch() }
-        result.onSuccess { news = it }
-            .onFailure { error = it.message ?: "Could not load medical updates." }
-        loading = false
-        if (news.isEmpty() && error == null) error = "No feed items were returned. Check your connection or refresh."
+    val visibleItems = remember(cachedItems, selectedCategory) {
+        if (selectedCategory == "all") cachedItems
+        else cachedItems.filter { it.category == selectedCategory }
     }
 
-    LaunchedEffect(Unit) { refresh() }
-
     Column(Modifier.fillMaxSize().background(Color(0xFF0B1020))) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFFF3F6FC)) }
-            Column(Modifier.weight(1f)) {
-                Text("Medical Updates", color = Color(0xFF252A3A), fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("Medical news and research headlines", color = Color(0xFF9EABC0), fontSize = 11.sp)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, "Back", tint = Color(0xFFF3F6FC))
             }
-            IconButton(enabled = !loading, onClick = { scope.launch { refresh() } }) {
-                Icon(Icons.Default.Refresh, "Refresh", tint = Color(0xFF78AFFF))
+            Column(Modifier.weight(1f)) {
+                Text("Medical Updates", color = Color(0xFFF3F6FC), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("India-focused medical and education feed", color = Color(0xFF9EABC0), fontSize = 11.sp)
+            }
+            IconButton(onClick = { ContentFeedScheduler.refresh(context) }) {
+                Icon(Icons.Default.Refresh, "Refresh feeds", tint = Color(0xFF78AFFF))
             }
         }
-        Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("OFFICIAL EXAM PORTALS", color = Color(0xFF81889A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf("NBEMS" to "https://natboard.edu.in/", "NMC" to "https://nmc.org.in/whats-new", "MCC" to "https://mcc.nic.in/").forEach { (name, url) ->
-                    AssistChip(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }, label = { Text(name) })
+
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            contentCategories.forEach { category ->
+                FilterChip(
+                    selected = selectedCategory == category.id,
+                    onClick = { selectedCategory = category.id },
+                    label = { Text(category.title) }
+                )
+            }
+        }
+
+        if (visibleItems.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text(
+                        if (cachedItems.isEmpty()) "No published updates cached yet." else "No items in this section yet.",
+                        color = Color(0xFFF3F6FC),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "MedVault will show verified source metadata here when the content feed publishes it. Pull refresh to check for updates.",
+                        color = Color(0xFF9EABC0),
+                        fontSize = 12.sp
+                    )
+                    OutlinedButton(onClick = { ContentFeedScheduler.refresh(context) }) { Text("Refresh now") }
                 }
             }
-        }
-        if (loading && news.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
-            error?.let { Text(it, color = Color(0xFFB54747), fontSize = 12.sp, modifier = Modifier.padding(16.dp)) }
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(14.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                items(news, key = { it.url }) { item ->
+                items(visibleItems, key = { "${it.category}:${it.itemId}" }) { item ->
                     Card(
-                        Modifier.fillMaxWidth().clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.url))) },
+                        Modifier.fillMaxWidth().clickable {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.url)))
+                            }
+                        },
                         shape = RoundedCornerShape(15.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF151E30))
                     ) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(item.source.uppercase(), color = Color(0xFF168FE5), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                Icon(Icons.Default.OpenInNew, null, tint = Color(0xFF81889A), modifier = Modifier.size(15.dp))
+                                Text(
+                                    item.sourceName.uppercase(),
+                                    color = Color(0xFF78AFFF),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Icon(Icons.Default.OpenInNew, null, tint = Color(0xFF9EABC0), modifier = Modifier.size(15.dp))
                             }
-                            Text(item.title, color = Color(0xFF252A3A), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            if (item.summary.isNotBlank()) Text(item.summary, color = Color(0xFFB4C0D2), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            if (item.published.isNotBlank()) Text(item.published, color = Color(0xFF9EABC0), fontSize = 10.sp)
+                            Text(item.title, color = Color(0xFFF3F6FC), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            item.description?.takeIf { it.isNotBlank() }?.let {
+                                Text(it, color = Color(0xFFB4C0D2), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(item.tier.uppercase(), color = Color(0xFF9EABC0), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.weight(1f))
+                                Text(item.publishedAt ?: "Date not supplied", color = Color(0xFF9EABC0), fontSize = 10.sp)
+                            }
                         }
                     }
                 }
             }
         }
-        if (loading && news.isNotEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
+        Text(
+            "Source metadata only · Open the publisher for the original notice or article",
+            color = Color(0xFF75839A),
+            fontSize = 10.sp,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }
