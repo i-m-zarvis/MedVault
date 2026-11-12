@@ -178,23 +178,6 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
-        if (selectedTopic != null && documents.isNotEmpty()) {
-            OutlinedTextField(
-                value = documentSearch,
-                onValueChange = { documentSearch = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Search PDFs…", color = StudyMuted) },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = StudyMuted) },
-                shape = RoundedCornerShape(22.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = StudyAccent,
-                    unfocusedBorderColor = StudyPanel,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
-            )
-        }
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Connect your content account before selecting source groups.", color = StudyMuted)
             Button(onClick = onConnectAccount) { Text("Connect account") }
@@ -331,6 +314,24 @@ fun TelegramDocumentLibraryScreen(
                 TextButton(onClick = onOpenPractice) { Text("Practice MCQs") }
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+        }
+
+        if (selectedTopic != null && documents.isNotEmpty()) {
+            OutlinedTextField(
+                value = documentSearch,
+                onValueChange = { documentSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Search PDFs…", color = StudyMuted) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = StudyMuted) },
+                shape = RoundedCornerShape(22.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = StudyAccent,
+                    unfocusedBorderColor = StudyPanel,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
         }
 
         if (authState !is TelegramAuthManager.State.Ready) {
