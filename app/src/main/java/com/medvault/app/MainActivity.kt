@@ -281,7 +281,7 @@ class MainActivity : ComponentActivity() {
                     onOpenStudySources = { screen = "study_sources" },
                     onOpenDailyDose = { screen = "daily_dose" },
                     onOpenUpdates = { screen = "updates" },
-                    onOpenPractice = onOpenPractice,
+                    onOpenPractice = { screen = "practice" },
                     selectedPdfFile = selectedPdfFile,
                     selectedPdfTitle = selectedPdfTitle,
                     onOpenPdf = { file, title -> pdfReturnScreen = screen; selectedPdfFile = file; selectedPdfTitle = title; screen = "pdf_reader" },
@@ -1671,7 +1671,7 @@ private fun MedVaultRoot(
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
                         onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
-                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, onOpenPractice = { screen = "practice" })
+                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, onOpenPractice = onOpenPractice)
                     "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
                     "pdf_reader" -> {
