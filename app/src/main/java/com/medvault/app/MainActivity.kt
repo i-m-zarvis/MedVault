@@ -124,7 +124,9 @@ class MainActivity : ComponentActivity() {
     private var folderNameBeforeSearch = "My Drive"
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
     private var selectedTelegramLecture by mutableStateOf<TelegramLecture?>(null)
-    private var screen by mutableStateOf("videos")
+    private var selectedPdfFile by mutableStateOf<File?>(null)
+    private var selectedPdfTitle by mutableStateOf("Document")
+    private var screen by mutableStateOf("home")
     private var accountMenu by mutableStateOf(false)
     private var pipMode by mutableStateOf(false)
     private var fullscreen by mutableStateOf(false)
@@ -272,6 +274,16 @@ class MainActivity : ComponentActivity() {
                     selectedVideo = selectedVideo,
                     screen = screen,
                     activeAccountEmail = activeAccountEmail,
+                    onOpenQBank = { screen = "qbank" },
+                    onOpenTests = { screen = "tests" },
+                    onOpenOffline = { screen = "offline" },
+                    onOpenStudySources = { screen = "study_sources" },
+                    onOpenDailyDose = { screen = "daily_dose" },
+                    onOpenUpdates = { screen = "updates" },
+                    selectedPdfFile = selectedPdfFile,
+                    selectedPdfTitle = selectedPdfTitle,
+                    onOpenPdf = { file, title -> selectedPdfFile = file; selectedPdfTitle = title; screen = "pdf_reader" },
+                    onClosePdf = { selectedPdfFile = null; screen = "qbank" },
                     onOpenTelegram = { screen = "telegram" },
                     onOpenTelegramLibrary = {
                         val telegramRepo = TelegramLibraryRepository(this@MainActivity, TelegramAuthManager.getInstance(this@MainActivity) {})
@@ -323,7 +335,7 @@ class MainActivity : ComponentActivity() {
                     onHome = {
                         saveCurrentProgress()
                         leavePlayer()
-                        screen = "videos"
+                        screen = "home"
                     },
                     onPlayerBack = {
                         val returnToTelegram = selectedTelegramLecture != null
@@ -428,7 +440,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        authorizeDrive()
+        // Google Drive integration is dormant; no Google setup is launched.
     }
 
     // ---------------------------------------------------------
@@ -1609,229 +1621,111 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun MedVaultRoot(
-    connected: Boolean,
-    authBusy: Boolean,
-    loading: Boolean,
-    status: String,
-    items: List<DriveItem>,
-    folderName: String,
-    canGoBack: Boolean,
-    selectedVideo: DriveItem?,
-    screen: String,
-    activeAccountEmail: String,
-    onOpenTelegram: () -> Unit,
-    onOpenTelegramLibrary: () -> Unit,
-    onPlayTelegramLecture: (TelegramLecture) -> Unit,
-    onPlayerBack: () -> Unit,
-    onSettings: () -> Unit,
-    onGoogleSettings: () -> Unit,
-    onTelegramSettings: () -> Unit,
-    onManageTelegramGroups: () -> Unit,
-    accountMenu: Boolean,
-    pipMode: Boolean,
-    fullscreen: Boolean,
-    player: ExoPlayer?,
-    history: List<WatchRecord>,
-    downloadWorkItems: List<WorkInfo>,
-    downloadedLectures: List<DownloadedLecture>,
-    pausedDownloadIds: Set<String>,
-    onAccountMenu: (Boolean) -> Unit,
-    onConnect: () -> Unit,
-    onDisconnect: () -> Unit,
-    onBrowse: () -> Unit,
-    onRawDrive: () -> Unit,
-    onHome: () -> Unit,
-    onFolderBack: () -> Unit,
-    onRefresh: () -> Unit,
-    onGlobalSearch: (String) -> Unit,
-    onFolder: (DriveItem) -> Unit,
-    onFile: (DriveItem) -> Unit,
-    onDownload: (DriveItem) -> Unit,
-    onHistory: () -> Unit,
-    onContinue: () -> Unit,
-    onDownloads: () -> Unit,
-    onHistoryFile: (WatchRecord) -> Unit,
-    onFullscreen: () -> Unit,
-    onPip: () -> Unit,
-    onProgress: (Long, Long) -> Unit,
-    onPauseDownload: (WorkInfo) -> Unit,
-    onResumeDownload: (WorkInfo) -> Unit,
-    onCancelDownload: (WorkInfo) -> Unit,
-    onRetryDownload: (WorkInfo) -> Unit,
-    onPlayOffline: (DownloadedLecture) -> Unit,
+    connected: Boolean, authBusy: Boolean, loading: Boolean, status: String,
+    items: List<DriveItem>, folderName: String, canGoBack: Boolean,
+    selectedVideo: DriveItem?, screen: String, activeAccountEmail: String,
+    onOpenTelegram: () -> Unit, onOpenTelegramLibrary: () -> Unit,
+    onPlayTelegramLecture: (TelegramLecture) -> Unit, onPlayerBack: () -> Unit,
+    onSettings: () -> Unit, onGoogleSettings: () -> Unit,
+    onTelegramSettings: () -> Unit, onManageTelegramGroups: () -> Unit,
+    onOpenQBank: () -> Unit, onOpenTests: () -> Unit, onOpenOffline: () -> Unit,
+    onOpenStudySources: () -> Unit, onOpenDailyDose: () -> Unit, onOpenUpdates: () -> Unit,
+    selectedPdfFile: File?, selectedPdfTitle: String,
+    onOpenPdf: (File, String) -> Unit, onClosePdf: () -> Unit,
+    accountMenu: Boolean, pipMode: Boolean, fullscreen: Boolean, player: ExoPlayer?,
+    history: List<WatchRecord>, downloadWorkItems: List<WorkInfo>,
+    downloadedLectures: List<DownloadedLecture>, pausedDownloadIds: Set<String>,
+    onAccountMenu: (Boolean) -> Unit, onConnect: () -> Unit, onDisconnect: () -> Unit,
+    onBrowse: () -> Unit, onRawDrive: () -> Unit, onHome: () -> Unit,
+    onFolderBack: () -> Unit, onRefresh: () -> Unit, onGlobalSearch: (String) -> Unit,
+    onFolder: (DriveItem) -> Unit, onFile: (DriveItem) -> Unit, onDownload: (DriveItem) -> Unit,
+    onHistory: () -> Unit, onContinue: () -> Unit, onDownloads: () -> Unit,
+    onHistoryFile: (WatchRecord) -> Unit, onFullscreen: () -> Unit, onPip: () -> Unit,
+    onProgress: (Long, Long) -> Unit, onPauseDownload: (WorkInfo) -> Unit,
+    onResumeDownload: (WorkInfo) -> Unit, onCancelDownload: (WorkInfo) -> Unit,
+    onRetryDownload: (WorkInfo) -> Unit, onPlayOffline: (DownloadedLecture) -> Unit,
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
-    BackHandler(
-        enabled = screen != "home" && screen != "videos" && !pipMode
-    ) {
+    val mainTabs = setOf("home", "videos", "qbank", "tests", "offline")
+    BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
-            "player" -> onPlayerBack()
-            "settings" -> onHome()
-            "google_settings", "telegram_settings", "telegram" -> onSettings()
+            "pdf_reader" -> onClosePdf()
+            "settings", "study_sources", "telegram_settings", "telegram" -> onHome()
             "drive" -> onFolderBack()
-            "videos", "history", "continue", "downloads" -> onHome()
+            else -> onHome()
         }
     }
-
-    AnimatedContent(
-        targetState = screen,
-        transitionSpec = {
-            if (initialState == "player" || targetState == "player") {
-                EnterTransition.None togetherWith ExitTransition.None
-            } else {
-                (fadeIn() + slideInHorizontally { it / 14 }) togetherWith
-                    (fadeOut() + slideOutHorizontally { -it / 14 })
-            }
-        },
-        label = "medvault_navigation"
-    ) { targetScreen ->
-        Surface(
-            Modifier.fillMaxSize(),
-            color = AppBg
-        ) {
-            when {
-            targetScreen == "telegram_library" -> {
-                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram, onPlayLecture = onPlayTelegramLecture, setupMode = false)
-            }
-            targetScreen == "telegram_setup" -> {
-                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram, onPlayLecture = onPlayTelegramLecture, setupMode = true)
-            }
-
-            targetScreen == "google_settings" -> {
-                GoogleSettingsScreen(connected, activeAccountEmail, onBack = onSettings, onConnect = onConnect, onDisconnect = onDisconnect, onBrowseDrive = onRawDrive)
-            }
-            targetScreen == "telegram_settings" -> {
-                TelegramSettingsScreen(onBack = onSettings, onConnect = onOpenTelegram, onManageGroups = onManageTelegramGroups)
-            }
-            targetScreen == "telegram" -> {
-                TelegramLoginScreen(onBack = onSettings)
-            }
-
-            targetScreen == "settings" -> {
-                SettingsScreen(
-                    onBack = onHome,
-                    onTelegramSettings = onTelegramSettings
-                )
-            }
-
-            targetScreen == "player" &&
-                selectedVideo != null &&
-                player != null -> {
-
-                VideoScreen(
-                    selectedVideo,
-                    player,
-                    fullscreen,
-                    pipMode,
-                    onPlayerBack,
-                    onFullscreen,
-                    onPip,
-                    onProgress
-                )
-            }
-
-            targetScreen == "videos" || targetScreen == "home" -> {
-                VideosDashboard(
-                    subjectFolders = items.filter { it.mimeType == FOLDER_MIME },
-                    loading = loading,
-                    status = status,
-                    history = history,
-                    downloadedCount = downloadedLectures.size,
-                    connected = connected,
-                    activeAccountEmail = activeAccountEmail,
-                    menu = accountMenu,
-                    onMenu = onAccountMenu,
-                    onConnect = onConnect,
-                    onDisconnect = onDisconnect,
-                    onSearch = onGlobalSearch,
-                    onOpenSubject = onFolder,
-                    onRawDrive = onRawDrive,
-                    onDownloads = onDownloads,
-                    onContinue = onContinue,
-                    onHistory = onHistory,
-                    onTelegram = onOpenTelegramLibrary,
-                    onSettings = onSettings
-                )
-            }
-
-            targetScreen == "drive" -> {
-                DriveBrowser(
-                    items = items,
-                    folderName = folderName,
-                    canGoBack = canGoBack,
-                    loading = loading,
-                    status = status,
-                    onBack = onFolderBack,
-                    onRefresh = onRefresh,
-                    onGlobalSearch = onGlobalSearch,
-                    onFolder = onFolder,
-                    onFile = onFile,
-                    onDownload = onDownload,
-                    onHome = onHome
-                )
-            }
-
-            targetScreen == "history" || targetScreen == "continue" -> {
-                HistoryScreen(
-                    title = if (targetScreen == "history") {
-                        "Watch history"
-                    } else {
-                        "Continue watching"
-                    },
-                    records = if (targetScreen == "continue") {
-                        history.filter {
-                            !it.completed && it.positionMs > 0L
-                        }
-                    } else {
-                        history
-                    },
-                    onBack = onHome,
-                    onOpen = onHistoryFile
-                )
-            }
-
-            targetScreen == "downloads" -> {
-                DownloadManagerScreen(
-                    workItems = downloadWorkItems,
-                    downloadedLectures = downloadedLectures,
-                    pausedIds = pausedDownloadIds,
-                    onBack = onHome,
-                    onPause = onPauseDownload,
-                    onResume = onResumeDownload,
-                    onCancel = onCancelDownload,
-                    onRetry = onRetryDownload,
-                    onPlayOffline = onPlayOffline,
-                    onDeleteOffline = onDeleteOffline
-                )
-            }
-
-            else -> {
-                Dashboard(
-                    connected = connected,
-                    authBusy = authBusy,
-                    status = status,
-                    menu = accountMenu,
-                    onMenu = onAccountMenu,
-                    onConnect = onConnect,
-                    onDisconnect = onDisconnect,
-                    onBrowse = onBrowse,
-                    onHistory = onHistory,
-                    onContinue = onContinue,
-                    onDownloads = onDownloads,
-                    onSettings = onSettings,
-                    downloadCount = downloadedLectures.size,
-                    activeDownloadCount = downloadWorkItems.count {
-                        it.state == WorkInfo.State.RUNNING ||
-                            it.state == WorkInfo.State.ENQUEUED ||
-                            it.state == WorkInfo.State.BLOCKED
+    Column(Modifier.fillMaxSize().background(AppBg)) {
+        AnimatedContent(
+            targetState = screen,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            transitionSpec = {
+                if (initialState == "player" || targetState == "player") EnterTransition.None togetherWith ExitTransition.None
+                else (fadeIn() + slideInHorizontally { it / 14 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 14 })
+            },
+            label = "medvault_navigation"
+        ) { targetScreen ->
+            Surface(Modifier.fillMaxSize(), color = AppBg) {
+                when (targetScreen) {
+                    "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
+                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings)
+                    "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
+                        onPlayLecture = onPlayTelegramLecture, setupMode = false)
+                    "telegram_setup" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
+                        onPlayLecture = onPlayTelegramLecture, setupMode = true)
+                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources)
+                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources)
+                    "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
+                    "pdf_reader" -> {
+                        val file = selectedPdfFile
+                        if (file != null) MedVaultPdfReaderScreen(file, selectedPdfTitle, onClosePdf)
+                        else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No PDF selected.", color = Color.White) }
                     }
-                )
+                    "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings)
+                    "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources)
+                    "daily_dose" -> MedVaultPlaceholderScreen("Daily Dose",
+                        "Randomized MCQs, explanations and high-yield facts are planned as the next module.", onHome)
+                    "updates" -> MedVaultPlaceholderScreen("Medical Updates",
+                        "Official exam notifications and medical news aggregation are planned as the next module.", onHome)
+                    "player" -> {
+                        if (selectedVideo != null && player != null) VideoScreen(selectedVideo, player, fullscreen, pipMode,
+                            onPlayerBack, onFullscreen, onPip, onProgress)
+                        else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No video selected.", color = Color.White) }
+                    }
+                    "telegram_settings" -> TelegramSettingsScreen(onBack = onSettings, onConnect = onOpenTelegram, onManageGroups = onManageTelegramGroups)
+                    "telegram" -> TelegramLoginScreen(onBack = onSettings)
+                    "history", "continue" -> HistoryScreen(
+                        title = if (targetScreen == "history") "Watch history" else "Continue watching",
+                        records = if (targetScreen == "continue") history.filter { !it.completed && it.positionMs > 0L } else history,
+                        onBack = onHome, onOpen = onHistoryFile)
+                    "downloads" -> DownloadManagerScreen(workItems = downloadWorkItems, downloadedLectures = downloadedLectures,
+                        pausedIds = pausedDownloadIds, onBack = onHome, onPause = onPauseDownload, onResume = onResumeDownload,
+                        onCancel = onCancelDownload, onRetry = onRetryDownload, onPlayOffline = onPlayOffline, onDeleteOffline = onDeleteOffline)
+                    "drive" -> DriveBrowser(items = items, folderName = folderName, canGoBack = canGoBack, loading = loading,
+                        status = status, onBack = onFolderBack, onRefresh = onRefresh, onGlobalSearch = onGlobalSearch,
+                        onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
+                    else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
+                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings)
+                }
             }
         }
-    }
+        if (screen in mainTabs && !pipMode) {
+            MedVaultBottomBar(selected = screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
+                onQBank = onOpenQBank, onTests = onOpenTests, onOffline = onOpenOffline)
+        }
     }
 }
 
+@Composable
+private fun MedVaultPlaceholderScreen(title: String, subtitle: String, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Color(0xFFF6F8FB)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            Text(title, fontSize = 23.sp, fontWeight = FontWeight.Bold, color = Color(0xFF252A3A))
+        }
+        Text(subtitle, color = Color(0xFF81889A), fontSize = 14.sp)
+    }
+}
 
 @Composable
 private fun SettingsScreen(
