@@ -1657,7 +1657,7 @@ private fun MedVaultRoot(
     ) {
         when (screen) {
             "player" -> onPlayerBack()
-            "settings", "telegram" -> onHome()
+            "settings", "google_settings", "telegram_settings", "telegram" -> onHome()
             "drive" -> onFolderBack()
             "videos", "history", "continue", "downloads" -> onHome()
         }
@@ -1681,9 +1681,18 @@ private fun MedVaultRoot(
         ) {
             when {
             targetScreen == "telegram_library" -> {
-                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram, onPlayLecture = onPlayTelegramLecture)
+                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram, onPlayLecture = onPlayTelegramLecture, setupMode = false)
+            }
+            targetScreen == "telegram_setup" -> {
+                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram, onPlayLecture = onPlayTelegramLecture, setupMode = true)
             }
 
+            targetScreen == "google_settings" -> {
+                GoogleSettingsScreen(connected, activeAccountEmail, onBack = onSettings, onConnect = onConnect, onDisconnect = onDisconnect, onBrowseDrive = onRawDrive)
+            }
+            targetScreen == "telegram_settings" -> {
+                TelegramSettingsScreen(onBack = onSettings, onConnect = onOpenTelegram, onManageGroups = { screen = "telegram_setup" })
+            }
             targetScreen == "telegram" -> {
                 TelegramLoginScreen(onBack = onSettings)
             }
@@ -1693,10 +1702,8 @@ private fun MedVaultRoot(
                     connected = connected,
                     activeAccountEmail = activeAccountEmail,
                     onBack = onHome,
-                    onConnectGoogle = onConnect,
-                    onDisconnectGoogle = onDisconnect,
-                    onConnectTelegram = onOpenTelegram,
-                    onBrowseDrive = onRawDrive
+                    onGoogleSettings = { screen = "google_settings" },
+                    onTelegramSettings = { screen = "telegram_settings" }
                 )
             }
 
@@ -1824,65 +1831,82 @@ private fun SettingsScreen(
     connected: Boolean,
     activeAccountEmail: String,
     onBack: () -> Unit,
-    onConnectGoogle: () -> Unit,
-    onDisconnectGoogle: () -> Unit,
-    onConnectTelegram: () -> Unit,
-    onBrowseDrive: () -> Unit
+    onGoogleSettings: () -> Unit,
+    onTelegramSettings: () -> Unit
 ) {
-    Column(
-        Modifier.fillMaxSize().background(AppBg).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text("Settings", fontSize = 25.sp, fontWeight = FontWeight.Bold)
         }
-        Text("CONNECTED ACCOUNTS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        Card(colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Cloud, null, tint = AppAccent, modifier = Modifier.size(25.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Google Drive", fontWeight = FontWeight.SemiBold)
-                        Text(if (connected) activeAccountEmail else "Not connected", color = AppMuted, fontSize = 12.sp)
-                    }
-                    Text(if (connected) "Connected" else "Disconnected", color = if (connected) Color(0xFF4ADE80) else AppMuted, fontSize = 11.sp)
+        Card(Modifier.fillMaxWidth().clickable(onClick = onTelegramSettings), colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Send, null, tint = AppAccent, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Telegram", fontWeight = FontWeight.SemiBold)
+                    Text("Account, source groups and lecture library settings", color = AppMuted, fontSize = 12.sp)
                 }
-                OutlinedButton(onClick = onConnectGoogle, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Sync, null); Spacer(Modifier.width(8.dp))
-                    Text(if (connected) "Add / switch Google account" else "Connect Google account")
-                }
-                if (connected) {
-                    TextButton(onClick = onDisconnectGoogle, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Logout, null); Spacer(Modifier.width(8.dp)); Text("Disconnect Google account")
-                    }
-                }
+                Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
             }
         }
-        Text("VIDEO SOURCES", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        Card(colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Send, null, tint = AppAccent, modifier = Modifier.size(25.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Telegram", fontWeight = FontWeight.SemiBold)
-                        Text("Configure Edition M (Marrow) and Edition P (PrepLadder)", color = AppMuted, fontSize = 12.sp)
-                    }
+        Card(Modifier.fillMaxWidth().clickable(onClick = onGoogleSettings), colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Cloud, null, tint = AppAccent, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Google Drive", fontWeight = FontWeight.SemiBold)
+                    Text(if (connected) activeAccountEmail else "Not connected", color = AppMuted, fontSize = 12.sp)
                 }
-                Button(onClick = onConnectTelegram, modifier = Modifier.fillMaxWidth()) { Text("Connect / manage Telegram") }
-            }
-        }
-        Text("GOOGLE DRIVE", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        Card(colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
-            TextButton(onClick = onBrowseDrive, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-                Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(10.dp)); Text("Browse raw Drive")
+                Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
             }
         }
         Spacer(Modifier.weight(1f))
         Text("MedVault  •  Version 1.0", color = AppMuted, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         Text("BY AFTAB", color = AppMuted, fontSize = 10.sp, letterSpacing = 2.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+    }
+}
+
+@Composable
+private fun GoogleSettingsScreen(
+    connected: Boolean,
+    activeAccountEmail: String,
+    onBack: () -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+    onBrowseDrive: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            Text("Google Drive", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        Text(if (connected) "Connected · $activeAccountEmail" else "Google Drive is not connected", color = AppMuted)
+        Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text(if (connected) "Add / switch Google account" else "Connect Google account") }
+        if (connected) TextButton(onClick = onDisconnect, modifier = Modifier.fillMaxWidth()) { Text("Disconnect Google account") }
+        OutlinedButton(onClick = onBrowseDrive, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Browse raw Drive") }
+    }
+}
+
+@Composable
+private fun TelegramSettingsScreen(onBack: () -> Unit, onConnect: () -> Unit, onManageGroups: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val repo = remember { TelegramLibraryRepository(context, TelegramAuthManager.getInstance(context) {}) }
+    val marrow = repo.selectedTitle(MedVaultEdition.M)
+    val prep = repo.selectedTitle(MedVaultEdition.P)
+    Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            Text("Telegram", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("Telegram account and configured lecture sources", color = AppMuted)
+        Text("Edition M · Marrow", fontWeight = FontWeight.SemiBold)
+        Text(marrow ?: "Not configured", color = AppMuted)
+        Divider(color = AppMuted.copy(alpha = 0.25f))
+        Text("Edition P · PrepLadder", fontWeight = FontWeight.SemiBold)
+        Text(prep ?: "Not configured", color = AppMuted)
+        Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text("Connect / manage Telegram account") }
+        OutlinedButton(onClick = onManageGroups, modifier = Modifier.fillMaxWidth()) { Text("Change source groups") }
     }
 }
 
@@ -1957,7 +1981,7 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
 
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit) {
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
@@ -1999,7 +2023,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Telegram is not connected.", color = AppMuted)
             Button(onClick = onConnect) { Text("Connect Telegram") }
-        } else if (topic == null) {
+        } else if (topic == null && setupMode) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M · Marrow") })
                 FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P · PrepLadder") })
@@ -2068,6 +2092,38 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             } else {
                 Spacer(Modifier.weight(1f))
                 Text("Find your Telegram forum groups, assign Marrow and PrepLadder, then open their subject topics.", color = AppMuted, fontSize = 13.sp)
+            }
+        } else if (topic == null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Marrow") })
+                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("PrepLadder") })
+            }
+            LaunchedEffect(repo, edition, authState) {
+                val sourceRepo = repo ?: return@LaunchedEffect
+                if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(edition) != null && topics.isEmpty()) {
+                    busy = true
+                    sourceRepo.loadTopics(edition) { result ->
+                        busy = false
+                        result.onSuccess { topics = it }.onFailure { error = it.message }
+                    }
+                }
+            }
+            error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(topics, key = { it.topicId }) { item ->
+                    Card(Modifier.clickable {
+                        topic = item; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
+                        repo?.loadTopicMessages(item) { result ->
+                            busy = false
+                            result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
+                        }
+                    }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
+                        }
+                    }
+                }
             }
         } else {
             val lectures = remember(topic, messages) {
