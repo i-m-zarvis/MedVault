@@ -57,15 +57,28 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
             }
             chatIds.forEach { chatId ->
                 auth.sendRequest(TdApi.GetChat(chatId)) { chatResult ->
-                    val type = (chatResult as? TdApi.Chat)?.type as? TdApi.ChatTypeSupergroup
-                    if (chatResult is TdApi.Chat && type != null && !type.isChannel) {
-                        auth.sendRequest(TdApi.GetSupergroup(type.supergroupId)) { supergroup ->
-                            if (supergroup is TdApi.Supergroup) {
-                                candidates.add(TelegramSourceCandidate(chatResult.id, chatResult.title, isForum = supergroup.isForum))
-                            }
-                            finishOne()
+                    val chat = chatResult as? TdApi.Chat
+                    when (val type = chat?.type) {
+                        is TdApi.ChatTypeSupergroup -> {
+                            if (!type.isChannel) {
+                                auth.sendRequest(TdApi.GetSupergroup(type.supergroupId)) { supergroup ->
+                                    if (supergroup is TdApi.Supergroup) {
+                                        candidates.add(TelegramSourceCandidate(chat!!.id, chat.title, isForum = supergroup.isForum))
+                                    }
+                                    finishOne()
+                                }
+                            } else finishOne()
                         }
-                    } else finishOne()
+                        is TdApi.ChatTypeBasicGroup -> {
+                            auth.sendRequest(TdApi.GetBasicGroup(type.basicGroupId)) { basicGroup ->
+                                if (basicGroup is TdApi.BasicGroup) {
+                                    candidates.add(TelegramSourceCandidate(chat!!.id, chat.title, isForum = false))
+                                }
+                                finishOne()
+                            }
+                        }
+                        else -> finishOne()
+                    }
                 }
             }
         }
