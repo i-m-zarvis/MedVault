@@ -511,12 +511,42 @@ fun MedVaultOfflineScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val pdfs = remember { TelegramPdfStore.downloaded(context) }
+    val videoBytes = downloadedLectures.sumOf { File(it.localPath).length() }
+    val pdfBytes = pdfs.sumOf { it.length() }
+    val totalBytes = videoBytes + pdfBytes
+    val totalDeviceBytes = android.os.StatFs(context.filesDir.path).totalBytes.coerceAtLeast(1L)
+    val storageFraction = (totalBytes.toFloat() / totalDeviceBytes.toFloat()).coerceIn(0f, 1f)
+    fun sizeLabel(bytes: Long): String = when {
+        bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.US, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+        bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+        else -> "${(bytes / 1024L).coerceAtLeast(0L)} KB"
+    }
     Column(Modifier.fillMaxSize().background(HomeBackground)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Column {
-                Text("Downloads", color = ShellInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Text("OFFLINE VAULT", color = ShellBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text("OFFLINE VAULT", color = Color(0xFFF4C34F), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text("Downloads", color = ShellInk, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2038)),
+            shape = RoundedCornerShape(26.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+        ) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Downloaded storage", color = ShellMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(sizeLabel(totalBytes), color = Color(0xFFF4C34F), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+                Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))) {
+                    Box(Modifier.fillMaxWidth(storageFraction).fillMaxHeight().background(Color(0xFFB477F5)))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Text("● Videos  ${sizeLabel(videoBytes)}", color = Color(0xFFB477F5), fontSize = 11.sp)
+                    Text("● PDFs  ${sizeLabel(pdfBytes)}", color = Color(0xFFFF5470), fontSize = 11.sp)
+                }
             }
         }
         LazyColumn(
@@ -565,7 +595,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
     var editing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showAbout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().background(ShellBackground).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(ShellBackground).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Column {
@@ -573,7 +603,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Text("Profile & Settings", color = ShellInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(24.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF18233E)), shape = RoundedCornerShape(30.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AccountCircle, null, tint = ShellBlue, modifier = Modifier.size(52.dp))
