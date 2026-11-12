@@ -20,10 +20,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
 
-private val ShellBackground = Color(0xFF0B1020)
-private val ShellInk = Color(0xFFF3F6FC)
-private val ShellMuted = Color(0xFF9EABC0)
-private val ShellBlue = Color(0xFF78AFFF)
+private val ShellBackground = Color(0xFFF6F8FB)
+private val ShellInk = Color(0xFF252A3A)
+private val ShellMuted = Color(0xFF81889A)
+private val ShellBlue = Color(0xFF168FE5)
+private val HomeBackground = Color(0xFF0B1020)
+private val HomeInk = Color(0xFFF3F6FC)
+private val HomeMuted = Color(0xFF9EABC0)
+private val HomeBlue = Color(0xFF78AFFF)
 private val HomePanel = Color(0xFF151E30)
 private val HomePanelAlt = Color(0xFF1B2B40)
 private val HomeBorder = Color(0xFF29384D)
@@ -40,7 +44,7 @@ fun MedVaultHomeScreen(
     onEditionChange: (MedVaultEdition) -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(ShellBackground),
+        modifier = Modifier.fillMaxSize().background(HomeBackground),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
@@ -50,11 +54,11 @@ fun MedVaultHomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("MedVault", color = ShellInk, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("Learn something every day.", color = ShellMuted, fontSize = 12.sp)
+                    Text("MedVault", color = HomeInk, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text("Learn something every day.", color = HomeMuted, fontSize = 12.sp)
                 }
                 IconButton(onClick = onSettings) {
-                    Icon(Icons.Default.AccountCircle, "Profile and settings", tint = ShellMuted, modifier = Modifier.size(29.dp))
+                    Icon(Icons.Default.AccountCircle, "Profile and settings", tint = HomeMuted, modifier = Modifier.size(29.dp))
                 }
             }
         }
@@ -68,16 +72,16 @@ fun MedVaultHomeScreen(
                 ) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            HomeTag("TODAY'S CONCEPT", ShellBlue)
+                            HomeTag("TODAY'S CONCEPT", HomeBlue)
                             Spacer(Modifier.weight(1f))
-                            Icon(Icons.Default.AutoStories, null, tint = ShellBlue)
+                            Icon(Icons.Default.AutoStories, null, tint = HomeBlue)
                         }
-                        Text("A new MBBS concept, every day", color = ShellInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("A new MBBS concept, every day", color = HomeInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Text(
                             "High-yield topics selected around undergraduate medical subjects.",
-                            color = ShellMuted, fontSize = 13.sp, lineHeight = 19.sp
+                            color = HomeMuted, fontSize = 13.sp, lineHeight = 19.sp
                         )
-                        Text("DAILY CONCEPTS WILL BE ADDED IN THE LEARNING PHASE", color = ShellBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                        Text("DAILY CONCEPTS WILL BE ADDED IN THE LEARNING PHASE", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -182,8 +186,8 @@ fun MedVaultHomeScreen(
 @Composable
 private fun HomeSectionHeading(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(title, color = ShellMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.15.sp)
-        Text(subtitle, color = ShellInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.15.sp)
+        Text(subtitle, color = HomeInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -208,9 +212,9 @@ private fun HomeActionTile(
         colors = CardDefaults.cardColors(containerColor = HomePanel)
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, tint = ShellBlue, modifier = Modifier.size(23.dp))
-            Text(title, color = ShellInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = ShellMuted, fontSize = 11.sp)
+            Icon(icon, null, tint = HomeBlue, modifier = Modifier.size(23.dp))
+            Text(title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = HomeMuted, fontSize = 11.sp)
         }
     }
 }
@@ -232,18 +236,18 @@ private fun HomeEditorialCard(
         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.Top) {
             Surface(color = HomePanelAlt, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(42.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = ShellBlue, modifier = Modifier.size(22.dp))
+                    Icon(icon, null, tint = HomeBlue, modifier = Modifier.size(22.dp))
                 }
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(eyebrow, color = ShellBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
-                Text(title, color = ShellInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp)
-                Text(subtitle, color = ShellMuted, fontSize = 11.sp, lineHeight = 16.sp)
-                Text(footnote, color = if (onClick != null) ShellBlue else ShellMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                Text(eyebrow, color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
+                Text(title, color = HomeInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp)
+                Text(subtitle, color = HomeMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                Text(footnote, color = if (onClick != null) HomeBlue else HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
             }
             if (onClick != null) {
-                Icon(Icons.Default.ChevronRight, null, tint = ShellMuted, modifier = Modifier.padding(start = 4.dp).size(19.dp))
+                Icon(Icons.Default.ChevronRight, null, tint = HomeMuted, modifier = Modifier.padding(start = 4.dp).size(19.dp))
             }
         }
     }
@@ -258,7 +262,7 @@ fun MedVaultBottomBar(
     onTests: () -> Unit,
     onOffline: () -> Unit
 ) {
-    NavigationBar(containerColor = Color(0xFF111A2A), contentColor = ShellInk, tonalElevation = 0.dp) {
+    NavigationBar(containerColor = Color(0xFF111A2A), contentColor = HomeInk, tonalElevation = 0.dp) {
         val items = listOf(
             Triple("home", "Home", Icons.Default.Home),
             Triple("videos", "Lectures", Icons.Default.PlayCircle),
@@ -275,11 +279,11 @@ fun MedVaultBottomBar(
                 label = { Text(item.second, fontSize = 10.sp) },
                 alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = ShellBlue,
-                    selectedTextColor = ShellBlue,
+                    selectedIconColor = HomeBlue,
+                    selectedTextColor = HomeBlue,
                     indicatorColor = HomePanelAlt,
-                    unselectedIconColor = ShellMuted,
-                    unselectedTextColor = ShellMuted
+                    unselectedIconColor = HomeMuted,
+                    unselectedTextColor = HomeMuted
                 )
             )
         }
