@@ -193,6 +193,7 @@ class MainActivity : ComponentActivity() {
 
         historySync = WatchHistorySync(this)
         downloadRepository = DownloadRepository(this)
+        ContentFeedScheduler.schedule(this)
 
         io.execute {
             try {
