@@ -2293,14 +2293,14 @@ private fun VideosDashboard(
             tonalElevation = 8.dp
         ) {
             NavigationBarItem(
-                selected = screen == "videos" || screen == "home",
-                onClick = onHome,
+                selected = true,
+                onClick = { },
                 icon = { Icon(Icons.Default.VideoLibrary, contentDescription = null) },
                 label = { Text("Videos") },
                 alwaysShowLabel = true
             )
             NavigationBarItem(
-                selected = screen == "telegram_library",
+                selected = false,
                 onClick = onTelegram,
                 icon = { Icon(Icons.Default.Send, contentDescription = null) },
                 label = { Text("Telegram") },
