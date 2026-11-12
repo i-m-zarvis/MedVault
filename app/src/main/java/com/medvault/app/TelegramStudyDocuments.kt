@@ -133,7 +133,7 @@ object TelegramPdfStore {
 }
 
 @Composable
-fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit) {
+fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () -> Unit) {
     val context = LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
@@ -254,7 +254,8 @@ fun TelegramDocumentLibraryScreen(
     edition: MedVaultEdition,
     onBack: () -> Unit,
     onOpenPdf: (File, String) -> Unit,
-    onManageSources: () -> Unit
+    onManageSources: () -> Unit,
+    onConnectAccount: () -> Unit
 ) {
     val context = LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
@@ -298,7 +299,8 @@ fun TelegramDocumentLibraryScreen(
         }
 
         if (authState !is TelegramAuthManager.State.Ready) {
-            Text("Connect your account to access this library.", color = AppMuted)
+            Text("Connect your content account to access this library.", color = AppMuted)
+            Button(onClick = onConnectAccount) { Text("Connect account") }
         } else if (repo?.selectedChatId(edition) == null) {
             Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
