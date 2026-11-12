@@ -1894,6 +1894,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
     var groups by remember { mutableStateOf<List<TelegramSourceCandidate>>(emptyList()) }
     var topics by remember { mutableStateOf<List<TelegramForumTopic>>(emptyList()) }
     var messages by remember { mutableStateOf<List<org.drinkless.tdlib.TdApi.Message>>(emptyList()) }
+    var hasMoreMessages by remember { mutableStateOf(false) }
     var edition by remember { mutableStateOf(MedVaultEdition.M) }
     var topic by remember { mutableStateOf<TelegramForumTopic?>(null) }
     var titleM by remember { mutableStateOf<String?>(null) }
@@ -1981,10 +1982,10 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(topics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
-                            topic = item; busy = true; messages = emptyList()
+                            topic = item; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
                             repo?.loadTopicMessages(item) { result ->
                                 busy = false
-                                result.onSuccess { messages = it }.onFailure { error = it.message }
+                                result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
                             }
                         }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1999,18 +2000,59 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
                 Text("Find your Telegram forum groups, assign Marrow and PrepLadder, then open their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
         } else {
+            val lectures = remember(topic, messages) {
+                topic?.let { selected -> messages.mapNotNull { TelegramLecture.fromMessage(selected.chatId, selected.topicId, it) } }
+                    .orEmpty().distinctBy { it.stableId }.sortedByDescending { it.messageId }
+            }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
+            Text("${lectures.size} video lecture(s) in this page · ${messages.size} messages scanned",
+                color = AppMuted, fontSize = 11.sp)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(messages, key = { it.id }) { message ->
+                items(lectures, key = { it.stableId }) { lecture ->
                     Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            Text("Message " + message.id, fontWeight = FontWeight.SemiBold)
-                            Text(message.content.javaClass.simpleName.removePrefix("Message"), color = AppMuted, fontSize = 12.sp)
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(lecture.title, fontWeight = FontWeight.SemiBold)
+                            Text(lecture.fileName, color = AppMuted, fontSize = 12.sp)
+                            Text(
+                                "${formatDriveSize(lecture.fileSizeBytes)} · " +
+                                    (if (lecture.durationSeconds > 0) "${lecture.durationSeconds / 60} min ${lecture.durationSeconds % 60} sec" else "Duration unavailable") +
+                                    " · ${lecture.mimeType}",
+                                color = AppMuted, fontSize = 11.sp
+                            )
+                            Text("Message ID: ${lecture.messageId} · File ID: ${lecture.fileId}",
+                                color = AppMuted, fontSize = 10.sp)
+                            if (lecture.caption.isNotBlank() && lecture.caption.trim() != lecture.title) {
+                                Text(lecture.caption, color = AppMuted, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
+                if (lectures.isEmpty()) {
+                    item {
+                        Text("No video files found in this message page. Load older messages to scan further back.",
+                            color = AppMuted, fontSize = 13.sp)
+                    }
+                }
             }
-            Text("This milestone lists topic messages. Video extraction and playback are next.", color = AppMuted, fontSize = 11.sp)
+            if (hasMoreMessages) {
+                OutlinedButton(
+                    enabled = !busy && messages.isNotEmpty(),
+                    onClick = {
+                        val oldest = messages.minOfOrNull { it.id } ?: return@OutlinedButton
+                        busy = true
+                        repo?.loadTopicMessages(topic!!, fromMessageId = oldest) { result ->
+                            busy = false
+                            result.onSuccess { page ->
+                                val merged = (messages + page).distinctBy { it.id }
+                                messages = merged
+                                hasMoreMessages = page.size >= 100
+                            }.onFailure { error = it.message }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (busy) "Loading…" else "Load older messages") }
+            }
+            Text("Video metadata is extracted. Playback is not connected yet.", color = AppMuted, fontSize = 11.sp)
         }
     }
 }
