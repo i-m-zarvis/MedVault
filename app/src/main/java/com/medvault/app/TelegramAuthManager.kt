@@ -11,6 +11,7 @@ import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Owns one TDLib client and the Telegram authorization lifecycle.
@@ -57,6 +58,14 @@ class TelegramAuthManager private constructor(
     private val databaseDirectory = appContext.getDir("telegram-db", Context.MODE_PRIVATE).absolutePath
     private val filesDirectory = appContext.getDir("telegram-files", Context.MODE_PRIVATE).absolutePath
     @Volatile private var client: Client? = null
+    private val updateListeners = CopyOnWriteArrayList<(TdApi.Object) -> Unit>()
+
+    fun addUpdateListener(listener: (TdApi.Object) -> Unit) { updateListeners.add(listener) }
+    fun removeUpdateListener(listener: (TdApi.Object) -> Unit) { updateListeners.remove(listener) }
+
+    fun sendRequest(request: TdApi.Function<*>, callback: (TdApi.Object) -> Unit) {
+        send(request, callback)
+    }
 
     @Synchronized
     fun start() {
@@ -151,6 +160,7 @@ class TelegramAuthManager private constructor(
         send(parameters)
     }
     private fun onUpdate(update: TdApi.Object) {
+        updateListeners.forEach { listener -> runCatching { listener(update) } }
         if (update !is TdApi.UpdateAuthorizationState) return
         when (val auth = update.authorizationState) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> sendTdlibParameters()
