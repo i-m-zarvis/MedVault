@@ -1801,6 +1801,7 @@ private fun TelegramSettingsScreen(onBack: () -> Unit, onConnect: () -> Unit, on
     val repo = remember { TelegramLibraryRepository(context, TelegramAuthManager.getInstance(context) {}) }
     val marrow = repo.selectedTitle(MedVaultEdition.M)
     val prep = repo.selectedTitle(MedVaultEdition.P)
+    val universal = repo.selectedTitle(MedVaultEdition.U)
     Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
@@ -1812,6 +1813,9 @@ private fun TelegramSettingsScreen(onBack: () -> Unit, onConnect: () -> Unit, on
         Divider(color = AppMuted.copy(alpha = 0.25f))
         Text("Edition P", fontWeight = FontWeight.SemiBold)
         Text(prep ?: "Not configured", color = AppMuted)
+        Divider(color = AppMuted.copy(alpha = 0.25f))
+        Text("Edition U", fontWeight = FontWeight.SemiBold)
+        Text(universal ?: "Not configured", color = AppMuted)
         Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text("Connect / manage account") }
         OutlinedButton(onClick = onManageGroups, modifier = Modifier.fillMaxWidth()) { Text("Change source groups") }
     }
