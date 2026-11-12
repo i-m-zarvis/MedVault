@@ -158,29 +158,30 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
     var groups by remember { mutableStateOf<List<TelegramSourceCandidate>>(emptyList()) }
     var target by remember { mutableStateOf(MedVaultEdition.M) }
-    var selectedM by remember { mutableStateOf<String?>(null) }
-    var selectedP by remember { mutableStateOf<String?>(null) }
-    var selectedNotes by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
-
+    val roles = listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.QBANK_M, MedVaultEdition.QBANK_P, MedVaultEdition.NOTES_M, MedVaultEdition.NOTES_P)
+    fun label(role: MedVaultEdition) = when (role) {
+        MedVaultEdition.M -> "Video · Edition M"
+        MedVaultEdition.P -> "Video · Edition P"
+        MedVaultEdition.QBANK_M -> "QBank · Edition M"
+        MedVaultEdition.QBANK_P -> "QBank · Edition P"
+        MedVaultEdition.NOTES_M -> "Notes · Edition M"
+        else -> "Notes · Edition P"
+    }
     LaunchedEffect(Unit) {
         val auth = TelegramAuthManager.getInstance(context) { authState = it }
         authState = auth.currentState
         auth.start()
         repo = TelegramLibraryRepository(context, auth)
-        selectedM = repo?.selectedTitle(MedVaultEdition.M)
-        selectedP = repo?.selectedTitle(MedVaultEdition.P)
-        selectedNotes = repo?.selectedTitle(MedVaultEdition.TESTS)
     }
-
     Column(Modifier.fillMaxSize().background(StudyBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text("Study library sources", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Choose source groups for each video edition and Notes", color = StudyMuted, fontSize = 12.sp)
+                Text("Independent Telegram groups for Video, QBank and Notes", color = StudyMuted, fontSize = 12.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
@@ -188,78 +189,49 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
             Text("Connect your content account before selecting source groups.", color = StudyMuted)
             Button(onClick = onConnectAccount) { Text("Connect account") }
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.TESTS).forEach { role ->
-                    FilterChip(
-                        selected = target == role,
-                        onClick = { target = role },
-                        label = { Text(when (role) {
-                            MedVaultEdition.M -> "Edition M"
-                            MedVaultEdition.P -> "Edition P"
-                            else -> "Notes"
-                        }) }
-                    )
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                items(roles, key = { it.name }) { role ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = if (target == role) StudyPanel else StudyBg),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (target == role) StudyAccent else StudyMuted.copy(alpha = 0.25f)),
+                        modifier = Modifier.fillMaxWidth().clickable { target = role }
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(label(role), fontWeight = FontWeight.SemiBold)
+                            Text(repo?.selectedTitle(role) ?: "No group selected", color = StudyMuted, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
             Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(when (target) {
-                        MedVaultEdition.M -> "Edition M source"
-                        MedVaultEdition.P -> "Edition P source"
-                        else -> "Notes source"
-                    }, fontWeight = FontWeight.Bold)
-                    val activeSourceTitle = when (target) {
-                        MedVaultEdition.M -> selectedM
-                        MedVaultEdition.P -> selectedP
-                        else -> selectedNotes
-                    }
-                    Text(activeSourceTitle ?: "No group selected", color = StudyMuted)
+                    Text("Configure " + label(target), fontWeight = FontWeight.Bold)
                     Button(enabled = !busy, onClick = {
                         busy = true
-                        error = null
-                        status = null
                         repo?.discoverForumSources { result ->
                             busy = false
-                            result.onSuccess { groups = it; status = "Found ${it.size} eligible groups." }
+                            result.onSuccess { groups = it; status = "Found " + it.size + " eligible groups."; error = null }
                                 .onFailure { error = it.message }
                         }
                     }) { Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Find available groups") }
-                    OutlinedButton(
-                        enabled = activeSourceTitle != null,
-                        onClick = {
-                            repo?.clearSource(target)
-                            when (target) {
-                                MedVaultEdition.M -> selectedM = null
-                                MedVaultEdition.P -> selectedP = null
-                                else -> selectedNotes = null
-                            }
-                        }
-                    ) { Text("Clear selection") }
+                    OutlinedButton(enabled = repo?.selectedChatId(target) != null, onClick = {
+                        repo?.clearSource(target); status = "Source cleared."
+                    }) { Text("Clear selection") }
                 }
             }
             status?.let { Text(it, color = StudyMuted, fontSize = 12.sp) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
             if (groups.isNotEmpty()) {
                 Text("AVAILABLE GROUPS", color = StudyAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(groups, key = { it.chatId }) { group ->
                         Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
                             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(group.title, fontWeight = FontWeight.SemiBold)
-                                    Text("Telegram content source", color = StudyMuted, fontSize = 11.sp)
-                                }
+                                Text(group.title, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                                 TextButton(onClick = {
-                                    runCatching { repo?.assignSource(target, group) }
-                                        .onSuccess {
-                                            when (target) {
-                                                MedVaultEdition.M -> selectedM = group.title
-                                                MedVaultEdition.P -> selectedP = group.title
-                                                else -> selectedNotes = group.title
-                                            }
-                                            status = "Source saved."
-                                            error = null
-                                        }.onFailure { error = it.message }
+                                    repo?.assignSource(target, group)
+                                    status = "Saved " + group.title + " for " + label(target) + "."
+                                    error = null
                                 }) { Text("Select") }
                             }
                         }
@@ -292,7 +264,12 @@ fun TelegramDocumentLibraryScreen(
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf<String?>(null) }
     var qbankEdition by remember { mutableStateOf(MedVaultEdition.M) }
-    val sourceEdition = if (edition == MedVaultEdition.QBANK) qbankEdition else edition
+    var notesEdition by remember { mutableStateOf(MedVaultEdition.M) }
+    val sourceEdition = when (edition) {
+        MedVaultEdition.QBANK -> if (qbankEdition == MedVaultEdition.M) MedVaultEdition.QBANK_M else MedVaultEdition.QBANK_P
+        MedVaultEdition.TESTS -> if (notesEdition == MedVaultEdition.M) MedVaultEdition.NOTES_M else MedVaultEdition.NOTES_P
+        else -> edition
+    }
 
     LaunchedEffect(Unit) {
         val manager = TelegramAuthManager.getInstance(context) { authState = it }
@@ -338,12 +315,13 @@ fun TelegramDocumentLibraryScreen(
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
 
-        if (edition == MedVaultEdition.QBANK) {
+        if (edition == MedVaultEdition.QBANK || edition == MedVaultEdition.TESTS) {
+            val currentEdition = if (edition == MedVaultEdition.QBANK) qbankEdition else notesEdition
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(MedVaultEdition.M, MedVaultEdition.P).forEach { option ->
                     FilterChip(
-                        selected = qbankEdition == option,
-                        onClick = { qbankEdition = option },
+                        selected = currentEdition == option,
+                        onClick = { if (edition == MedVaultEdition.QBANK) qbankEdition = option else notesEdition = option },
                         label = { Text(if (option == MedVaultEdition.M) "Edition M" else "Edition P") }
                     )
                 }
@@ -356,7 +334,7 @@ fun TelegramDocumentLibraryScreen(
         } else if (repo?.selectedChatId(sourceEdition) == null) {
             Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("No source group configured for ${if (sourceEdition == MedVaultEdition.M) "Edition M" else if (sourceEdition == MedVaultEdition.P) "Edition P" else "Notes"}.", fontWeight = FontWeight.SemiBold)
+                    Text("No source group configured for ${if (sourceEdition.name.endsWith("_M") || sourceEdition == MedVaultEdition.M) "Edition M" else "Edition P"}.", fontWeight = FontWeight.SemiBold)
                     Text("Choose a source group in Settings to populate this library.", color = StudyMuted, fontSize = 13.sp)
                     Button(onClick = onManageSources) { Icon(Icons.Default.Settings, null); Spacer(Modifier.width(6.dp)); Text("Configure library") }
                 }
