@@ -319,6 +319,12 @@ class MainActivity : ComponentActivity() {
                         leavePlayer()
                         screen = "videos"
                     },
+                    onPlayerBack = {
+                        val returnToTelegram = selectedTelegramLecture != null
+                        saveCurrentProgress()
+                        leavePlayer()
+                        screen = if (returnToTelegram) "telegram_library" else "videos"
+                    },
 
                     onFolderBack = {
                         if (driveSearchActive) {
@@ -1494,6 +1500,7 @@ class MainActivity : ComponentActivity() {
         saveCurrentProgress()
 
         selectedVideo = null
+        selectedTelegramLecture = null
 
         player?.release()
         player = null
@@ -1609,6 +1616,7 @@ private fun MedVaultRoot(
     onOpenTelegram: () -> Unit,
     onOpenTelegramLibrary: () -> Unit,
     onPlayTelegramLecture: (TelegramLecture) -> Unit,
+    onPlayerBack: () -> Unit,
     onSettings: () -> Unit,
     accountMenu: Boolean,
     pipMode: Boolean,
@@ -1648,7 +1656,7 @@ private fun MedVaultRoot(
         enabled = screen != "home" && screen != "videos" && !pipMode
     ) {
         when (screen) {
-            "player" -> onHome()
+            "player" -> onPlayerBack()
             "settings", "telegram" -> onHome()
             "drive" -> onFolderBack()
             "videos", "history", "continue", "downloads" -> onHome()
@@ -1701,7 +1709,7 @@ private fun MedVaultRoot(
                     player,
                     fullscreen,
                     pipMode,
-                    onHome,
+                    onPlayerBack,
                     onFullscreen,
                     onPip,
                     onProgress
