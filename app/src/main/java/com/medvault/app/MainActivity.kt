@@ -1608,6 +1608,10 @@ private fun MedVaultRoot(
             color = AppBg
         ) {
             when {
+            targetScreen == "telegram_library" -> {
+                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram)
+            }
+
             targetScreen == "telegram" -> {
                 TelegramLoginScreen(onBack = onSettings)
             }
@@ -1659,7 +1663,7 @@ private fun MedVaultRoot(
                     onDownloads = onDownloads,
                     onContinue = onContinue,
                     onHistory = onHistory,
-                    onTelegram = onOpenTelegram,
+                    onTelegram = { screen = "telegram_library" },
                     onSettings = onSettings
                 )
             }
@@ -1876,6 +1880,136 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         Spacer(Modifier.weight(1f))
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to MedVault") }
+    }
+}
+
+
+@Composable
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
+    var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
+    var groups by remember { mutableStateOf<List<TelegramSourceCandidate>>(emptyList()) }
+    var topics by remember { mutableStateOf<List<TelegramForumTopic>>(emptyList()) }
+    var messages by remember { mutableStateOf<List<org.drinkless.tdlib.TdApi.Message>>(emptyList()) }
+    var edition by remember { mutableStateOf(MedVaultEdition.M) }
+    var topic by remember { mutableStateOf<TelegramForumTopic?>(null) }
+    var titleM by remember { mutableStateOf<String?>(null) }
+    var titleP by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        val auth = TelegramAuthManager.getInstance(context) { authState = it }
+        authState = auth.currentState
+        auth.start()
+        repo = TelegramLibraryRepository(context, auth)
+    }
+    LaunchedEffect(repo) {
+        repo?.let {
+            titleM = it.selectedTitle(MedVaultEdition.M)
+            titleP = it.selectedTitle(MedVaultEdition.P)
+        }
+    }
+    BackHandler { if (topic != null) { topic = null; messages = emptyList() } else onBack() }
+    val activeTitle = if (edition == MedVaultEdition.M) titleM else titleP
+    Column(Modifier.fillMaxSize().background(AppBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
+            Column(Modifier.weight(1f)) {
+                Text(topic?.name ?: "Telegram Library", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Telegram video sources", color = AppMuted, fontSize = 12.sp)
+            }
+            if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+        }
+        if (authState !is TelegramAuthManager.State.Ready) {
+            Text("Telegram is not connected.", color = AppMuted)
+            Button(onClick = onConnect) { Text("Connect Telegram") }
+        } else if (topic == null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M · Marrow") })
+                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P · PrepLadder") })
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (edition == MedVaultEdition.M) "Marrow" else "PrepLadder", fontWeight = FontWeight.Bold)
+                    Text(activeTitle ?: "No forum group assigned", color = AppMuted)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(enabled = !busy, onClick = {
+                            busy = true; error = null; status = null
+                            repo?.discoverForumSources { result ->
+                                busy = false
+                                result.onSuccess { groups = it; status = "Found " + it.size + " forum group(s)." }.onFailure { error = it.message }
+                            }
+                        }) { Text("Find groups") }
+                        OutlinedButton(enabled = !busy && activeTitle != null, onClick = {
+                            busy = true; error = null
+                            repo?.loadTopics(edition) { result ->
+                                busy = false
+                                result.onSuccess { topics = it; status = "Loaded " + it.size + " subjects." }.onFailure { error = it.message }
+                            }
+                        }) { Text("Open subjects") }
+                    }
+                }
+            }
+            status?.let { Text(it, color = AppMuted, fontSize = 12.sp) }
+            error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
+            if (groups.isNotEmpty()) {
+                Text("FORUM GROUPS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(groups, key = { it.chatId }) { group ->
+                        Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(group.title, Modifier.weight(1f))
+                                TextButton(onClick = {
+                                    runCatching { repo?.assignSource(edition, group) }
+                                        .onSuccess {
+                                            if (edition == MedVaultEdition.M) titleM = group.title else titleP = group.title
+                                            status = "Assigned " + group.title
+                                            error = null
+                                        }.onFailure { error = it.message }
+                                }) { Text("Assign") }
+                            }
+                        }
+                    }
+                }
+            } else if (topics.isNotEmpty()) {
+                Text("SUBJECTS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(topics, key = { it.topicId }) { item ->
+                        Card(Modifier.clickable {
+                            topic = item; busy = true; messages = emptyList()
+                            repo?.loadTopicMessages(item) { result ->
+                                busy = false
+                                result.onSuccess { messages = it }.onFailure { error = it.message }
+                            }
+                        }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
+                            }
+                        }
+                    }
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
+                Text("Find your Telegram forum groups, assign Marrow and PrepLadder, then open their subject topics.", color = AppMuted, fontSize = 13.sp)
+            }
+        } else {
+            error?.let { Text(it, color = Color(0xFFFF8A80)) }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(messages, key = { it.id }) { message ->
+                    Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                            Text("Message " + message.id, fontWeight = FontWeight.SemiBold)
+                            Text(message.content.javaClass.simpleName.removePrefix("Message"), color = AppMuted, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+            Text("This milestone lists topic messages. Video extraction and playback are next.", color = AppMuted, fontSize = 11.sp)
+        }
     }
 }
 
