@@ -273,7 +273,10 @@ class MainActivity : ComponentActivity() {
                     screen = screen,
                     activeAccountEmail = activeAccountEmail,
                     onOpenTelegram = { screen = "telegram" },
-                    onOpenTelegramLibrary = { screen = "telegram_library" },
+                    onOpenTelegramLibrary = {
+                        val telegramRepo = TelegramLibraryRepository(this@MainActivity, TelegramAuthManager.getInstance(this@MainActivity) {})
+                        screen = if (telegramRepo.selectedChatId(MedVaultEdition.M) == null || telegramRepo.selectedChatId(MedVaultEdition.P) == null) "telegram_setup" else "telegram_library"
+                    },
                     onPlayTelegramLecture = { startTelegramVideo(it) },
                     onSettings = { screen = "settings" },
                     accountMenu = accountMenu,
