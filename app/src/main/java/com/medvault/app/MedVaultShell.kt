@@ -425,17 +425,17 @@ fun MedVaultBottomBar(
     onHome: () -> Unit,
     onVideos: () -> Unit,
     onQBank: () -> Unit,
-    onTests: () -> Unit,
-    onOffline: () -> Unit
+    onOffline: () -> Unit,
+    onProfile: () -> Unit
 ) {
     val items = listOf(
         Triple("home", "Home", Icons.Default.Home),
         Triple("videos", "Lectures", Icons.Default.PlayCircle),
         Triple("qbank", "QBank", Icons.Default.MenuBook),
-        Triple("profile", "Profile", Icons.Default.Person),
-        Triple("offline", "Downloads", Icons.Default.Download)
+        Triple("offline", "Offline", Icons.Default.Download),
+        Triple("profile", "Profile", Icons.Default.Person)
     )
-    val actions = listOf(onHome, onVideos, onQBank, onOffline, onTests)
+    val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
 
     // A compact floating dock: familiar Android destinations, with the quieter
     // translucent treatment and selected-state capsule used by iOS tab bars.
