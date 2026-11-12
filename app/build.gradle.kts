@@ -14,6 +14,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("int", "TELEGRAM_API_ID", (System.getenv("TELEGRAM_API_ID") ?: "0"))
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"${System.getenv("TELEGRAM_API_HASH") ?: ""}\"")
     }
 
     signingConfigs {
@@ -44,6 +46,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
