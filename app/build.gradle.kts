@@ -33,6 +33,15 @@ android {
         }
     }
 
+    // TDLib's official Android build produces Java bindings and ABI-specific
+    // JNI libraries. GitHub Actions unpacks them into this generated directory.
+    sourceSets {
+        getByName("main") {
+            java.srcDir(layout.buildDirectory.dir("tdlib/tdlib/java"))
+            jniLibs.srcDir(layout.buildDirectory.dir("tdlib/tdlib/libs"))
+        }
+    }
+
     buildFeatures {
         compose = true
     }
@@ -69,6 +78,9 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.5.1")
 
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+
+    // TDLib-generated Java bindings reference AndroidX annotations.
+    implementation("androidx.annotation:annotation:1.4.0")
 
     // Background downloads
     implementation("androidx.work:work-runtime-ktx:2.10.0")
