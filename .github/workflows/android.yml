@@ -5,6 +5,10 @@ on:
   push:
     branches: ["main", "New-branch-medvalut", "Telegram-integration"]
 
+concurrency:
+  group: medvault-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,6 +46,8 @@ jobs:
           docker buildx build \
             --file tdlib-source/example/android/Dockerfile \
             --build-arg COMMIT_HASH=c8828d50f5eac2fc7089ce1089d7ce9095c61b5e \
+            --cache-from type=gha,scope=tdlib-android-c8828d50f5eac2fc7089ce1089d7ce9095c61b5e \
+            --cache-to type=gha,scope=tdlib-android-c8828d50f5eac2fc7089ce1089d7ce9095c61b5e,mode=max \
             --output type=local,dest=tdlib-output \
             tdlib-source/example/android
           test -s tdlib-output/tdlib.zip
