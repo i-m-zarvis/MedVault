@@ -31,6 +31,25 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Set up Docker Buildx
+        if: github.ref == 'refs/heads/Telegram-integration'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build official TDLib Android Java bindings and native libraries
+        if: github.ref == 'refs/heads/Telegram-integration'
+        run: |
+          git clone https://github.com/tdlib/td.git tdlib-source
+          docker buildx build \
+            --file tdlib-source/example/android/Dockerfile \
+            --build-arg COMMIT_HASH=c8828d50f5eac2fc7089ce1089d7ce9095c61b5e \
+            --output type=local,dest=tdlib-output \
+            tdlib-source/example/android
+          test -s tdlib-output/tdlib.zip
+          mkdir -p app/build/tdlib
+          unzip -q tdlib-output/tdlib.zip -d app/build/tdlib
+          test -s app/build/tdlib/tdlib/java/org/drinkless/tdlib/Client.java
+          test -s app/build/tdlib/tdlib/libs/arm64-v8a/libtdjni.so
+
       - name: Decode signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
