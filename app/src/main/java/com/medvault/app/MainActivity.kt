@@ -1975,7 +1975,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             } else {
                 Spacer(Modifier.weight(1f))
-                Text("Find your Telegram forum groups, assign Marrow and PrepLadder, then open their subject topics.", color = AppMuted, fontSize = 13.sp)
+                Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
         } else if (topic == null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
