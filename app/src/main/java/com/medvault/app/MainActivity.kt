@@ -279,8 +279,8 @@ class MainActivity : ComponentActivity() {
                     },
                     onPlayTelegramLecture = { startTelegramVideo(it) },
                     onSettings = { screen = "settings" },
-                    onGoogleSettings = onGoogleSettings,
-                    onTelegramSettings = onTelegramSettings,
+                    onGoogleSettings = { screen = "google_settings" },
+                    onTelegramSettings = { screen = "telegram_settings" },
                     onManageTelegramGroups = { screen = "telegram_setup" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
@@ -1712,8 +1712,8 @@ private fun MedVaultRoot(
                     connected = connected,
                     activeAccountEmail = activeAccountEmail,
                     onBack = onHome,
-                    onGoogleSettings = { screen = "google_settings" },
-                    onTelegramSettings = { screen = "telegram_settings" }
+                    onGoogleSettings = onGoogleSettings,
+                    onTelegramSettings = onTelegramSettings
                 )
             }
 
