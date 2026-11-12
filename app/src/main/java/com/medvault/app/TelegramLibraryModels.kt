@@ -6,7 +6,8 @@ import org.drinkless.tdlib.TdApi
 data class TelegramSourceCandidate(
     val chatId: Long,
     val title: String,
-    val username: String? = null
+    val username: String? = null,
+    val isForum: Boolean = false
 )
 
 data class TelegramForumTopic(
