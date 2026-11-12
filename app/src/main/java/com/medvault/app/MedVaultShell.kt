@@ -55,6 +55,32 @@ private val HomePanel = Color(0xFF171D30)
 private val HomePanelAlt = Color(0xFF202944)
 private val HomeBorder = Color(0xFF343D54)
 
+private val LiquidViolet = Color(0xFFB18CFF)
+private val LiquidTeal = Color(0xFF62D7C8)
+
+/** A low-cost glass-like surface: layered colour, a restrained highlight and a fine edge. */
+private fun Modifier.liquidPanel(
+    accent: Color = HomeBlue,
+    radius: androidx.compose.ui.unit.Dp = 24.dp
+): Modifier {
+    val shape = RoundedCornerShape(radius)
+    return this
+        .clip(shape)
+        .background(
+            Brush.linearGradient(
+                listOf(
+                    Color(0xE6243048),
+                    Color(0xD9162032),
+                    accent.copy(alpha = 0.10f)
+                )
+            )
+        )
+        .border(
+            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.105f)),
+            shape
+        )
+}
+
 @Composable
 fun MedVaultHomeScreen(
     onVideos: () -> Unit,
@@ -154,18 +180,17 @@ fun MedVaultHomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("YOUR LIBRARY", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .background(HomePanel, RoundedCornerShape(18.dp))
-                            .padding(4.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
                             val selected = activeEdition == edition
                             Surface(
-                                modifier = Modifier.weight(1f).clickable { onEditionChange(edition) },
-                                color = if (selected) HomePanelAlt else Color.Transparent,
-                                shape = RoundedCornerShape(14.dp),
-                                border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, HomeBlue.copy(alpha = 0.35f)) else null
+                                modifier = Modifier.weight(1f).liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp)
+                                    .clickable { onEditionChange(edition) },
+                                color = Color.Transparent,
+                                shape = RoundedCornerShape(18.dp),
+                                border = null
                             ) {
                                 Column(
                                     Modifier.padding(vertical = 9.dp),
@@ -191,10 +216,10 @@ fun MedVaultHomeScreen(
                     Icon(Icons.Default.AutoStories, null, tint = HomeBlue.copy(alpha = 0.9f), modifier = Modifier.size(21.dp))
                 }
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF1A2038),
+                    modifier = Modifier.fillMaxWidth().liquidPanel(HomeBlue, 26.dp),
+                    color = Color.Transparent,
                     shape = RoundedCornerShape(26.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
+                    border = null
                 ) {
                     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -373,13 +398,14 @@ private fun HomeActionTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = HomePanel)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.liquidPanel(if (title == "Flashcards") LiquidViolet else LiquidTeal, 22.dp),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.Transparent
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, tint = HomeBlue, modifier = Modifier.size(23.dp))
+            Icon(icon, null, tint = if (title == "Flashcards") LiquidViolet else LiquidTeal, modifier = Modifier.size(23.dp))
             Text(title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = HomeMuted, fontSize = 11.sp)
         }
@@ -449,9 +475,9 @@ fun MedVaultBottomBar(
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xF20E1422),
+            color = Color(0xE61A2437),
             shape = RoundedCornerShape(28.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
             shadowElevation = 12.dp
         ) {
             Row(
@@ -532,9 +558,9 @@ fun MedVaultOfflineScreen(
         }
         Card(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2038)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xE61C2940)),
             shape = RoundedCornerShape(26.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
         ) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -557,7 +583,8 @@ fun MedVaultOfflineScreen(
         ) {
             item { Text("DOWNLOADED VIDEOS", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             items(downloadedLectures, key = { it.fileId }) { lecture ->
-                Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
+                Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = Color(0xD91A263B)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))) {
                     Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayCircle, null, tint = ShellBlue)
                         Spacer(Modifier.width(10.dp))
@@ -604,7 +631,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Text("Profile & Settings", color = ShellInk, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF18233E)), shape = RoundedCornerShape(30.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))) {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xE6202D46)), shape = RoundedCornerShape(30.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.13f))) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AccountCircle, null, tint = ShellBlue, modifier = Modifier.size(52.dp))
@@ -630,7 +657,8 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 }
             }
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)), shape = RoundedCornerShape(22.dp)) {
+        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color(0xD91B2940)), shape = RoundedCornerShape(22.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBox, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
