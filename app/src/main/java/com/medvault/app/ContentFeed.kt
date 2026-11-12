@@ -72,6 +72,14 @@ abstract class ContentFeedDatabase : RoomDatabase() {
 }
 
 object ContentFeedScheduler {
+    fun refresh(context: Context) {
+        WorkManager.getInstance(context).enqueue(
+            androidx.work.OneTimeWorkRequestBuilder<ContentFeedSyncWorker>()
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build()
+        )
+    }
+
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<ContentFeedSyncWorker>(
             6, TimeUnit.HOURS
@@ -83,11 +91,7 @@ object ContentFeedScheduler {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
-        WorkManager.getInstance(context).enqueue(
-            androidx.work.OneTimeWorkRequestBuilder<ContentFeedSyncWorker>()
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
-        )
+        refresh(context)
     }
 }
 
