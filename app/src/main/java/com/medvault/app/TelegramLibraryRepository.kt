@@ -34,28 +34,39 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         prefs.edit().remove(key(edition)).remove(titleKey(edition)).apply()
     }
 
-    /** Load main-list chats, then verify each supergroup's forum flag with TDLib. */
+    /** Load main-list chat IDs, resolve each chat, then verify its forum flag. */
     fun discoverForumSources(callback: (Result<List<TelegramSourceCandidate>>) -> Unit) {
         auth.sendRequest(TdApi.GetChats(TdApi.ChatListMain(), 200)) { result ->
             if (result !is TdApi.Chats) {
                 callback(Result.failure(IllegalStateException("TDLib did not return the chat list.")))
                 return@sendRequest
             }
-            val chats = result.chatList.filter { it.type is TdApi.ChatTypeSupergroup && !(it.type as TdApi.ChatTypeSupergroup).isChannel }
-            if (chats.isEmpty()) {
+            val chatIds = result.chatIds.toList()
+            if (chatIds.isEmpty()) {
                 callback(Result.success(emptyList()))
                 return@sendRequest
             }
-            val candidates = mutableListOf<TelegramSourceCandidate>()
-            var remaining = chats.size
-            chats.forEach { chat ->
-                val type = chat.type as TdApi.ChatTypeSupergroup
-                auth.sendRequest(TdApi.GetSupergroup(type.supergroupId)) { supergroupResult ->
-                    if (supergroupResult is TdApi.Supergroup && supergroupResult.isForum) {
-                        candidates.add(TelegramSourceCandidate(chat.id, chat.title, null))
+            val candidates = java.util.Collections.synchronizedList(mutableListOf<TelegramSourceCandidate>())
+            val remaining = java.util.concurrent.atomic.AtomicInteger(chatIds.size)
+            chatIds.forEach { chatId ->
+                auth.sendRequest(TdApi.GetChat(chatId)) { chatResult ->
+                    if (chatResult is TdApi.Chat && chatResult.type is TdApi.ChatTypeSupergroup) {
+                        val type = chatResult.type as TdApi.ChatTypeSupergroup
+                        if (!type.isChannel) {
+                            auth.sendRequest(TdApi.GetSupergroup(type.supergroupId)) { supergroupResult ->
+                                if (supergroupResult is TdApi.Supergroup && supergroupResult.isForum) {
+                                    candidates.add(TelegramSourceCandidate(chatResult.id, chatResult.title, null))
+                                }
+                                if (remaining.decrementAndGet() == 0) {
+                                    callback(Result.success(candidates.sortedBy { it.title.lowercase() }))
+                                }
+                            }
+                            return@sendRequest
+                        }
                     }
-                    remaining--
-                    if (remaining == 0) callback(Result.success(candidates.sortedBy { it.title.lowercase() }))
+                    if (remaining.decrementAndGet() == 0) {
+                        callback(Result.success(candidates.sortedBy { it.title.lowercase() }))
+                    }
                 }
             }
         }
