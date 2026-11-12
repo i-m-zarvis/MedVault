@@ -7,8 +7,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Telegram is a media source only. The app exposes only the two explicitly
- * selected forum groups (Edition M and Edition P).
+ * Telegram is a private content source only. Source labels are never shown
+ * in the learner-facing navigation or content cards.
  */
 class TelegramLibraryRepository(context: Context, private val auth: TelegramAuthManager) {
     private val prefs = context.applicationContext.getSharedPreferences("telegram_sources", Context.MODE_PRIVATE)
@@ -19,10 +19,10 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
     fun selectedTitle(edition: MedVaultEdition): String? = prefs.getString(titleKey(edition), null)
 
     fun assignSource(edition: MedVaultEdition, candidate: TelegramSourceCandidate) {
-        val other = if (edition == MedVaultEdition.M) MedVaultEdition.P else MedVaultEdition.M
-        require(selectedChatId(other) != candidate.chatId) {
-            "The same Telegram group cannot be assigned to both editions."
-        }
+        val alreadyUsed = MedVaultEdition.values()
+            .filterNot { it == edition }
+            .any { selectedChatId(it) == candidate.chatId }
+        require(!alreadyUsed) { "This group is already assigned to another MedVault library." }
         prefs.edit().putLong(key(edition), candidate.chatId)
             .putString(titleKey(edition), candidate.title).apply()
     }
@@ -31,7 +31,6 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         prefs.edit().remove(key(edition)).remove(titleKey(edition)).apply()
     }
 
-    /** Resolve chats and retain only forum-enabled, non-channel supergroups. */
     fun discoverForumSources(callback: (Result<List<TelegramSourceCandidate>>) -> Unit) {
         auth.sendRequest(TdApi.GetChats(TdApi.ChatListMain(), 200)) { result ->
             if (result is TdApi.Error) {
@@ -47,7 +46,6 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
                 callback(Result.success(emptyList()))
                 return@sendRequest
             }
-
             val candidates = Collections.synchronizedList(mutableListOf<TelegramSourceCandidate>())
             val remaining = AtomicInteger(chatIds.size)
             val completed = AtomicBoolean(false)
@@ -72,14 +70,10 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         }
     }
 
-    /**
-     * Fetch every forum-topic page. Telegram orders topics by last activity;
-     * the tuple (date, message ID, topic ID) is the pagination cursor.
-     */
     fun loadTopics(edition: MedVaultEdition, callback: (Result<List<TelegramForumTopic>>) -> Unit) {
         val chatId = selectedChatId(edition)
         if (chatId == null) {
-            callback(Result.failure(IllegalStateException("No Telegram group is assigned to Edition ${edition.name}.")))
+            callback(Result.failure(IllegalStateException("No source group is assigned to this library.")))
             return
         }
         val collected = linkedMapOf<Int, TelegramForumTopic>()
@@ -97,54 +91,40 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
                 topicPage.forEach { item ->
                     val info = item.info
                     collected[info.forumTopicId] = TelegramForumTopic(
-                        chatId = chatId,
-                        topicId = info.forumTopicId,
-                        name = info.name,
-                        isGeneral = info.isGeneral,
-                        isClosed = info.isClosed,
-                        lastMessageId = item.lastMessage?.id ?: 0L,
-                        lastMessageDate = item.lastMessage?.date ?: 0
+                        chatId, info.forumTopicId, info.name, info.isGeneral, info.isClosed,
+                        item.lastMessage?.id ?: 0L, item.lastMessage?.date ?: 0
                     )
                 }
-                if (topicPage.size < 100) {
-                    callback(Result.success(collected.values.toList()))
-                } else {
+                if (topicPage.size < 100) callback(Result.success(collected.values.toList()))
+                else {
                     val last = topicPage.last()
                     val lastMessage = last.lastMessage
-                    if (lastMessage == null) {
-                        callback(Result.success(collected.values.toList()))
-                    } else {
-                        page(lastMessage.date, lastMessage.id, last.info.forumTopicId)
-                    }
+                    if (lastMessage == null) callback(Result.success(collected.values.toList()))
+                    else page(lastMessage.date, lastMessage.id, last.info.forumTopicId)
                 }
             }
         }
         page(0, 0L, 0)
     }
 
-    /** Fetch one message page; pass the oldest returned message ID to load older pages. */
     fun loadTopicMessages(
         topic: TelegramForumTopic,
         fromMessageId: Long = 0L,
         limit: Int = 100,
         callback: (Result<List<TdApi.Message>>) -> Unit
     ) {
-        val safeLimit = limit.coerceIn(1, 100)
-        auth.sendRequest(TdApi.GetForumTopicHistory(topic.chatId, topic.topicId, fromMessageId, 0, safeLimit)) { result ->
-            if (result is TdApi.Messages) {
-                callback(Result.success(result.messages.sortedByDescending { it.id }))
-            } else if (result is TdApi.Error) {
-                callback(Result.failure(IllegalStateException(result.message)))
-            } else {
-                callback(Result.failure(IllegalStateException("TDLib did not return topic messages.")))
+        auth.sendRequest(TdApi.GetForumTopicHistory(topic.chatId, topic.topicId, fromMessageId, 0, limit.coerceIn(1, 100))) { result ->
+            when (result) {
+                is TdApi.Messages -> callback(Result.success(result.messages.sortedByDescending { it.id }))
+                is TdApi.Error -> callback(Result.failure(IllegalStateException(result.message)))
+                else -> callback(Result.failure(IllegalStateException("TDLib did not return topic messages.")))
             }
         }
     }
 
     fun extractLectures(topic: TelegramForumTopic, messages: List<TdApi.Message>): List<TelegramLecture> =
         messages.mapNotNull { TelegramLecture.fromMessage(topic.chatId, topic.topicId, it) }
-            .distinctBy { it.stableId }
-            .sortedByDescending { it.messageId }
+            .distinctBy { it.stableId }.sortedByDescending { it.messageId }
 
     private fun key(edition: MedVaultEdition) = "source_${edition.name}"
     private fun titleKey(edition: MedVaultEdition) = "source_title_${edition.name}"
