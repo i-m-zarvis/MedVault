@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
     private var folderIdBeforeSearch = "root"
     private var folderNameBeforeSearch = "My Drive"
     private var selectedVideo by mutableStateOf<DriveItem?>(null)
+    private var selectedTelegramLecture by mutableStateOf<TelegramLecture?>(null)
     private var screen by mutableStateOf("videos")
     private var accountMenu by mutableStateOf(false)
     private var pipMode by mutableStateOf(false)
@@ -273,6 +274,7 @@ class MainActivity : ComponentActivity() {
                     activeAccountEmail = activeAccountEmail,
                     onOpenTelegram = { screen = "telegram" },
                     onOpenTelegramLibrary = { screen = "telegram_library" },
+                    onPlayTelegramLecture = { startTelegramVideo(it) },
                     onSettings = { screen = "settings" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
@@ -825,6 +827,13 @@ class MainActivity : ComponentActivity() {
     ) {
         val file = selectedVideo ?: return
         if (duration <= 0L) return
+        selectedTelegramLecture?.let { lecture ->
+            val completed = position >= (duration * 0.95f).toLong()
+            getSharedPreferences("telegram_playback_local", MODE_PRIVATE).edit()
+                .putLong(lecture.stableId, if (completed) duration else position.coerceAtLeast(0L))
+                .apply()
+            return
+        }
 
         val completed =
             position >= (duration * 0.95f).toLong()
@@ -1311,6 +1320,7 @@ class MainActivity : ComponentActivity() {
         localPath: String? = null
     ) {
         saveCurrentProgress()
+        selectedTelegramLecture = null
         player?.release()
 
         val resumePosition =
@@ -1427,6 +1437,55 @@ class MainActivity : ComponentActivity() {
             MediaItem.fromUri(mediaUri)
         )
 
+        newPlayer.prepare()
+        newPlayer.playWhenReady = true
+    }
+
+    private fun startTelegramVideo(lecture: TelegramLecture) {
+        saveCurrentProgress()
+        player?.release()
+
+        val resumePosition = getSharedPreferences("telegram_playback_local", MODE_PRIVATE)
+            .getLong(lecture.stableId, 0L)
+        val auth = TelegramAuthManager.getInstance(this) { }
+        val sourceFactory = TelegramRangeDataSource.Factory(auth, lecture.fileId, lecture.fileSizeBytes)
+        val newPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(sourceFactory))
+            .build()
+
+        player = newPlayer
+        selectedTelegramLecture = lecture
+        selectedVideo = DriveItem(
+            id = lecture.stableId,
+            name = lecture.title,
+            mimeType = lecture.mimeType,
+            accountId = "telegram-local"
+        )
+        screen = "player"
+
+        var resumeApplied = false
+        newPlayer.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY && !resumeApplied && resumePosition > 0L) {
+                    newPlayer.seekTo(resumePosition)
+                    resumeApplied = true
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                runOnUiThread {
+                    status = "Telegram playback error: ${error.message ?: error.errorCodeName}"
+                    Toast.makeText(this@MainActivity, "Telegram playback failed: ${error.errorCodeName}", Toast.LENGTH_LONG).show()
+                }
+            }
+        })
+
+        val mediaItem = MediaItem.Builder()
+            .setMediaId(lecture.stableId)
+            .setUri(Uri.parse("telegram://file/${lecture.fileId}"))
+            .setMimeType(lecture.mimeType.takeIf { it.startsWith("video/") })
+            .build()
+        newPlayer.setMediaItem(mediaItem)
         newPlayer.prepare()
         newPlayer.playWhenReady = true
     }
@@ -1549,6 +1608,7 @@ private fun MedVaultRoot(
     activeAccountEmail: String,
     onOpenTelegram: () -> Unit,
     onOpenTelegramLibrary: () -> Unit,
+    onPlayTelegramLecture: (TelegramLecture) -> Unit,
     onSettings: () -> Unit,
     accountMenu: Boolean,
     pipMode: Boolean,
@@ -1613,7 +1673,7 @@ private fun MedVaultRoot(
         ) {
             when {
             targetScreen == "telegram_library" -> {
-                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram)
+                TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram, onPlayLecture = onPlayTelegramLecture)
             }
 
             targetScreen == "telegram" -> {
@@ -1889,7 +1949,7 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
 
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
@@ -2004,7 +2064,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
         } else {
             val lectures = remember(topic, messages) {
                 topic?.let { selected -> messages.mapNotNull { TelegramLecture.fromMessage(selected.chatId, selected.topicId, it) } }
-                    .orEmpty().distinctBy { it.stableId }.sortedByDescending { it.messageId }
+                    .orEmpty().distinctBy { it.stableId }.sortedBy { it.messageId }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2018,7 +2078,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
                             if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
                         }
                     }
-                    Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                    Card(Modifier.clickable { onPlayLecture(lecture) }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                         Row(
                             Modifier.fillMaxWidth().padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
