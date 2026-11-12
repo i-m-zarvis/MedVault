@@ -67,10 +67,6 @@ fun MedVaultHomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("STUDY HUB", color = ShellMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StudyHubCard("QBank", "Question collections", Icons.Default.MenuBook, onQBank, Modifier.weight(1f))
-                        StudyHubCard("Tests", "Test papers", Icons.Default.Assignment, onTests, Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         StudyHubCard("Daily Dose", "MCQs and high-yield facts", Icons.Default.FlashOn, onDailyDose, Modifier.weight(1f))
                         StudyHubCard("Medical Updates", "Exams and medical news", Icons.Default.Article, onUpdates, Modifier.weight(1f))
                     }
@@ -148,7 +144,7 @@ fun MedVaultBottomBar(
             Triple("home", "Home", Icons.Default.Home),
             Triple("videos", "Videos", Icons.Default.PlayCircle),
             Triple("qbank", "QBank", Icons.Default.MenuBook),
-            Triple("tests", "Tests", Icons.Default.Assignment),
+            Triple("tests", "Notes", Icons.Default.Assignment),
             Triple("offline", "Offline", Icons.Default.Download)
         )
         val actions = listOf(onHome, onVideos, onQBank, onTests, onOffline)
@@ -272,7 +268,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Library sources", color = ShellInk, fontWeight = FontWeight.SemiBold)
-                    Text("Configure video editions, QBank and Tests groups", color = ShellMuted, fontSize = 12.sp)
+                    Text("Configure video editions and Notes source group", color = ShellMuted, fontSize = 12.sp)
                 }
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
