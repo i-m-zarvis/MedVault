@@ -269,6 +269,7 @@ class MainActivity : ComponentActivity() {
                     selectedVideo = selectedVideo,
                     screen = screen,
                     activeAccountEmail = activeAccountEmail,
+                    onOpenTelegram = { screen = "telegram" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
                     fullscreen = fullscreen,
@@ -1542,6 +1543,7 @@ private fun MedVaultRoot(
     selectedVideo: DriveItem?,
     screen: String,
     activeAccountEmail: String,
+    onOpenTelegram: () -> Unit,
     accountMenu: Boolean,
     pipMode: Boolean,
     fullscreen: Boolean,
@@ -1603,6 +1605,10 @@ private fun MedVaultRoot(
             color = AppBg
         ) {
             when {
+            targetScreen == "telegram" -> {
+                TelegramLoginScreen(onBack = { screen = "videos" })
+            }
+
             targetScreen == "player" &&
                 selectedVideo != null &&
                 player != null -> {
@@ -1637,7 +1643,8 @@ private fun MedVaultRoot(
                     onRawDrive = onRawDrive,
                     onDownloads = onDownloads,
                     onContinue = onContinue,
-                    onHistory = onHistory
+                    onHistory = onHistory,
+                    onTelegram = onOpenTelegram
                 )
             }
 
@@ -1718,6 +1725,75 @@ private fun MedVaultRoot(
     }
 }
 
+
+@Composable
+private fun TelegramLoginScreen(onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
+    var phone by remember { mutableStateOf("+91") }
+    var code by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var manager by remember { mutableStateOf<TelegramAuthManager?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val auth = TelegramAuthManager(context) { state ->
+            authState = state
+            busy = false
+        }
+        manager = auth
+        auth.start()
+    }
+    BackHandler { onBack() }
+
+    Column(Modifier.fillMaxSize().background(AppBg).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            Text("Connect Telegram", fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("Sign in with your Telegram account. Your login code and two-step password are handled locally by TDLib, not sent to MedVault servers.", color = AppMuted, fontSize = 13.sp)
+        when (val state = authState) {
+            TelegramAuthManager.State.Starting -> {
+                CircularProgressIndicator()
+                Text("Starting secure Telegram client…", color = AppMuted)
+            }
+            TelegramAuthManager.State.WaitingForPhone -> {
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Phone number with country code") }, placeholder = { Text("+919876543210") }, singleLine = true)
+                Button(onClick = { busy = true; manager?.submitPhoneNumber(phone) }, enabled = !busy && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Sending…" else "Send Telegram code") }
+            }
+            TelegramAuthManager.State.WaitingForCode -> {
+                OutlinedTextField(value = code, onValueChange = { code = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Telegram login code") }, singleLine = true)
+                Button(onClick = { busy = true; manager?.submitCode(code) }, enabled = !busy && code.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Verifying…" else "Verify code") }
+            }
+            TelegramAuthManager.State.WaitingForPassword -> {
+                OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Two-step verification password") }, singleLine = true)
+                Button(onClick = { busy = true; manager?.submitPassword(password) }, enabled = !busy && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Verifying…" else "Verify password") }
+            }
+            is TelegramAuthManager.State.Ready -> {
+                Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF4ADE80), modifier = Modifier.size(36.dp))
+                        Text("Telegram connected", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Telegram user ID: ${state.userId}", color = AppMuted)
+                        Text("Your session is stored locally on this device.", color = AppMuted)
+                    }
+                }
+            }
+            is TelegramAuthManager.State.Failed -> {
+                Text(state.message, color = Color(0xFFFF8A80))
+                Button(onClick = { authState = TelegramAuthManager.State.Starting; manager?.start() }) { Text("Retry") }
+            }
+            TelegramAuthManager.State.Closed -> {
+                Text("Telegram client closed.", color = AppMuted)
+                Button(onClick = { manager?.start() }) { Text("Reconnect") }
+            }
+        }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to MedVault") }
+    }
+}
+
 // =============================================================
 // VIDEOS SUBJECT DASHBOARD
 // =============================================================
@@ -1740,7 +1816,8 @@ private fun VideosDashboard(
     onRawDrive: () -> Unit,
     onDownloads: () -> Unit,
     onContinue: () -> Unit,
-    onHistory: () -> Unit
+    onHistory: () -> Unit,
+    onTelegram: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
@@ -1809,6 +1886,11 @@ private fun VideosDashboard(
                         leadingIcon = { Icon(Icons.Default.Logout, null) }
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text("Connect Telegram") },
+                    onClick = { onMenu(false); onTelegram() },
+                    leadingIcon = { Icon(Icons.Default.Send, null) }
+                )
                 DropdownMenuItem(
                     text = { Text("Browse raw Drive") },
                     onClick = { onMenu(false); onRawDrive() },
