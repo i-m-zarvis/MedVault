@@ -11,7 +11,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'push' || github.ref != 'refs/heads/Telegram-integration'
     runs-on: ubuntu-latest
 
     env:
@@ -36,26 +35,21 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Set up Docker Buildx
-        if: github.ref == 'refs/heads/Telegram-integration'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build official TDLib Android Java bindings and native libraries
+      - name: Download pinned TDLib package
         if: github.ref == 'refs/heads/Telegram-integration'
         run: |
-          git clone https://github.com/tdlib/td.git tdlib-source
-          docker buildx build \
-            --file tdlib-source/example/android/Dockerfile \
-            --build-arg COMMIT_HASH=c8828d50f5eac2fc7089ce1089d7ce9095c61b5e \
-            --cache-from type=gha,scope=tdlib-android-c8828d50f5eac2fc7089ce1089d7ce9095c61b5e \
-            --cache-to type=gha,scope=tdlib-android-c8828d50f5eac2fc7089ce1089d7ce9095c61b5e,mode=max \
-            --output type=local,dest=tdlib-output \
-            tdlib-source/example/android
-          test -s tdlib-output/tdlib.zip
+          TD_LIB_RELEASE_TAG=tdlib-c8828d50f5eac2fc7089ce1089d7ce9095c61b5e
+          TD_LIB_BASE_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TD_LIB_RELEASE_TAG"
+          curl --fail --location --retry 3 "$TD_LIB_BASE_URL/tdlib.zip" --output tdlib.zip
+          curl --fail --location --retry 3 "$TD_LIB_BASE_URL/tdlib.zip.sha256" --output tdlib.zip.sha256
+          sha256sum --check tdlib.zip.sha256
           mkdir -p app/build/tdlib
-          unzip -q tdlib-output/tdlib.zip -d app/build/tdlib
+          unzip -q tdlib.zip -d app/build/tdlib
           test -s app/build/tdlib/tdlib/java/org/drinkless/tdlib/Client.java
           test -s app/build/tdlib/tdlib/libs/arm64-v8a/libtdjni.so
+          test -s app/build/tdlib/tdlib/libs/armeabi-v7a/libtdjni.so
+          test -s app/build/tdlib/tdlib/libs/x86/libtdjni.so
+          test -s app/build/tdlib/tdlib/libs/x86_64/libtdjni.so
 
       - name: Decode signing keystore
         env:
