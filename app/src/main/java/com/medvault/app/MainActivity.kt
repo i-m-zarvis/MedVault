@@ -30,6 +30,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -2074,7 +2075,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             busy = false
                             result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
                         }
-                    }, colors = CardDefaults.cardColors(containerColor = Color(0xFF171D30)), shape = RoundedCornerShape(26.dp)) {
+                    }, colors = CardDefaults.cardColors(containerColor = Color(0xD91B2940)),
+                        shape = RoundedCornerShape(24.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))) {
                         Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                             Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
@@ -2099,7 +2102,12 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
                         }
                     }
-                    Card(Modifier.fillMaxWidth().clickable { onPlayLecture(lecture) }, colors = CardDefaults.cardColors(containerColor = Color(0xFF171D30)), shape = RoundedCornerShape(24.dp)) {
+                    Card(
+                        Modifier.fillMaxWidth().clickable { onPlayLecture(lecture) },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xE61C2940)),
+                        shape = RoundedCornerShape(24.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                    ) {
                         Row(
                             Modifier.fillMaxWidth().padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -2109,11 +2117,12 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                 AsyncImage(
                                     model = File(thumbnailPath!!),
                                     contentDescription = lecture.title,
-                                    modifier = Modifier.width(112.dp).height(76.dp)
+                                    modifier = Modifier.width(112.dp).height(76.dp).border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
                                 )
                             } else {
                                 Box(
-                                    Modifier.width(112.dp).height(76.dp).background(AppBg, RoundedCornerShape(8.dp)),
+                                    Modifier.width(112.dp).height(76.dp).background(Color(0xFF101A2B), RoundedCornerShape(12.dp))
+                                        .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(12.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(Icons.Default.PlayCircle, null, tint = AppMuted, modifier = Modifier.size(34.dp))
