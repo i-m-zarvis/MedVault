@@ -43,7 +43,7 @@ abstract class ContentFeedDao {
 
 @Database(entities = [ContentItemEntity::class], version = 1, exportSchema = false)
 abstract class ContentFeedDatabase : RoomDatabase() {
-    abstract fun contentDao(): ContentFeedDao()
+    abstract fun contentDao(): ContentFeedDao
     companion object {
         @Volatile private var INSTANCE: ContentFeedDatabase? = null
         fun get(context: Context): ContentFeedDatabase = INSTANCE ?: synchronized(this) {
