@@ -213,3 +213,71 @@ fun MedVaultOfflineScreen(
         }
     }
 }
+
+
+@Composable
+fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("medvault_profile", android.content.Context.MODE_PRIVATE) }
+    var displayName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(prefs.getString("display_name", "Aftab Khan") ?: "Aftab Khan") }
+    var editing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showAbout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize().background(ShellBackground).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
+            Text("Profile & Settings", color = ShellInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccountCircle, null, tint = ShellBlue, modifier = Modifier.size(42.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(displayName, color = ShellInk, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Medical student", color = ShellMuted, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { editing = !editing }) { Text(if (editing) "Close" else "Edit") }
+                }
+                if (editing) {
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = { displayName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Name") }
+                    )
+                    Button(onClick = {
+                        prefs.edit().putString("display_name", displayName.trim().ifBlank { "Medical student" }).apply()
+                        editing = false
+                    }) { Text("Save profile") }
+                }
+            }
+        }
+        Card(Modifier.fillMaxWidth().clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FolderSpecial, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Library sources", color = ShellInk, fontWeight = FontWeight.SemiBold)
+                    Text("Configure QBank and Tests groups", color = ShellMuted, fontSize = 12.sp)
+                }
+                Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
+            }
+        }
+        Card(Modifier.fillMaxWidth().clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, null, tint = ShellBlue, modifier = Modifier.size(25.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("About MedVault", color = ShellInk, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Icon(if (showAbout) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = ShellMuted)
+                }
+                if (showAbout) {
+                    Text("MedVault is a personal medical learning library for lectures, question banks, tests and revision.", color = ShellMuted, fontSize = 12.sp)
+                    Text("Version 1.0", color = ShellMuted, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
