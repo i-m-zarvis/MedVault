@@ -199,7 +199,11 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                     }
                 }
             }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2038)), shape = RoundedCornerShape(26.dp)) {
+            Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xE61C2940)),
+                        shape = RoundedCornerShape(24.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                    ) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Configure " + label(target), fontWeight = FontWeight.Bold)
                     Button(enabled = !busy, onClick = {
@@ -341,8 +345,12 @@ fun TelegramDocumentLibraryScreen(
             Text("Connect your content account to access this library.", color = StudyMuted)
             Button(onClick = onConnectAccount) { Text("Connect account") }
         } else if (repo?.selectedChatId(sourceEdition) == null) {
-            Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xE61C2940)),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("No source group configured for ${when (sourceEdition) {
                         MedVaultEdition.M, MedVaultEdition.QBANK_M, MedVaultEdition.NOTES_M -> "Edition M"
                         MedVaultEdition.P, MedVaultEdition.QBANK_P, MedVaultEdition.NOTES_P -> "Edition P"
@@ -371,11 +379,12 @@ fun TelegramDocumentLibraryScreen(
                                 }
                             }
                         },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2033)),
-                        shape = RoundedCornerShape(22.dp)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xD91B2940)),
+                        shape = RoundedCornerShape(22.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
                     ) {
                         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.FolderOpen, null, tint = StudyAccent)
+                            Icon(Icons.Default.FolderOpen, null, tint = StudyAccent, modifier = Modifier.size(23.dp))
                             Spacer(Modifier.width(12.dp))
                             Text(topic.name, Modifier.weight(1f), fontWeight = FontWeight.Medium)
                         }
@@ -393,7 +402,7 @@ fun TelegramDocumentLibraryScreen(
                                 Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFFF7777), modifier = Modifier.size(28.dp))
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(document.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(document.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     Text(if (document.fileSizeBytes > 0) "${document.fileSizeBytes / (1024 * 1024)} MB · PDF" else "PDF document", color = StudyMuted, fontSize = 11.sp)
                                 }
                             }
