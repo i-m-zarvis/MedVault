@@ -1993,6 +1993,15 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
+            if (repo?.selectedChatId(edition) == null) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("No source configured for this edition.", fontWeight = FontWeight.SemiBold)
+                        Text("Choose its group in Profile & Settings.", color = AppMuted, fontSize = 12.sp)
+                        Button(onClick = onManageSources) { Text("Configure edition") }
+                    }
+                }
+            }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(topics, key = { it.topicId }) { item ->
                     Card(Modifier.clickable {
@@ -3368,7 +3377,7 @@ private fun VideoScreen(
                 )
 
                 Text(
-                    "Streaming from Google Drive or local storage",
+                    "Streaming from your video library or local storage",
                     color = AppMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 16.dp)
