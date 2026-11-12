@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -63,6 +64,8 @@ fun MedVaultHomeScreen(
     onEditionChange: (MedVaultEdition) -> Unit
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val contentItems by ContentFeedDatabase.get(context).contentDao().observeAll().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var pullPx by remember { mutableFloatStateOf(0f) }
@@ -176,12 +179,12 @@ fun MedVaultHomeScreen(
                             Spacer(Modifier.weight(1f))
                             Icon(Icons.Default.AutoStories, null, tint = HomeBlue)
                         }
-                        Text("A new MBBS concept, every day", color = HomeInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("ACE inhibitors and bradykinin", color = HomeInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "High-yield topics selected around undergraduate medical subjects.",
+                            "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, which contributes to the characteristic dry cough.",
                             color = HomeMuted, fontSize = 13.sp, lineHeight = 19.sp
                         )
-                        Text("DAILY CONCEPTS WILL BE ADDED IN THE LEARNING PHASE", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                        Text("PHARMACOLOGY · HIGH-YIELD CONCEPT", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -205,80 +208,44 @@ fun MedVaultHomeScreen(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 HomeSectionHeading("CLINICAL CORNER", "Think through a clinical case")
-                HomeEditorialCard(
-                    eyebrow = "CASE-BASED LEARNING",
-                    title = "Clinical cases and diagnostic reasoning",
-                    subtitle = "Patient presentations, important clues and clinical explanations.",
-                    icon = Icons.Default.MonitorHeart,
-                    onClick = null,
-                    footnote = "COMING IN THE LEARNING PHASE"
-                )
+                var revealCase by remember { mutableStateOf(false) }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = HomePanel)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            HomeTag("CASE OF THE DAY", HomeBlue)
+                            Spacer(Modifier.weight(1f))
+                            Icon(Icons.Default.MonitorHeart, null, tint = HomeBlue)
+                        }
+                        Text("Sudden severe chest pain", color = HomeInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("A 58-year-old man develops abrupt, tearing chest pain radiating to the back. His right-arm blood pressure is higher than the left.", color = HomeMuted, fontSize = 13.sp, lineHeight = 19.sp)
+                        if (revealCase) {
+                            Text("Key consideration: acute aortic syndrome, including aortic dissection. This is an emergency; the vignette is educational and not a diagnostic rule.", color = HomeInk, fontSize = 13.sp, lineHeight = 19.sp)
+                        }
+                        TextButton(onClick = { revealCase = !revealCase }, contentPadding = PaddingValues(0.dp)) {
+                            Text(if (revealCase) "Hide clinical clue" else "Reveal the key consideration")
+                        }
+                    }
+                }
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("EXAM RADAR", "Important dates and notices")
-                HomeEditorialCard(
-                    eyebrow = "ACADEMIC CALENDAR",
-                    title = "Keep track of what is coming up",
-                    subtitle = "University exams, internal assessments, entrance exams and counselling deadlines.",
-                    icon = Icons.Default.EventNote,
-                    onClick = onUpdates,
-                    footnote = "OPEN UPDATES"
-                )
-            }
+            HomeLiveFeedSection("EXAM RADAR", "Official examination notices and deadlines", contentItems.filter { it.category == "exam-radar" }.take(3), "No verified exam notices have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("NEET PG UPDATES", "Entrance examination and counselling")
-                HomeEditorialCard(
-                    eyebrow = "OFFICIAL SOURCES",
-                    title = "NBEMS · MCC · NMC",
-                    subtitle = "Examination notifications, information bulletins and counselling announcements.",
-                    icon = Icons.Default.Assignment,
-                    onClick = onUpdates,
-                    footnote = "VIEW MEDICAL UPDATES"
-                )
-            }
+            HomeLiveFeedSection("NEET PG UPDATES", "NBEMS, MCC and postgraduate entrance notices", contentItems.filter { it.category == "neet-pg" }.take(3), "No verified NEET PG updates are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("MBBS UPDATES", "Undergraduate medical education")
-                HomeEditorialCard(
-                    eyebrow = "ACADEMIC NOTICES",
-                    title = "University and medical college updates",
-                    subtitle = "Results, examination schedules, regulations and important academic announcements.",
-                    icon = Icons.Default.School,
-                    onClick = onUpdates,
-                    footnote = "VIEW MEDICAL UPDATES"
-                )
-            }
+            HomeLiveFeedSection("MBBS UPDATES", "Undergraduate medical education and university notices", contentItems.filter { it.category == "mbbs-updates" }.take(3), "No verified MBBS notices are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("TRENDING IN MEDICINE", "Developments worth following")
-                HomeEditorialCard(
-                    eyebrow = "RESEARCH · CLINICAL · TECHNOLOGY",
-                    title = "What's changing in medicine?",
-                    subtitle = "Emerging treatments, important studies and developments in medical technology.",
-                    icon = Icons.Default.TrendingUp,
-                    onClick = onUpdates,
-                    footnote = "EXPLORE MEDICAL UPDATES"
-                )
-            }
+            HomeLiveFeedSection("TRENDING IN MEDICINE", "Recent scientific and clinical developments", contentItems.filter { it.category == "trending-medicine" }.take(3), "Research updates will appear here when the collector publishes them.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("MEDICAL NEWS BULLETIN", "India first, with major global developments")
-                HomeEditorialCard(
-                    eyebrow = "HEALTHCARE NEWS",
-                    title = "The latest in healthcare and research",
-                    subtitle = "Public health, Indian healthcare policy, medical research and major international developments.",
-                    icon = Icons.Default.Newspaper,
-                    onClick = onUpdates,
-                    footnote = "READ MEDICAL NEWS"
-                )
-            }
+            HomeLiveFeedSection("MEDICAL NEWS BULLETIN", "Indian healthcare, public health and research", contentItems.filter { it.category == "medical-news" }.take(3), "No medical news articles have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
     }
     if (pullPx > 1f || refreshRequested || showRefreshResult) {
@@ -309,6 +276,48 @@ fun MedVaultHomeScreen(
             }
         }
     }
+    }
+}
+
+@Composable
+private fun HomeLiveFeedSection(
+    title: String,
+    subtitle: String,
+    items: List<ContentItemEntity>,
+    emptyMessage: String,
+    onOpen: () -> Unit,
+    onArticle: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.15.sp)
+                Text(subtitle, color = HomeInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = onOpen, contentPadding = PaddingValues(0.dp)) { Text("VIEW ALL") }
+        }
+        if (items.isEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = HomePanel), shape = RoundedCornerShape(14.dp)) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.RssFeed, null, tint = HomeMuted, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(emptyMessage, color = HomeMuted, fontSize = 12.sp, lineHeight = 17.sp)
+                }
+            }
+        } else {
+            items.forEach { article ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { onArticle(article.url) },
+                    colors = CardDefaults.cardColors(containerColor = HomePanel),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(article.title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text(listOfNotNull(article.sourceName.takeIf { it.isNotBlank() }, article.publishedAt?.take(10)).joinToString(" · "), color = HomeMuted, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
     }
 }
 
