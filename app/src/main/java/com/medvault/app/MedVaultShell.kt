@@ -534,7 +534,7 @@ fun MedVaultOfflineScreen(
             }
             item { Spacer(Modifier.height(8.dp)); Text("DOWNLOADED PDFs", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             items(pdfs, key = { it.absolutePath }) { file ->
-                Card(Modifier.fillMaxWidth().clickable { onOpenPdf(file, file.nameWithoutExtension) }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(Modifier.fillMaxWidth().clickable { onOpenPdf(file, file.nameWithoutExtension) }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
                     Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFE45E5E))
                         Spacer(Modifier.width(10.dp))
@@ -567,7 +567,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Text("Profile & Settings", color = ShellInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = HomePanel), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AccountCircle, null, tint = ShellBlue, modifier = Modifier.size(42.dp))
@@ -593,7 +593,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 }
             }
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = HomePanel)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBox, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
@@ -604,7 +604,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Card(Modifier.fillMaxWidth().clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = HomePanel)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.FolderOpen, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
@@ -615,7 +615,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Card(Modifier.fillMaxWidth().clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = ShellBlue, modifier = Modifier.size(25.dp))
@@ -689,7 +689,7 @@ fun MedVaultQuestionScreen(onBack: () -> Unit, dailyMode: Boolean) {
             Modifier.weight(1f).fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = HomePanel), shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(question.subject.uppercase(), color = ShellBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

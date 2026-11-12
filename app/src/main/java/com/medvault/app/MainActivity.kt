@@ -1935,8 +1935,8 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
-                Text(topic?.name ?: "Video Library", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Video library", color = AppMuted, fontSize = 12.sp)
+                Text(topic?.name ?: "Lectures", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (topic == null) Text("Browse your study library", color = AppMuted, fontSize = 12.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
@@ -2127,7 +2127,6 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (busy) "Loading…" else "Load older messages") }
             }
-            Text("Video metadata is extracted. Playback is not connected yet.", color = AppMuted, fontSize = 11.sp)
         }
     }
 }
