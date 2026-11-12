@@ -285,15 +285,12 @@ class MainActivity : ComponentActivity() {
                     onOpenPdf = { file, title -> selectedPdfFile = file; selectedPdfTitle = title; screen = "pdf_reader" },
                     onClosePdf = { selectedPdfFile = null; screen = "qbank" },
                     onOpenTelegram = { screen = "telegram" },
-                    onOpenTelegramLibrary = {
-                        val telegramRepo = TelegramLibraryRepository(this@MainActivity, TelegramAuthManager.getInstance(this@MainActivity) {})
-                        screen = if (telegramRepo.selectedChatId(MedVaultEdition.M) == null || telegramRepo.selectedChatId(MedVaultEdition.P) == null) "telegram_setup" else "telegram_library"
-                    },
+                    onOpenTelegramLibrary = { screen = "videos" },
                     onPlayTelegramLecture = { startTelegramVideo(it) },
                     onSettings = { screen = "settings" },
                     onGoogleSettings = { screen = "google_settings" },
                     onTelegramSettings = { screen = "telegram_settings" },
-                    onManageTelegramGroups = { screen = "telegram_setup" },
+                    onManageTelegramGroups = { screen = "study_sources" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
                     fullscreen = fullscreen,
@@ -341,7 +338,7 @@ class MainActivity : ComponentActivity() {
                         val returnToTelegram = selectedTelegramLecture != null
                         saveCurrentProgress()
                         leavePlayer()
-                        screen = if (returnToTelegram) "telegram_library" else "videos"
+                        screen = "videos"
                     },
 
                     onFolderBack = {
@@ -1670,19 +1667,18 @@ private fun MedVaultRoot(
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
                         onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
-                        onPlayLecture = onPlayTelegramLecture, setupMode = false)
-                    "telegram_setup" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
-                        onPlayLecture = onPlayTelegramLecture, setupMode = true)
-                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources)
-                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources)
+                        onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources)
+                    "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
+                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
+                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
                     "pdf_reader" -> {
                         val file = selectedPdfFile
                         if (file != null) MedVaultPdfReaderScreen(file, selectedPdfTitle, onClosePdf)
                         else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No PDF selected.", color = Color.White) }
                     }
-                    "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings)
-                    "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources)
+                    "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
+                    "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
                     "daily_dose" -> MedVaultPlaceholderScreen("Daily Dose",
                         "Randomized MCQs, explanations and high-yield facts are planned as the next module.", onHome)
                     "updates" -> MedVaultPlaceholderScreen("Medical Updates",
@@ -1868,7 +1864,7 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
 
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean) {
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
