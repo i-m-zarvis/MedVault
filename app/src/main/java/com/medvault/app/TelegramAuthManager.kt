@@ -18,9 +18,9 @@ import javax.crypto.SecretKey
  * The TDLib database encryption key is encrypted at rest with an Android
  * Keystore AES-GCM key. Telegram account credentials are never sent to MedVault.
  */
-class TelegramAuthManager(
+class TelegramAuthManager private constructor(
     context: Context,
-    private val listener: (State) -> Unit
+    @Volatile private var listener: (State) -> Unit
 ) {
     sealed class State {
         data object Starting : State()
@@ -32,13 +32,41 @@ class TelegramAuthManager(
         data object Closed : State()
     }
 
+    companion object {
+        @Volatile private var sharedInstance: TelegramAuthManager? = null
+
+        fun getInstance(context: Context, listener: (State) -> Unit): TelegramAuthManager =
+            synchronized(this) {
+                val existing = sharedInstance
+                if (existing != null) {
+                    existing.listener = listener
+                    existing
+                } else {
+                    TelegramAuthManager(context.applicationContext, listener).also {
+                        sharedInstance = it
+                    }
+                }
+            }
+    }
+
+    @Volatile var currentState: State = State.Starting
+        private set
+
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences("telegram_tdlib", Context.MODE_PRIVATE)
     private val databaseDirectory = appContext.getDir("telegram-db", Context.MODE_PRIVATE).absolutePath
     private val filesDirectory = appContext.getDir("telegram-files", Context.MODE_PRIVATE).absolutePath
     @Volatile private var client: Client? = null
 
+    @Synchronized
     fun start() {
+        // The manager is process-wide. Navigating away from Settings must not
+        // create another TDLib client against the database already in use.
+        val existingClient = client
+        if (existingClient != null) {
+            publish(currentState)
+            return
+        }
         if (BuildConfig.TELEGRAM_API_ID <= 0 || BuildConfig.TELEGRAM_API_HASH.isBlank()) {
             publish(State.Failed("Telegram API credentials are missing from this build."))
             return
@@ -182,6 +210,7 @@ class TelegramAuthManager(
     }
 
     private fun publish(state: State) {
+        currentState = state
         listener(state)
     }
 }
