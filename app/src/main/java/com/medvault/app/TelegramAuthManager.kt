@@ -143,9 +143,8 @@ class TelegramAuthManager private constructor(
         active.send(request) { result ->
             if (result is TdApi.Error) {
                 publish(State.Failed(result.message))
-            } else {
-                callback(result)
             }
+            callback(result)
         }
     }
 
