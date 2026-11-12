@@ -216,7 +216,7 @@ fun MedVaultOfflineScreen(
 
 
 @Composable
-fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit) {
+fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onConnectAccount: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("medvault_profile", android.content.Context.MODE_PRIVATE) }
     var displayName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(prefs.getString("display_name", "Aftab Khan") ?: "Aftab Khan") }
@@ -254,13 +254,24 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit) {
                 }
             }
         }
+        Card(Modifier.fillMaxWidth().clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AccountBox, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Content account", color = ShellInk, fontWeight = FontWeight.SemiBold)
+                    Text("Connect or manage your study content account", color = ShellMuted, fontSize = 12.sp)
+                }
+                Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
+            }
+        }
         Card(Modifier.fillMaxWidth().clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.White)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.FolderSpecial, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Library sources", color = ShellInk, fontWeight = FontWeight.SemiBold)
-                    Text("Configure QBank and Tests groups", color = ShellMuted, fontSize = 12.sp)
+                    Text("Configure video editions, QBank and Tests groups", color = ShellMuted, fontSize = 12.sp)
                 }
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
