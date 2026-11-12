@@ -292,3 +292,122 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
         }
     }
 }
+
+
+private data class MedVaultMcq(
+    val id: Int,
+    val subject: String,
+    val question: String,
+    val options: List<String>,
+    val answerIndex: Int,
+    val explanation: String
+)
+
+private val starterMcqs = listOf(
+    MedVaultMcq(1, "Pharmacology", "A patient develops a persistent dry cough after starting enalapril. The most likely mediator is:", listOf("Angiotensin II", "Bradykinin", "Aldosterone", "Renin"), 1, "ACE degrades bradykinin. ACE inhibition increases bradykinin, which can cause cough."),
+    MedVaultMcq(2, "Pathology", "Which marker combination is characteristic of classical Hodgkin lymphoma Reed–Sternberg cells?", listOf("CD3 and CD5", "CD15 and CD30", "CD10 and CD20", "CD34 and CD117"), 1, "Classical Reed–Sternberg cells typically express CD15 and CD30."),
+    MedVaultMcq(3, "Microbiology", "India ink preparation is classically used to demonstrate the capsule of:", listOf("Candida albicans", "Cryptococcus neoformans", "Aspergillus fumigatus", "Histoplasma capsulatum"), 1, "India ink is a negative stain that demonstrates the prominent polysaccharide capsule of Cryptococcus."),
+    MedVaultMcq(4, "Physiology", "The pacemaker potential of the SA node is primarily associated with:", listOf("Fast voltage-gated sodium current", "Funny current and calcium currents", "Chloride influx", "Potassium influx"), 1, "The funny current (If) and calcium currents contribute to spontaneous phase 4 depolarization."),
+    MedVaultMcq(5, "Biochemistry", "The rate-limiting enzyme of cholesterol synthesis is:", listOf("HMG-CoA reductase", "HMG-CoA synthase", "Lecithin cholesterol acyltransferase", "Acetyl-CoA carboxylase"), 0, "HMG-CoA reductase converts HMG-CoA to mevalonate and is inhibited by statins."),
+    MedVaultMcq(6, "Medicine", "A wide pulse pressure is classically associated with:", listOf("Aortic stenosis", "Aortic regurgitation", "Cardiac tamponade", "Mitral stenosis"), 1, "Aortic regurgitation increases systolic pressure and lowers diastolic pressure, widening pulse pressure."),
+    MedVaultMcq(7, "Surgery", "The most common cause of small bowel obstruction in adults in developed settings is:", listOf("Adhesions", "Intussusception", "Volvulus", "Gallstone ileus"), 0, "Postoperative adhesions are the leading cause of small bowel obstruction in adults."),
+    MedVaultMcq(8, "Obstetrics", "The most common site of ectopic pregnancy is:", listOf("Interstitial part", "Ampulla of fallopian tube", "Isthmus", "Ovary"), 1, "Most tubal ectopic pregnancies occur in the ampullary portion."),
+    MedVaultMcq(9, "Pediatrics", "The most common cause of nephrotic syndrome in children is:", listOf("Focal segmental glomerulosclerosis", "Minimal change disease", "Membranous nephropathy", "IgA nephropathy"), 1, "Minimal change disease is the most common cause of nephrotic syndrome in children."),
+    MedVaultMcq(10, "PSM", "The best measure of association in a cohort study is:", listOf("Odds ratio", "Relative risk", " attributable risk percent", "Prevalence ratio"), 1, "A cohort study directly measures incidence in exposed and unexposed groups, allowing calculation of relative risk.")
+)
+
+private val highYieldFacts = listOf(
+    "Rifampicin can cause orange-red discoloration of urine, sweat and tears.",
+    "The most common site of ectopic pregnancy is the ampulla of the fallopian tube.",
+    "Classical Hodgkin lymphoma cells typically express CD15 and CD30.",
+    "Cryptococcus neoformans has a polysaccharide capsule demonstrable by India ink.",
+    "HMG-CoA reductase is the rate-limiting enzyme in cholesterol synthesis.",
+    "ACE inhibitors may cause cough through increased bradykinin.",
+    "Minimal change disease is the most common cause of nephrotic syndrome in children.",
+    "Aortic regurgitation classically produces a wide pulse pressure."
+)
+
+@Composable
+fun MedVaultQuestionScreen(onBack: () -> Unit, dailyMode: Boolean) {
+    val todaySeed = remember { java.time.LocalDate.now().toEpochDay().toInt() }
+    var index by remember { mutableIntStateOf(Math.floorMod(todaySeed, starterMcqs.size)) }
+    var selected by remember { mutableIntStateOf(-1) }
+    var answered by remember { mutableStateOf(false) }
+    var factIndex by remember { mutableIntStateOf(Math.floorMod(todaySeed, highYieldFacts.size)) }
+    var completed by remember { mutableIntStateOf(0) }
+    val question = starterMcqs[index]
+
+    Column(Modifier.fillMaxSize().background(ShellBackground)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
+            Column(Modifier.weight(1f)) {
+                Text(if (dailyMode) "Daily Dose" else "QBank Practice", color = ShellInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text(if (dailyMode) "One question. One useful fact." else "Original exam-style practice questions", color = ShellMuted, fontSize = 11.sp)
+            }
+            Text("${completed} solved", color = ShellMuted, fontSize = 11.sp)
+        }
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(question.subject.uppercase(), color = ShellBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("MCQ ${index + 1}/${starterMcqs.size}", color = ShellMuted, fontSize = 11.sp)
+                    }
+                    Text(question.question, color = ShellInk, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    question.options.forEachIndexed { optionIndex, option ->
+                        val isCorrect = answered && optionIndex == question.answerIndex
+                        val isWrongSelection = answered && selected == optionIndex && optionIndex != question.answerIndex
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = !answered) { selected = optionIndex },
+                            shape = RoundedCornerShape(12.dp),
+                            color = when {
+                                isCorrect -> Color(0xFFE5F6EC)
+                                isWrongSelection -> Color(0xFFFFE9E7)
+                                selected == optionIndex -> Color(0xFFE8F2FF)
+                                else -> ShellBackground
+                            },
+                            border = androidx.compose.foundation.BorderStroke(1.dp, when {
+                                isCorrect -> Color(0xFF36A269)
+                                isWrongSelection -> Color(0xFFD85B55)
+                                selected == optionIndex -> ShellBlue
+                                else -> Color(0xFFE7EAF0)
+                            })
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("${'A' + optionIndex}.", color = ShellMuted, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(10.dp))
+                                Text(option, color = ShellInk, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                                if (isCorrect) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF26965C))
+                                if (isWrongSelection) Icon(Icons.Default.Cancel, null, tint = Color(0xFFD85B55))
+                            }
+                        }
+                    }
+                    if (answered) {
+                        Text(if (selected == question.answerIndex) "Correct" else "Incorrect · Correct answer: ${question.options[question.answerIndex]}", color = if (selected == question.answerIndex) Color(0xFF26965C) else Color(0xFFD85B55), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(question.explanation, color = ShellMuted, fontSize = 13.sp)
+                    } else {
+                        Button(onClick = { if (selected >= 0) { answered = true; completed++ } }, enabled = selected >= 0, modifier = Modifier.fillMaxWidth()) { Text("Check answer") }
+                    }
+                    if (answered) {
+                        OutlinedButton(onClick = {
+                            index = (index + 1) % starterMcqs.size
+                            selected = -1
+                            answered = false
+                        }, modifier = Modifier.fillMaxWidth()) { Text("Next question") }
+                    }
+                }
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF4FF)), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("HIGH-YIELD FACT", color = ShellBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(highYieldFacts[factIndex], color = ShellInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    TextButton(onClick = { factIndex = (factIndex + 1) % highYieldFacts.size }, contentPadding = PaddingValues(0.dp)) { Text("Another fact") }
+                }
+            }
+            Text("These are original practice questions, not claimed previous-year questions.", color = ShellMuted, fontSize = 10.sp)
+        }
+    }
+}
