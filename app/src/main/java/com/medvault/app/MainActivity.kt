@@ -63,6 +63,7 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
 import androidx.work.WorkInfo
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
@@ -2005,31 +2006,55 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
                     .orEmpty().distinctBy { it.stableId }.sortedByDescending { it.messageId }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
-            Text("${lectures.size} video lecture(s) in this page · ${messages.size} messages scanned",
-                color = AppMuted, fontSize = 11.sp)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(lectures, key = { it.stableId }) { lecture ->
+                    var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
+                    LaunchedEffect(lecture.thumbnailFileId) {
+                        val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
+                        val auth = TelegramAuthManager.getInstance(context) { }
+                        auth.sendRequest(org.drinkless.tdlib.TdApi.DownloadFile(thumbnailId, 16, 0L, 0L, true)) { result ->
+                            val localPath = (result as? org.drinkless.tdlib.TdApi.File)?.local?.path
+                            if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
+                        }
+                    }
                     Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(lecture.title, fontWeight = FontWeight.SemiBold)
-                            Text(lecture.fileName, color = AppMuted, fontSize = 12.sp)
-                            Text(
-                                "${formatDriveSize(lecture.fileSizeBytes)} · " +
-                                    (if (lecture.durationSeconds > 0) "${lecture.durationSeconds / 60} min ${lecture.durationSeconds % 60} sec" else "Duration unavailable") +
-                                    " · ${lecture.mimeType}",
-                                color = AppMuted, fontSize = 11.sp
-                            )
-                            Text("Message ID: ${lecture.messageId} · File ID: ${lecture.fileId}",
-                                color = AppMuted, fontSize = 10.sp)
-                            if (lecture.caption.isNotBlank() && lecture.caption.trim() != lecture.title) {
-                                Text(lecture.caption, color = AppMuted, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Row(
+                            Modifier.fillMaxWidth().padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (thumbnailPath != null) {
+                                AsyncImage(
+                                    model = File(thumbnailPath!!),
+                                    contentDescription = lecture.title,
+                                    modifier = Modifier.width(112.dp).height(76.dp)
+                                )
+                            } else {
+                                Box(
+                                    Modifier.width(112.dp).height(76.dp).background(AppBg, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.PlayCircle, null, tint = AppMuted, modifier = Modifier.size(34.dp))
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(lecture.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    if (lecture.durationSeconds > 0) {
+                                        val hours = lecture.durationSeconds / 3600
+                                        val minutes = (lecture.durationSeconds % 3600) / 60
+                                        val seconds = lecture.durationSeconds % 60
+                                        if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m ${seconds}s"
+                                    } else "Length unavailable",
+                                    color = AppMuted, fontSize = 12.sp
+                                )
                             }
                         }
                     }
                 }
                 if (lectures.isEmpty()) {
                     item {
-                        Text("No video files found in this message page. Load older messages to scan further back.",
+                        Text("No video lectures found in this page. Load older messages to scan further back.",
                             color = AppMuted, fontSize = 13.sp)
                     }
                 }
