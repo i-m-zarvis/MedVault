@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -284,7 +285,18 @@ class MainActivity : ComponentActivity() {
                     onOpenPractice = { screen = "practice" },
                     selectedPdfFile = selectedPdfFile,
                     selectedPdfTitle = selectedPdfTitle,
-                    onOpenPdf = { file, title -> pdfReturnScreen = screen; selectedPdfFile = file; selectedPdfTitle = title; screen = "pdf_reader" },
+                    onOpenPdf = { file, title ->
+                        try {
+                            val uri = FileProvider.getUriForFile(this@MainActivity, "${BuildConfig.APPLICATION_ID}.fileprovider", file)
+                            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/pdf")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            startActivity(Intent.createChooser(viewIntent, "Open PDF with"))
+                        } catch (error: Exception) {
+                            Toast.makeText(this@MainActivity, "No compatible PDF viewer found: " + (error.message ?: "unknown error"), Toast.LENGTH_LONG).show()
+                        }
+                    },
                     onClosePdf = { selectedPdfFile = null; screen = pdfReturnScreen },
                     onOpenTelegram = { screen = "telegram" },
                     onOpenTelegramLibrary = { screen = "videos" },
