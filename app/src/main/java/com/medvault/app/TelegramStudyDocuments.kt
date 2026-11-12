@@ -163,12 +163,13 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text("Study library sources", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Choose separate groups for QBank and Tests", color = AppMuted, fontSize = 12.sp)
+                Text("Choose separate groups for video editions, QBank and Tests", color = AppMuted, fontSize = 12.sp)
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
         if (authState !is TelegramAuthManager.State.Ready) {
-            Text("Connect your account in account settings before selecting source groups.", color = AppMuted)
+            Text("Connect your content account before selecting source groups.", color = AppMuted)
+            Button(onClick = onConnectAccount) { Text("Connect account") }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.QBANK, MedVaultEdition.TESTS).forEach { role ->
@@ -211,7 +212,15 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                     }) { Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Find available groups") }
                     OutlinedButton(
                         enabled = activeSourceTitle != null,
-                        onClick = { repo?.clearSource(target); if (target == MedVaultEdition.QBANK) selectedQbank = null else selectedTests = null }
+                        onClick = {
+                            repo?.clearSource(target)
+                            when (target) {
+                                MedVaultEdition.M -> selectedM = null
+                                MedVaultEdition.P -> selectedP = null
+                                MedVaultEdition.QBANK -> selectedQbank = null
+                                MedVaultEdition.TESTS -> selectedTests = null
+                            }
+                        }
                     ) { Text("Clear selection") }
                 }
             }
