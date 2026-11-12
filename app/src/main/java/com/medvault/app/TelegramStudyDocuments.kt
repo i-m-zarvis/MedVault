@@ -339,13 +339,13 @@ fun TelegramDocumentLibraryScreen(
         }
 
         if (edition == MedVaultEdition.QBANK) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf(MedVaultEdition.M, MedVaultEdition.P).forEachIndexed { index, option ->
-                    SegmentedButton(
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(MedVaultEdition.M, MedVaultEdition.P).forEach { option ->
+                    FilterChip(
                         selected = qbankEdition == option,
                         onClick = { qbankEdition = option },
-                        shape = SegmentedButtonDefaults.itemShape(index, 2)
-                    ) { Text(if (option == MedVaultEdition.M) "Edition M" else "Edition P") }
+                        label = { Text(if (option == MedVaultEdition.M) "Edition M" else "Edition P") }
+                    )
                 }
             }
         }
