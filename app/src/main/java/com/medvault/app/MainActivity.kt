@@ -270,6 +270,7 @@ class MainActivity : ComponentActivity() {
                     screen = screen,
                     activeAccountEmail = activeAccountEmail,
                     onOpenTelegram = { screen = "telegram" },
+                    onOpenTelegramLibrary = { screen = "telegram_library" },
                     onSettings = { screen = "settings" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
@@ -1545,6 +1546,7 @@ private fun MedVaultRoot(
     screen: String,
     activeAccountEmail: String,
     onOpenTelegram: () -> Unit,
+    onOpenTelegramLibrary: () -> Unit,
     onSettings: () -> Unit,
     accountMenu: Boolean,
     pipMode: Boolean,
@@ -1663,7 +1665,7 @@ private fun MedVaultRoot(
                     onDownloads = onDownloads,
                     onContinue = onContinue,
                     onHistory = onHistory,
-                    onTelegram = { screen = "telegram_library" },
+                    onTelegram = onOpenTelegramLibrary,
                     onSettings = onSettings
                 )
             }
