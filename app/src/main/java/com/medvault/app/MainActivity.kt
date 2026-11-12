@@ -1821,11 +1821,12 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        val auth = TelegramAuthManager(context) { state ->
+        val auth = TelegramAuthManager.getInstance(context) { state ->
             authState = state
             busy = false
         }
         manager = auth
+        authState = auth.currentState
         auth.start()
     }
     BackHandler { onBack() }
