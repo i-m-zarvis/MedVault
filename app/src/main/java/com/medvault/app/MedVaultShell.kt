@@ -42,17 +42,17 @@ import androidx.compose.ui.unit.sp
 import java.io.File
 
 // MedVault's iOS-inspired dark surface system: quiet graphite layers and a cool periwinkle accent.
-private val ShellBackground = Color(0xFF090B10)
+private val ShellBackground = Color(0xFF080B12)
 private val ShellInk = Color(0xFFF5F6FA)
-private val ShellMuted = Color(0xFF9299A8)
-private val ShellBlue = Color(0xFFA8B9FF)
-private val HomeBackground = Color(0xFF090B10)
+private val ShellMuted = Color(0xFF9299AA)
+private val ShellBlue = Color(0xFF78AFFF)
+private val HomeBackground = Color(0xFF080B12)
 private val HomeInk = Color(0xFFF5F6FA)
-private val HomeMuted = Color(0xFF9299A8)
-private val HomeBlue = Color(0xFFA8B9FF)
-private val HomePanel = Color(0xFF151922)
-private val HomePanelAlt = Color(0xFF202635)
-private val HomeBorder = Color(0xFF2A3040)
+private val HomeMuted = Color(0xFF9299AA)
+private val HomeBlue = Color(0xFF78AFFF)
+private val HomePanel = Color(0xFF171D30)
+private val HomePanelAlt = Color(0xFF202944)
+private val HomeBorder = Color(0xFF343D54)
 
 @Composable
 fun MedVaultHomeScreen(
@@ -136,8 +136,8 @@ fun MedVaultHomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("MEDVAULT", color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
-                        Text("Your study space.", color = HomeInk, fontSize = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.7).sp)
+                        Text("MEDVAULT · LIQUID", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
+                        Text("Your study space.", color = HomeInk, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
                     }
                     Surface(
                         onClick = onSettings,
@@ -191,7 +191,7 @@ fun MedVaultHomeScreen(
                 }
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF1B2231),
+                    color = Color(0xFF1A2038),
                     shape = RoundedCornerShape(26.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
                 ) {
@@ -204,12 +204,12 @@ fun MedVaultHomeScreen(
                                 }
                             }
                             Spacer(Modifier.weight(1f))
-                            Text("02 MIN READ", color = HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
+                            Text("12 MIN READ", color = HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
                         }
-                        Text("ACE inhibitors\nand bradykinin", color = HomeInk, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, lineHeight = 29.sp, letterSpacing = (-0.5).sp)
+                        Text("ACE inhibitors\nand bradykinin", color = HomeInk, fontSize = 27.sp, fontWeight = FontWeight.Bold, lineHeight = 33.sp, letterSpacing = (-0.5).sp)
                         Text(
                             "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, contributing to the characteristic dry cough.",
-                            color = HomeMuted, fontSize = 13.sp, lineHeight = 20.sp
+                            color = HomeMuted, fontSize = 14.sp, lineHeight = 22.sp
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("PHARMACOLOGY", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
@@ -432,10 +432,10 @@ fun MedVaultBottomBar(
         Triple("home", "Home", Icons.Default.Home),
         Triple("videos", "Lectures", Icons.Default.PlayCircle),
         Triple("qbank", "QBank", Icons.Default.MenuBook),
-        Triple("tests", "Notes", Icons.Default.Assignment),
+        Triple("profile", "Profile", Icons.Default.Person),
         Triple("offline", "Downloads", Icons.Default.Download)
     )
-    val actions = listOf(onHome, onVideos, onQBank, onTests, onOffline)
+    val actions = listOf(onHome, onVideos, onQBank, onOffline, onTests)
 
     // A compact floating dock: familiar Android destinations, with the quieter
     // translucent treatment and selected-state capsule used by iOS tab bars.
@@ -448,13 +448,13 @@ fun MedVaultBottomBar(
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xE91A1E28),
+            color = Color(0xF20E1422),
             shape = RoundedCornerShape(28.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
             shadowElevation = 12.dp
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 4.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().height(76.dp).padding(horizontal = 5.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
