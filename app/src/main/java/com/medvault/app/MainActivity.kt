@@ -1660,7 +1660,6 @@ private fun MedVaultRoot(
     val mainTabs = setOf("home", "videos", "qbank", "tests", "offline")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
-            "pdf_reader" -> onClosePdf()
             "settings", "study_sources", "telegram_settings", "telegram" -> onHome()
             "drive" -> onFolderBack()
             else -> onHome()
@@ -1686,11 +1685,6 @@ private fun MedVaultRoot(
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, onOpenPractice = onOpenPractice)
                     "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
-                    "pdf_reader" -> {
-                        val file = selectedPdfFile
-                        if (file != null) MedVaultPdfReaderScreen(file, selectedPdfTitle, onClosePdf)
-                        else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No PDF selected.", color = Color.White) }
-                    }
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
                     "daily_dose" -> MedVaultQuestionScreen(onBack = onHome, dailyMode = true)
