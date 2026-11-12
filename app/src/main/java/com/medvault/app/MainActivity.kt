@@ -1682,8 +1682,7 @@ private fun MedVaultRoot(
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
                     "daily_dose" -> MedVaultQuestionScreen(onBack = onHome, dailyMode = true)
                     "practice" -> MedVaultQuestionScreen(onBack = onHome, dailyMode = false)
-                    "updates" -> MedVaultPlaceholderScreen("Medical Updates",
-                        "Official exam notifications and medical news aggregation are planned as the next module.", onHome)
+                    "updates" -> MedicalUpdatesScreen(onBack = onHome)
                     "player" -> {
                         if (selectedVideo != null && player != null) VideoScreen(selectedVideo, player, fullscreen, pipMode,
                             onPlayerBack, onFullscreen, onPip, onProgress)
