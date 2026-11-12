@@ -1676,7 +1676,7 @@ private fun MedVaultRoot(
     onRetryDownload: (WorkInfo) -> Unit, onPlayOffline: (DownloadedLecture) -> Unit,
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
-    val mainTabs = setOf("home", "videos", "qbank", "tests", "offline")
+    val mainTabs = setOf("home", "videos", "qbank", "offline", "settings")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
             "settings", "study_sources", "telegram_settings", "telegram" -> onHome()
@@ -1734,8 +1734,8 @@ private fun MedVaultRoot(
             }
         }
         if (screen in mainTabs && !pipMode) {
-            MedVaultBottomBar(selected = screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
-                onQBank = onOpenQBank, onTests = onOpenTests, onOffline = onOpenOffline)
+            MedVaultBottomBar(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
+                onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
     }
 }
