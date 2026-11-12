@@ -64,6 +64,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import org.drinkless.tdlib.TdApi
 import androidx.work.WorkInfo
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
@@ -2012,8 +2013,8 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit) {
                     LaunchedEffect(lecture.thumbnailFileId) {
                         val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
                         val auth = TelegramAuthManager.getInstance(context) { }
-                        auth.sendRequest(org.drinkless.tdlib.TdApi.DownloadFile(thumbnailId, 16, 0L, 0L, true)) { result ->
-                            val localPath = (result as? org.drinkless.tdlib.TdApi.File)?.local?.path
+                        auth.sendRequest(TdApi.DownloadFile(thumbnailId, 16, 0L, 0L, true)) { result ->
+                            val localPath = (result as? TdApi.File)?.local?.path
                             if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
                         }
                     }
