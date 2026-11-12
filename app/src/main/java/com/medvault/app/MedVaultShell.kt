@@ -20,10 +20,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
 
-private val ShellBackground = Color(0xFFF6F8FB)
-private val ShellInk = Color(0xFF252A3A)
-private val ShellMuted = Color(0xFF81889A)
-private val ShellBlue = Color(0xFF168FE5)
+private val ShellBackground = Color(0xFF0B1020)
+private val ShellInk = Color(0xFFF3F6FC)
+private val ShellMuted = Color(0xFF9EABC0)
+private val ShellBlue = Color(0xFF78AFFF)
 private val HomeBackground = Color(0xFF0B1020)
 private val HomeInk = Color(0xFFF3F6FC)
 private val HomeMuted = Color(0xFF9EABC0)
@@ -55,10 +55,29 @@ fun MedVaultHomeScreen(
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("MedVault", color = HomeInk, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("Learn something every day.", color = HomeMuted, fontSize = 12.sp)
+                    Text("Everything under one vault.", color = HomeMuted, fontSize = 12.sp)
                 }
                 IconButton(onClick = onSettings) {
                     Icon(Icons.Default.AccountCircle, "Profile and settings", tint = HomeMuted, modifier = Modifier.size(29.dp))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
+                listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
+                    val selected = activeEdition == edition
+                    Surface(
+                        modifier = Modifier.clickable { onEditionChange(edition) },
+                        color = if (selected) HomePanelAlt else HomePanel,
+                        shape = RoundedCornerShape(50),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) HomeBlue else HomeBorder)
+                    ) {
+                        Text(
+                            "Edition " + edition.name,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                            color = if (selected) HomeBlue else HomeMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
@@ -299,7 +318,7 @@ fun MedVaultOfflineScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val pdfs = remember { TelegramPdfStore.downloaded(context) }
-    Column(Modifier.fillMaxSize().background(ShellBackground)) {
+    Column(Modifier.fillMaxSize().background(HomeBackground)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
             Text("Offline library", color = ShellInk, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -311,7 +330,7 @@ fun MedVaultOfflineScreen(
         ) {
             item { Text("DOWNLOADED VIDEOS", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             items(downloadedLectures, key = { it.fileId }) { lecture ->
-                Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
                     Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayCircle, null, tint = ShellBlue)
                         Spacer(Modifier.width(10.dp))
@@ -491,23 +510,23 @@ fun MedVaultQuestionScreen(onBack: () -> Unit, dailyMode: Boolean) {
                             modifier = Modifier.fillMaxWidth().clickable(enabled = !answered) { selected = optionIndex },
                             shape = RoundedCornerShape(12.dp),
                             color = when {
-                                isCorrect -> Color(0xFFE5F6EC)
-                                isWrongSelection -> Color(0xFFFFE9E7)
-                                selected == optionIndex -> Color(0xFFE8F2FF)
+                                isCorrect -> Color(0xFF173B31)
+                                isWrongSelection -> Color(0xFF422A31)
+                                selected == optionIndex -> HomePanelAlt
                                 else -> ShellBackground
                             },
                             border = androidx.compose.foundation.BorderStroke(1.dp, when {
                                 isCorrect -> Color(0xFF36A269)
-                                isWrongSelection -> Color(0xFFD85B55)
+                                isWrongSelection -> Color(0xFFFF8F87)
                                 selected == optionIndex -> ShellBlue
-                                else -> Color(0xFFE7EAF0)
+                                else -> HomeBorder
                             })
                         ) {
                             Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("${'A' + optionIndex}.", color = ShellMuted, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.width(10.dp))
                                 Text(option, color = ShellInk, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                                if (isCorrect) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF26965C))
+                                if (isCorrect) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF6ED6A0))
                                 if (isWrongSelection) Icon(Icons.Default.Cancel, null, tint = Color(0xFFD85B55))
                             }
                         }
@@ -527,7 +546,7 @@ fun MedVaultQuestionScreen(onBack: () -> Unit, dailyMode: Boolean) {
                     }
                 }
             }
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF4FF)), shape = RoundedCornerShape(16.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = HomePanelAlt), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("HIGH-YIELD FACT", color = ShellBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text(highYieldFacts[factIndex], color = ShellInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
