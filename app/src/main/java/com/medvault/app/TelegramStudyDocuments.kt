@@ -421,74 +421,100 @@ fun TelegramDocumentLibraryScreen(
 
 @Composable
 fun MedVaultPdfReaderScreen(file: File, title: String, onBack: () -> Unit) {
-    var renderer by remember(file.absolutePath) { mutableStateOf<PdfRenderer?>(null) }
-    var descriptor by remember(file.absolutePath) { mutableStateOf<ParcelFileDescriptor?>(null) }
-    var page by remember(file.absolutePath) { mutableIntStateOf(0) }
     var pageCount by remember(file.absolutePath) { mutableIntStateOf(0) }
-    var bitmap by remember(file.absolutePath) { mutableStateOf<Bitmap?>(null) }
     var error by remember(file.absolutePath) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(file.absolutePath) {
-        withContext(Dispatchers.IO) {
+        pageCount = withContext(Dispatchers.IO) {
             try {
-                val fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                val pdf = PdfRenderer(fd)
-                descriptor = fd
-                renderer = pdf
-                pageCount = pdf.pageCount
-            } catch (e: Exception) {
-                error = e.message ?: "Could not open this PDF."
-            }
-        }
-    }
-
-    LaunchedEffect(renderer, page) {
-        val pdf = renderer ?: return@LaunchedEffect
-        bitmap = withContext(Dispatchers.IO) {
-            try {
-                pdf.openPage(page).use { pdfPage ->
-                    val width = 1400
-                    val height = (width.toFloat() * pdfPage.height / pdfPage.width).toInt().coerceAtLeast(1)
-                    Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-                        pdfPage.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    }
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                    PdfRenderer(fd).use { it.pageCount }
                 }
             } catch (e: Exception) {
-                error = e.message ?: "Could not render this page."
-                null
+                error = e.message ?: "Unable to open this PDF file."
+                0
             }
-        }
-    }
-
-    DisposableEffect(file.absolutePath) {
-        onDispose {
-            try { renderer?.close() } catch (_: Exception) { }
-            try { descriptor?.close() } catch (_: Exception) { }
-            bitmap?.recycle()
         }
     }
 
     Column(Modifier.fillMaxSize().background(StudyBg)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text(title, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (pageCount > 0) "${page + 1}/$pageCount" else "PDF", color = StudyMuted, fontSize = 12.sp)
+            Text(if (pageCount > 0) "$pageCount pages" else "PDF", color = StudyMuted, fontSize = 12.sp)
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
-        if (bitmap != null) {
-            Image(
+        if (pageCount > 0) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(pageCount) { pageIndex ->
+                    NativePdfPage(file = file, pageIndex = pageIndex)
+                }
+            }
+        } else if (error == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+    }
+}
+
+/** Renders pages with Android's platform PdfRenderer; pages scroll continuously in-app. */
+@Composable
+private fun NativePdfPage(file: File, pageIndex: Int) {
+    var bitmap by remember(file.absolutePath, pageIndex) { mutableStateOf<Bitmap?>(null) }
+    var failed by remember(file.absolutePath, pageIndex) { mutableStateOf(false) }
+
+    LaunchedEffect(file.absolutePath, pageIndex) {
+        val rendered = withContext(Dispatchers.IO) {
+            try {
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                    PdfRenderer(fd).use { renderer ->
+                        renderer.openPage(pageIndex).use { page ->
+                            val width = 1400
+                            val height = (width.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
+                            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { image ->
+                                page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                failed = true
+                null
+            }
+        }
+        bitmap = rendered
+    }
+
+    DisposableEffect(bitmap) {
+        onDispose { bitmap?.recycle() }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(4.dp)
+    ) {
+        when {
+            bitmap != null -> Image(
                 bitmap = bitmap!!.asImageBitmap(),
-                contentDescription = "PDF page ${page + 1}",
-                modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                contentDescription = "PDF page " + (pageIndex + 1),
+                modifier = Modifier.fillMaxWidth(),
                 contentScale = ContentScale.FillWidth
             )
-        } else if (error == null) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        }
-        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(enabled = page > 0, onClick = { page-- }) { Text("Previous") }
-            Text("Page ${if (pageCount == 0) 0 else page + 1} of $pageCount", color = StudyMuted, fontSize = 12.sp)
-            Button(enabled = pageCount > 0 && page < pageCount - 1, onClick = { page++ }) { Text("Next") }
+            failed -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                Text("Could not render page " + (pageIndex + 1), color = Color.DarkGray)
+            }
+            else -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
         }
     }
 }
