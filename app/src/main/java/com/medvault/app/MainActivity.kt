@@ -46,6 +46,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -274,7 +275,7 @@ class MainActivity : ComponentActivity() {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(AppBg)
+                        .background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))
                         // Keep backgrounds edge-to-edge, but keep controls and text
                         // outside physical display cutouts on every orientation.
                         .windowInsetsPadding(WindowInsets.displayCutout)
@@ -1684,7 +1685,7 @@ private fun MedVaultRoot(
             else -> onHome()
         }
     }
-    Column(Modifier.fillMaxSize().background(AppBg)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
         AnimatedContent(
             targetState = screen,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -1756,7 +1757,7 @@ private fun SettingsScreen(
     onBack: () -> Unit,
     onTelegramSettings: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text("Settings", fontSize = 25.sp, fontWeight = FontWeight.Bold)
@@ -1787,7 +1788,7 @@ private fun GoogleSettingsScreen(
     onDisconnect: () -> Unit,
     onBrowseDrive: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text("Google Drive", fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -1806,7 +1807,7 @@ private fun TelegramSettingsScreen(onBack: () -> Unit, onConnect: () -> Unit, on
     val marrow = repo.selectedTitle(MedVaultEdition.M)
     val prep = repo.selectedTitle(MedVaultEdition.P)
     val universal = repo.selectedTitle(MedVaultEdition.U)
-    Column(Modifier.fillMaxSize().background(AppBg).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text("Content account", fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -1846,7 +1847,7 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
     }
     BackHandler { onBack() }
 
-    Column(Modifier.fillMaxSize().background(AppBg).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text("Connect account", fontSize = 23.sp, fontWeight = FontWeight.Bold)
@@ -1935,7 +1936,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         MedVaultEdition.P -> titleP
         else -> titleU
     }
-    Column(Modifier.fillMaxSize().background(AppBg).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -3491,7 +3492,7 @@ private fun MedVaultBrandSplash() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBg),
+            .background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))),
         contentAlignment = Alignment.Center
     ) {
         Column(
