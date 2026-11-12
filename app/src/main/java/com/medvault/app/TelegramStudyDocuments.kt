@@ -151,14 +151,17 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
-    val roles = listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.QBANK_M, MedVaultEdition.QBANK_P, MedVaultEdition.NOTES_M, MedVaultEdition.NOTES_P)
+    val roles = listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U, MedVaultEdition.QBANK_M, MedVaultEdition.QBANK_P, MedVaultEdition.QBANK_U, MedVaultEdition.NOTES_M, MedVaultEdition.NOTES_P, MedVaultEdition.NOTES_U)
     fun label(role: MedVaultEdition) = when (role) {
         MedVaultEdition.M -> "Video · Edition M"
         MedVaultEdition.P -> "Video · Edition P"
+        MedVaultEdition.U -> "Video · Edition U"
         MedVaultEdition.QBANK_M -> "QBank · Edition M"
         MedVaultEdition.QBANK_P -> "QBank · Edition P"
+        MedVaultEdition.QBANK_U -> "QBank · Edition U"
         MedVaultEdition.NOTES_M -> "Notes · Edition M"
-        else -> "Notes · Edition P"
+        MedVaultEdition.NOTES_P -> "Notes · Edition P"
+        else -> "Notes · Edition U"
     }
     LaunchedEffect(Unit) {
         val auth = TelegramAuthManager.getInstance(context) { authState = it }
@@ -255,8 +258,16 @@ fun TelegramDocumentLibraryScreen(
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf<String?>(null) }
     val sourceEdition = when (edition) {
-        MedVaultEdition.QBANK -> if (activeEdition == MedVaultEdition.M) MedVaultEdition.QBANK_M else MedVaultEdition.QBANK_P
-        MedVaultEdition.TESTS -> if (activeEdition == MedVaultEdition.M) MedVaultEdition.NOTES_M else MedVaultEdition.NOTES_P
+        MedVaultEdition.QBANK -> when (activeEdition) {
+            MedVaultEdition.M -> MedVaultEdition.QBANK_M
+            MedVaultEdition.P -> MedVaultEdition.QBANK_P
+            else -> MedVaultEdition.QBANK_U
+        }
+        MedVaultEdition.TESTS -> when (activeEdition) {
+            MedVaultEdition.M -> MedVaultEdition.NOTES_M
+            MedVaultEdition.P -> MedVaultEdition.NOTES_P
+            else -> MedVaultEdition.NOTES_U
+        }
         else -> activeEdition
     }
 
@@ -310,7 +321,11 @@ fun TelegramDocumentLibraryScreen(
         } else if (repo?.selectedChatId(sourceEdition) == null) {
             Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("No source group configured for ${if (sourceEdition.name.endsWith("_M") || sourceEdition == MedVaultEdition.M) "Edition M" else "Edition P"}.", fontWeight = FontWeight.SemiBold)
+                    Text("No source group configured for ${when (sourceEdition) {
+                        MedVaultEdition.M, MedVaultEdition.QBANK_M, MedVaultEdition.NOTES_M -> "Edition M"
+                        MedVaultEdition.P, MedVaultEdition.QBANK_P, MedVaultEdition.NOTES_P -> "Edition P"
+                        else -> "Edition U"
+                    }}.", fontWeight = FontWeight.SemiBold)
                     Text("Choose a source group in Settings to populate this library.", color = StudyMuted, fontSize = 13.sp)
                     Button(onClick = onManageSources) { Icon(Icons.Default.Settings, null); Spacer(Modifier.width(6.dp)); Text("Configure library") }
                 }
