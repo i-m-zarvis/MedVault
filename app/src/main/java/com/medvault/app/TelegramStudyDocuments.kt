@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -137,7 +138,9 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit) {
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
     var groups by remember { mutableStateOf<List<TelegramSourceCandidate>>(emptyList()) }
-    var target by remember { mutableStateOf(MedVaultEdition.QBANK) }
+    var target by remember { mutableStateOf(MedVaultEdition.M) }
+    var selectedM by remember { mutableStateOf<String?>(null) }
+    var selectedP by remember { mutableStateOf<String?>(null) }
     var selectedQbank by remember { mutableStateOf<String?>(null) }
     var selectedTests by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -149,6 +152,8 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit) {
         authState = auth.currentState
         auth.start()
         repo = TelegramLibraryRepository(context, auth)
+        selectedM = repo?.selectedTitle(MedVaultEdition.M)
+        selectedP = repo?.selectedTitle(MedVaultEdition.P)
         selectedQbank = repo?.selectedTitle(MedVaultEdition.QBANK)
         selectedTests = repo?.selectedTitle(MedVaultEdition.TESTS)
     }
@@ -165,17 +170,35 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit) {
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Connect your account in account settings before selecting source groups.", color = AppMuted)
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(target == MedVaultEdition.QBANK, { target = MedVaultEdition.QBANK }, label = { Text("QBank") })
-                FilterChip(target == MedVaultEdition.TESTS, { target = MedVaultEdition.TESTS }, label = { Text("Tests") })
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.QBANK, MedVaultEdition.TESTS).forEach { role ->
+                    FilterChip(
+                        selected = target == role,
+                        onClick = { target = role },
+                        label = { Text(when (role) {
+                            MedVaultEdition.M -> "Edition M"
+                            MedVaultEdition.P -> "Edition P"
+                            MedVaultEdition.QBANK -> "QBank"
+                            MedVaultEdition.TESTS -> "Tests"
+                        }) }
+                    )
+                }
             }
             Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (target == MedVaultEdition.QBANK) "QBank source" else "Tests source", fontWeight = FontWeight.Bold)
-                    Text(
-                        (if (target == MedVaultEdition.QBANK) selectedQbank else selectedTests) ?: "No group selected",
-                        color = AppMuted
-                    )
+                    Text(when (target) {
+                        MedVaultEdition.M -> "Edition M source"
+                        MedVaultEdition.P -> "Edition P source"
+                        MedVaultEdition.QBANK -> "QBank source"
+                        MedVaultEdition.TESTS -> "Tests source"
+                    }, fontWeight = FontWeight.Bold)
+                    val activeSourceTitle = when (target) {
+                        MedVaultEdition.M -> selectedM
+                        MedVaultEdition.P -> selectedP
+                        MedVaultEdition.QBANK -> selectedQbank
+                        MedVaultEdition.TESTS -> selectedTests
+                    }
+                    Text(activeSourceTitle ?: "No group selected", color = AppMuted)
                     Button(enabled = !busy, onClick = {
                         busy = true
                         error = null
@@ -187,7 +210,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit) {
                         }
                     }) { Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Find available groups") }
                     OutlinedButton(
-                        enabled = (if (target == MedVaultEdition.QBANK) selectedQbank else selectedTests) != null,
+                        enabled = activeSourceTitle != null,
                         onClick = { repo?.clearSource(target); if (target == MedVaultEdition.QBANK) selectedQbank = null else selectedTests = null }
                     ) { Text("Clear selection") }
                 }
@@ -207,7 +230,12 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit) {
                                 TextButton(onClick = {
                                     runCatching { repo?.assignSource(target, group) }
                                         .onSuccess {
-                                            if (target == MedVaultEdition.QBANK) selectedQbank = group.title else selectedTests = group.title
+                                            when (target) {
+                                                MedVaultEdition.M -> selectedM = group.title
+                                                MedVaultEdition.P -> selectedP = group.title
+                                                MedVaultEdition.QBANK -> selectedQbank = group.title
+                                                MedVaultEdition.TESTS -> selectedTests = group.title
+                                            }
                                             status = "Source saved."
                                             error = null
                                         }.onFailure { error = it.message }
