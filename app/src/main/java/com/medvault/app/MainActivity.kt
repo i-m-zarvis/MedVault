@@ -1883,7 +1883,7 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
 
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}) {
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
     var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
@@ -1891,7 +1891,6 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var topics by remember { mutableStateOf<List<TelegramForumTopic>>(emptyList()) }
     var messages by remember { mutableStateOf<List<org.drinkless.tdlib.TdApi.Message>>(emptyList()) }
     var hasMoreMessages by remember { mutableStateOf(false) }
-    var edition by remember { mutableStateOf(MedVaultEdition.M) }
     var topic by remember { mutableStateOf<TelegramForumTopic?>(null) }
     var titleM by remember { mutableStateOf<String?>(null) }
     var titleP by remember { mutableStateOf<String?>(null) }
@@ -1912,7 +1911,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         }
     }
     BackHandler { if (topic != null) { topic = null; messages = emptyList() } else onBack() }
-    val activeTitle = if (edition == MedVaultEdition.M) titleM else titleP
+    val activeTitle = if (activeEdition == MedVaultEdition.M) titleM else titleP
     Column(Modifier.fillMaxSize().background(AppBg).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
@@ -1926,13 +1925,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             Text("Content account is not connected.", color = AppMuted)
             Button(onClick = onConnect) { Text("Connect account") }
         } else if (topic == null && setupMode) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M") })
-                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P") })
-            }
             Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (edition == MedVaultEdition.M) "Edition M" else "Edition P", fontWeight = FontWeight.Bold)
+                    Text(if (activeEdition == MedVaultEdition.M) "Edition M" else "Edition P", fontWeight = FontWeight.Bold)
                     Text(activeTitle ?: "No forum group assigned", color = AppMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = !busy, onClick = {
@@ -1944,7 +1939,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                         }) { Text("Find groups") }
                         OutlinedButton(enabled = !busy && activeTitle != null, onClick = {
                             busy = true; error = null
-                            repo?.loadTopics(edition) { result ->
+                            repo?.loadTopics(activeEdition) { result ->
                                 busy = false
                                 result.onSuccess { topics = it; status = "Loaded " + it.size + " subjects." }.onFailure { error = it.message }
                             }
@@ -1962,9 +1957,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(group.title, Modifier.weight(1f))
                                 TextButton(onClick = {
-                                    runCatching { repo?.assignSource(edition, group) }
+                                    runCatching { repo?.assignSource(activeEdition, group) }
                                         .onSuccess {
-                                            if (edition == MedVaultEdition.M) titleM = group.title else titleP = group.title
+                                            if (activeEdition == MedVaultEdition.M) titleM = group.title else titleP = group.title
                                             status = "Assigned " + group.title
                                             error = null
                                         }.onFailure { error = it.message }
@@ -1993,30 +1988,30 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             } else {
                 Spacer(Modifier.weight(1f))
-                Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
+                Text("Configure your two video activeEditions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
         } else if (topic == null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = edition == MedVaultEdition.M, onClick = { edition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M") })
-                FilterChip(selected = edition == MedVaultEdition.P, onClick = { edition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P") })
+                FilterChip(selected = activeEdition == MedVaultEdition.M, onClick = { activeEdition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M") })
+                FilterChip(selected = activeEdition == MedVaultEdition.P, onClick = { activeEdition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P") })
             }
-            LaunchedEffect(repo, edition, authState) {
+            LaunchedEffect(repo, activeEdition, authState) {
                 val sourceRepo = repo ?: return@LaunchedEffect
-                if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(edition) != null && topics.isEmpty()) {
+                if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(activeEdition) != null && topics.isEmpty()) {
                     busy = true
-                    sourceRepo.loadTopics(edition) { result ->
+                    sourceRepo.loadTopics(activeEdition) { result ->
                         busy = false
                         result.onSuccess { topics = it }.onFailure { error = it.message }
                     }
                 }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
-            if (repo?.selectedChatId(edition) == null) {
+            if (repo?.selectedChatId(activeEdition) == null) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("No source configured for this edition.", fontWeight = FontWeight.SemiBold)
+                        Text("No source configured for this activeEdition.", fontWeight = FontWeight.SemiBold)
                         Text("Choose its group in Profile & Settings.", color = AppMuted, fontSize = 12.sp)
-                        Button(onClick = onManageSources) { Text("Configure edition") }
+                        Button(onClick = onManageSources) { Text("Configure activeEdition") }
                     }
                 }
             }
