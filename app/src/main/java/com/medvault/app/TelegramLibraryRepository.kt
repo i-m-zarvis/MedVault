@@ -19,10 +19,8 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
     fun selectedTitle(edition: MedVaultEdition): String? = prefs.getString(titleKey(edition), null)
 
     fun assignSource(edition: MedVaultEdition, candidate: TelegramSourceCandidate) {
-        val alreadyUsed = MedVaultEdition.values()
-            .filterNot { it == edition || it == MedVaultEdition.QBANK }
-            .any { selectedChatId(it) == candidate.chatId }
-        require(!alreadyUsed) { "This group is already assigned to another MedVault library." }
+        // Each library role has an independent source assignment. The same
+        // Telegram group may intentionally feed Video, QBank, or Notes.
         prefs.edit().putLong(key(edition), candidate.chatId)
             .putString(titleKey(edition), candidate.title)
             .putBoolean(forumKey(edition), candidate.isForum).apply()
