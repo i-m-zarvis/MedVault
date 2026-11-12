@@ -221,6 +221,12 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(DownloadRepository.pausedIds(this@MainActivity))
             }
             var showBrandSplash by remember { mutableStateOf(true) }
+            val editionPrefs = remember { getSharedPreferences("medvault_app_settings", MODE_PRIVATE) }
+            var activeEdition by remember {
+                mutableStateOf(
+                    if (editionPrefs.getString("active_edition", "M") == "P") MedVaultEdition.P else MedVaultEdition.M
+                )
+            }
 
             LaunchedEffect(Unit) {
                 kotlinx.coroutines.delay(1900)
@@ -275,6 +281,11 @@ class MainActivity : ComponentActivity() {
                     canGoBack = folderStack.isNotEmpty(),
                     selectedVideo = selectedVideo,
                     screen = screen,
+                    activeEdition = activeEdition,
+                    onEditionChange = { edition ->
+                        activeEdition = edition
+                        editionPrefs.edit().putString("active_edition", edition.name).apply()
+                    },
                     activeAccountEmail = activeAccountEmail,
                     onOpenQBank = { screen = "qbank" },
                     onOpenTests = { screen = "tests" },
@@ -1634,7 +1645,7 @@ class MainActivity : ComponentActivity() {
 private fun MedVaultRoot(
     connected: Boolean, authBusy: Boolean, loading: Boolean, status: String,
     items: List<DriveItem>, folderName: String, canGoBack: Boolean,
-    selectedVideo: DriveItem?, screen: String, activeAccountEmail: String,
+    selectedVideo: DriveItem?, screen: String, activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit, activeAccountEmail: String,
     onOpenTelegram: () -> Unit, onOpenTelegramLibrary: () -> Unit,
     onPlayTelegramLecture: (TelegramLecture) -> Unit, onPlayerBack: () -> Unit,
     onSettings: () -> Unit, onGoogleSettings: () -> Unit,
@@ -1678,12 +1689,13 @@ private fun MedVaultRoot(
             Surface(Modifier.fillMaxSize(), color = AppBg) {
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings)
+                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings,
+                        activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
-                        onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources)
+                        onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources, activeEdition = activeEdition)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
-                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, onOpenPractice = onOpenPractice)
-                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram)
+                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice)
+                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
