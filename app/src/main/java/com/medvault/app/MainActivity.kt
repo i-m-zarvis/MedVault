@@ -2270,7 +2270,7 @@ private fun VideosDashboard(
                 )
             }
             IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                Icon(Icons.Default.Search, "Search Google Drive", tint = Color.White, modifier = Modifier.size(30.dp))
+                Icon(Icons.Default.Search, "Search", tint = Color.White, modifier = Modifier.size(30.dp))
             }
         }
 
@@ -2286,7 +2286,7 @@ private fun VideosDashboard(
                     onValueChange = { query = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("Search all Google Drive") },
+                    placeholder = { Text("Search lectures") },
                     leadingIcon = { Icon(Icons.Default.Search, null) },
                     shape = RoundedCornerShape(14.dp)
                 )
@@ -2329,35 +2329,7 @@ private fun VideosDashboard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onHistory),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFCEB)),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.History, null, tint = Color(0xFFD47770), modifier = Modifier.size(27.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("World of Revision", color = ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                        Text(
-                            history.firstOrNull()?.name ?: "Recently watched lectures",
-                            color = muted,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Icon(Icons.Default.ChevronRight, null, tint = muted)
-                }
-            }
-
+            Spacer(Modifier.height(20.dp))
             Spacer(Modifier.height(20.dp))
             Row(
                 Modifier.fillMaxWidth(),
@@ -2365,11 +2337,7 @@ private fun VideosDashboard(
             ) {
                 Text("SUBJECTS", color = muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onRawDrive) {
-                    Text("Browse Drive", color = ink)
-                    Icon(Icons.Default.ArrowDropDown, null, tint = muted)
-                }
-            }
+             }
 
             when {
                 loading && subjects.isEmpty() -> {
@@ -2384,7 +2352,6 @@ private fun VideosDashboard(
                             Spacer(Modifier.height(10.dp))
                             Text(status, color = ink)
                             Spacer(Modifier.height(8.dp))
-                            Button(onClick = onRawDrive) { Text("Open Google Drive") }
                         }
                     }
                 }
@@ -2581,7 +2548,7 @@ private fun Dashboard(
                     when {
                         connected -> status
                         authBusy -> "Checking Google account access…"
-                        else -> "Connect Google Drive to browse lectures."
+                        else -> "Connect a library to browse lectures."
                     },
                     color = AppMuted,
                     fontSize = 13.sp
