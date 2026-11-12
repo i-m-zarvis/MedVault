@@ -1988,13 +1988,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             } else {
                 Spacer(Modifier.weight(1f))
-                Text("Configure your two video activeEditions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
+                Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
         } else if (topic == null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = activeEdition == MedVaultEdition.M, onClick = { activeEdition = MedVaultEdition.M; topics = emptyList() }, label = { Text("Edition M") })
-                FilterChip(selected = activeEdition == MedVaultEdition.P, onClick = { activeEdition = MedVaultEdition.P; topics = emptyList() }, label = { Text("Edition P") })
-            }
             LaunchedEffect(repo, activeEdition, authState) {
                 val sourceRepo = repo ?: return@LaunchedEffect
                 if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(activeEdition) != null && topics.isEmpty()) {
@@ -2009,9 +2005,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             if (repo?.selectedChatId(activeEdition) == null) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("No source configured for this activeEdition.", fontWeight = FontWeight.SemiBold)
+                        Text("No source configured for the selected edition.", fontWeight = FontWeight.SemiBold)
                         Text("Choose its group in Profile & Settings.", color = AppMuted, fontSize = 12.sp)
-                        Button(onClick = onManageSources) { Text("Configure activeEdition") }
+                        Button(onClick = onManageSources) { Text("Configure source") }
                     }
                 }
             }
