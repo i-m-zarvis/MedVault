@@ -19,10 +19,6 @@ data class TelegramForumTopic(
     val lastMessageDate: Int = 0
 )
 
-/**
- * A video message indexed by its durable Telegram message identity.
- * TDLib file IDs are runtime handles and must not be used as library identity.
- */
 data class TelegramLecture(
     val stableId: String,
     val chatId: Long,
@@ -50,8 +46,7 @@ data class TelegramLecture(
                     val document = content.document.document
                     val mime = content.document.mimeType.orEmpty()
                     val name = content.document.fileName.orEmpty()
-                    if (!mime.startsWith("video/", ignoreCase = true) &&
-                        !name.hasVideoExtension()) return null
+                    if (!mime.startsWith("video/", ignoreCase = true) && !name.hasVideoExtension()) return null
                     Media(document, name, mime, 0, content.caption.text, null)
                 }
                 is TdApi.MessageAnimation -> {
@@ -69,13 +64,12 @@ data class TelegramLecture(
             val file = media.file
             val fallbackName = media.fileName.ifBlank { "lecture_${message.id}.mp4" }
             val captionTitle = media.caption.lineSequence().firstOrNull()?.trim().orEmpty()
-            val title = captionTitle.ifBlank { fallbackName.substringAfterLast('/') }
             return TelegramLecture(
                 stableId = "$chatId:$topicId:${message.id}",
                 chatId = chatId,
                 topicId = topicId,
                 messageId = message.id,
-                title = title,
+                title = captionTitle.ifBlank { fallbackName.substringAfterLast('/') },
                 fileName = fallbackName,
                 caption = media.caption,
                 fileId = file.id,
@@ -102,4 +96,5 @@ data class TelegramLecture(
     }
 }
 
-enum class MedVaultEdition { M, P }
+/** Each source role is configured independently in Settings. */
+enum class MedVaultEdition { M, P, QBANK, TESTS }
