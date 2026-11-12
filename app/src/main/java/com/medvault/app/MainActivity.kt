@@ -279,6 +279,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onPlayTelegramLecture = { startTelegramVideo(it) },
                     onSettings = { screen = "settings" },
+                    onGoogleSettings = onGoogleSettings,
+                    onTelegramSettings = onTelegramSettings,
+                    onManageTelegramGroups = { screen = "telegram_setup" },
                     accountMenu = accountMenu,
                     pipMode = pipMode,
                     fullscreen = fullscreen,
@@ -1621,6 +1624,9 @@ private fun MedVaultRoot(
     onPlayTelegramLecture: (TelegramLecture) -> Unit,
     onPlayerBack: () -> Unit,
     onSettings: () -> Unit,
+    onGoogleSettings: () -> Unit,
+    onTelegramSettings: () -> Unit,
+    onManageTelegramGroups: () -> Unit,
     accountMenu: Boolean,
     pipMode: Boolean,
     fullscreen: Boolean,
@@ -1660,7 +1666,8 @@ private fun MedVaultRoot(
     ) {
         when (screen) {
             "player" -> onPlayerBack()
-            "settings", "google_settings", "telegram_settings", "telegram" -> onHome()
+            "settings" -> onHome()
+            "google_settings", "telegram_settings", "telegram" -> onSettings()
             "drive" -> onFolderBack()
             "videos", "history", "continue", "downloads" -> onHome()
         }
@@ -1694,7 +1701,7 @@ private fun MedVaultRoot(
                 GoogleSettingsScreen(connected, activeAccountEmail, onBack = onSettings, onConnect = onConnect, onDisconnect = onDisconnect, onBrowseDrive = onRawDrive)
             }
             targetScreen == "telegram_settings" -> {
-                TelegramSettingsScreen(onBack = onSettings, onConnect = onOpenTelegram, onManageGroups = { screen = "telegram_setup" })
+                TelegramSettingsScreen(onBack = onSettings, onConnect = onOpenTelegram, onManageGroups = onManageTelegramGroups)
             }
             targetScreen == "telegram" -> {
                 TelegramLoginScreen(onBack = onSettings)
