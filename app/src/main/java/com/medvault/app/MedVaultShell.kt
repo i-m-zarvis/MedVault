@@ -60,7 +60,7 @@ fun MedVaultHomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("YOUR MEDICAL WORKSPACE", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                     Text("What are we studying today?", color = ShellInk, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("Lectures, question banks and exam practice in one place.", color = ShellMuted, fontSize = 13.sp)
+                    Text("Lectures and revision in one place.", color = ShellMuted, fontSize = 13.sp)
                 }
             }
             item {
