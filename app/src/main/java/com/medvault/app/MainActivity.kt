@@ -1609,7 +1609,7 @@ private fun MedVaultRoot(
         ) {
             when {
             targetScreen == "telegram" -> {
-                TelegramLoginScreen(onBack = { screen = "settings" })
+                TelegramLoginScreen(onBack = onSettings)
             }
 
             targetScreen == "settings" -> {
