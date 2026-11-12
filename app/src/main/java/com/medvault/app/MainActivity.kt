@@ -1944,15 +1944,24 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             }
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
         }
-        if (topic == null && authState is TelegramAuthManager.State.Ready) {
+        if (authState is TelegramAuthManager.State.Ready) {
             OutlinedTextField(
                 value = topicSearch,
                 onValueChange = { topicSearch = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Search subjects and topics…", color = AppMuted) },
+                placeholder = {
+                    Text(if (topic == null) "Search subjects and topics…" else "Search lectures…", color = AppMuted)
+                },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = AppMuted) },
-                shape = RoundedCornerShape(22.dp),
+                trailingIcon = {
+                    if (topicSearch.isNotEmpty()) {
+                        IconButton(onClick = { topicSearch = "" }) {
+                            Icon(Icons.Default.Close, "Clear search", tint = AppMuted)
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AppAccent,
                     unfocusedBorderColor = AppPanel,
@@ -2018,7 +2027,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(visibleTopics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
-                            topic = item; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
+                            topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
                             repo?.loadTopicMessages(item) { result ->
                                 busy = false
                                 result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
@@ -2057,7 +2066,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(topics, key = { it.topicId }) { item ->
+                items(visibleTopics, key = { it.topicId }) { item ->
                     Card(Modifier.clickable {
                         topic = item; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
                         repo?.loadTopicMessages(item) { result ->
@@ -2126,8 +2135,12 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
                 if (lectures.isEmpty()) {
                     item {
-                        Text("No video lectures found in this page. Load older messages to scan further back.",
-                            color = AppMuted, fontSize = 13.sp)
+                        Text(
+                            if (topicSearch.isNotBlank()) "No lectures match this search."
+                            else "No video lectures found in this page. Load older messages to scan further back.",
+                            color = AppMuted,
+                            fontSize = 13.sp
+                        )
                     }
                 }
             }
