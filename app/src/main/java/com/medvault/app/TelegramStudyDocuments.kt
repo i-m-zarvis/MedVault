@@ -188,9 +188,11 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 items(roles, key = { it.name }) { role ->
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = if (target == role) StudyPanel else StudyBg),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (target == role) StudyAccent else StudyMuted.copy(alpha = 0.25f)),
-                        modifier = Modifier.fillMaxWidth().clickable { target = role }
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        shape = RoundedCornerShape(18.dp),
+                        border = null,
+                        modifier = Modifier.fillMaxWidth().liquidPanel(if (target == role) StudyAccent else StudyMuted, 18.dp)
+                            .clickable { target = role }
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(label(role), fontWeight = FontWeight.SemiBold)
@@ -200,9 +202,10 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                 }
             }
             Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xE61C2940)),
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                         shape = RoundedCornerShape(24.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                        border = null,
+                        modifier = Modifier.fillMaxWidth().liquidPanel(StudyAccent, 24.dp)
                     ) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Configure " + label(target), fontWeight = FontWeight.Bold)
@@ -225,7 +228,12 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                 Text("AVAILABLE GROUPS", color = StudyAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(groups, key = { it.chatId }) { group ->
-                        Card(colors = CardDefaults.cardColors(containerColor = StudyPanel)) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                            shape = RoundedCornerShape(18.dp),
+                            border = null,
+                            modifier = Modifier.fillMaxWidth().liquidPanel(StudyAccent, 18.dp)
+                        ) {
                             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(group.title, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                                 TextButton(onClick = {
