@@ -1,6 +1,21 @@
 package com.medvault.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.unit.IntOffset
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,8 +58,64 @@ fun MedVaultHomeScreen(
     activeEdition: MedVaultEdition,
     onEditionChange: (MedVaultEdition) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var pullPx by remember { mutableFloatStateOf(0f) }
+    var refreshRequested by remember { mutableStateOf(false) }
+    var showRefreshResult by remember { mutableStateOf(false) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val thresholdPx = with(density) { 92.dp.toPx() }
+    val workInfos by WorkManager.getInstance(context)
+        .getWorkInfosForUniqueWorkLiveData(ContentFeedScheduler.manualWorkName()).observeAsState()
+    val activeWork = workInfos.orEmpty().firstOrNull { !it.state.isFinished }
+    val refreshConnection = remember(listState, thresholdPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                if (atTop && available.y > 0f && !refreshRequested) {
+                    pullPx = (pullPx + available.y * 0.58f).coerceAtMost(with(density) { 150.dp.toPx() })
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (pullPx >= thresholdPx && !refreshRequested) {
+                    refreshRequested = true
+                    ContentFeedScheduler.refresh(context)
+                    scope.launch {
+                        animate(pullPx, with(density) { 62.dp.toPx() }, animationSpec = spring(dampingRatio = 0.72f, stiffness = 360f)) { value, _ -> pullPx = value }
+                    }
+                } else {
+                    scope.launch {
+                        animate(pullPx, 0f, animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f)) { value, _ -> pullPx = value }
+                    }
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(workInfos, refreshRequested) {
+        if (refreshRequested && workInfos.orEmpty().any { it.state.isFinished }) {
+            showRefreshResult = true
+            kotlinx.coroutines.delay(650)
+            showRefreshResult = false
+            refreshRequested = false
+            animate(pullPx, 0f, animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f)) { value, _ -> pullPx = value }
+        }
+    }
+    val spinning = refreshRequested && activeWork != null
+    val spinTransition = rememberInfiniteTransition(label = "vault-refresh")
+    val rotation by spinTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)
+        ), label = "vault-rotation"
+    )
+    Box(Modifier.fillMaxSize().background(HomeBackground).nestedScroll(refreshConnection)) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(HomeBackground),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
@@ -199,6 +270,35 @@ fun MedVaultHomeScreen(
                 )
             }
         }
+    }
+    if (pullPx > 1f || refreshRequested || showRefreshResult) {
+        Canvas(
+            Modifier.align(Alignment.TopCenter)
+                .offset { IntOffset(0, (pullPx - with(density) { 42.dp.toPx() }).toInt()) }
+                .size(38.dp)
+        ) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val radius = size.minDimension * 0.39f
+            val tint = if (showRefreshResult) Color(0xFF65D6A3) else HomeBlue
+            drawArc(tint.copy(alpha = 0.9f), startAngle = -90f + if (spinning) rotation else 0f,
+                sweepAngle = if (spinning) 270f else 300f, useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                style = Stroke(width = 2.2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+            rotate(if (spinning) rotation else 0f, center) {
+                drawRoundRect(tint, topLeft = Offset(center.x - radius * 0.58f, center.y - radius * 0.58f),
+                    size = androidx.compose.ui.geometry.Size(radius * 1.16f, radius * 1.16f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius * 0.22f),
+                    style = Stroke(width = 2.dp.toPx()))
+                drawCircle(tint, radius = radius * 0.18f, center = center)
+                drawLine(tint, Offset(center.x, center.y - radius * 0.18f),
+                    Offset(center.x, center.y + radius * 0.18f), strokeWidth = 1.6.dp.toPx())
+            }
+            if (showRefreshResult) {
+                drawCircle(tint, radius = 2.2.dp.toPx(), center = Offset(center.x + radius * 0.82f, center.y - radius * 0.82f))
+            }
+        }
+    }
     }
 }
 
