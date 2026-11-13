@@ -4073,6 +4073,179 @@ private fun VideoScreen(
 }
 
 @Composable
+private fun PlayerTimeline(
+    position: Long,
+    duration: Long,
+    onSeekChange: (Long) -> Unit,
+    onSeekFinished: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var dragging by remember { mutableStateOf(false) }
+    var dragPosition by remember { mutableLongStateOf(position) }
+    val currentDuration = duration.coerceAtLeast(1L)
+
+    Canvas(
+        modifier = modifier.height(28.dp)
+            .pointerInput(currentDuration) {
+                detectTapGestures { offset ->
+                    val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                    val target = (fraction * currentDuration).toLong()
+                    onSeekChange(target)
+                    onSeekFinished(target)
+                }
+            }
+            .pointerInput(currentDuration) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        dragging = true
+                        val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragPosition = (fraction * currentDuration).toLong()
+                        onSeekChange(dragPosition)
+                    },
+                    onDragEnd = {
+                        dragging = false
+                        onSeekFinished(dragPosition)
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        onSeekFinished(dragPosition)
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                        dragPosition = (fraction * currentDuration).toLong()
+                        onSeekChange(dragPosition)
+                    }
+                )
+            }
+    ) {
+        val fraction = (if (dragging) dragPosition else position).toFloat()
+            .div(currentDuration.toFloat()).coerceIn(0f, 1f)
+        val trackHeight = if (dragging) 8.dp.toPx() else 4.dp.toPx()
+        val top = (size.height - trackHeight) / 2f
+        val radius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
+        val progressWidth = size.width * fraction
+
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.34f),
+            topLeft = Offset(0f, top),
+            size = androidx.compose.ui.geometry.Size(size.width, trackHeight),
+            cornerRadius = radius
+        )
+        if (progressWidth > 0f) {
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.20f),
+                topLeft = Offset(0f, top - 2.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(progressWidth, trackHeight + 4.dp.toPx()),
+                cornerRadius = CornerRadius((trackHeight + 4.dp.toPx()) / 2f)
+            )
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(0f, top),
+                size = androidx.compose.ui.geometry.Size(progressWidth, trackHeight),
+                cornerRadius = radius
+            )
+            drawCircle(
+                color = Color.White,
+                radius = if (dragging) 5.dp.toPx() else 2.5.dp.toPx(),
+                center = Offset(progressWidth.coerceIn(0f, size.width), size.height / 2f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerVolumeSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier.height(24.dp)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onValueChange((offset.x / size.width).coerceIn(0f, 1f))
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures { change, _ ->
+                    change.consume()
+                    onValueChange((change.position.x / size.width).coerceIn(0f, 1f))
+                }
+            }
+    ) {
+        val fraction = value.coerceIn(0f, 1f)
+        val trackHeight = 4.dp.toPx()
+        val top = (size.height - trackHeight) / 2f
+        val radius = CornerRadius(trackHeight / 2f)
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.36f),
+            topLeft = Offset(0f, top),
+            size = androidx.compose.ui.geometry.Size(size.width, trackHeight),
+            cornerRadius = radius
+        )
+        if (fraction > 0f) {
+            val progressWidth = size.width * fraction
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(0f, top),
+                size = androidx.compose.ui.geometry.Size(progressWidth, trackHeight),
+                cornerRadius = radius
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 4.dp.toPx(),
+                center = Offset(progressWidth.coerceIn(0f, size.width), size.height / 2f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerGlassCircleButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    diameter: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    stronger: Boolean = false,
+    onClick: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
+        label = "glassButtonScale"
+    )
+    val haptics = LocalHapticFeedback.current
+    val fill = if (stronger) {
+        Brush.verticalGradient(listOf(Color(0x7AFFFFFF), Color(0x50313B4B), Color(0xA51A2233)))
+    } else {
+        Brush.verticalGradient(listOf(Color(0x60FFFFFF), Color(0x3D252D3B), Color(0xA51A2233)))
+    }
+
+    Box(
+        Modifier.size(diameter)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(CircleShape)
+            .background(fill, CircleShape)
+            .border(1.dp, Brush.verticalGradient(
+                listOf(Color(0xAFFFFFFF), Color(0x44FFFFFF), Color(0x22FFFFFF))
+            ), CircleShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null
+            ) {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(iconSize))
+    }
+}
+
+@Composable
 private fun PlayerControlsVisibility(
     visible: Boolean,
     content: @Composable () -> Unit
