@@ -292,6 +292,7 @@ fun TelegramDocumentLibraryScreen(
     var downloadingId by state.downloadingId
     var selectedGroup by state.selectedGroup
     var documentSearch by state.documentSearch
+    var pendingDeletePdf by remember { mutableStateOf<File?>(null) }
     val sourceEdition = when (edition) {
         MedVaultEdition.QBANK -> when (activeEdition) {
             MedVaultEdition.M -> MedVaultEdition.QBANK_M
@@ -476,9 +477,7 @@ fun TelegramDocumentLibraryScreen(
                                     Text("Open", maxLines = 1)
                                 }
                                 if (isDownloaded) {
-                                    IconButton(onClick = {
-                                        if (local.delete()) localFileRevision++
-                                    }) {
+                                    IconButton(onClick = { pendingDeletePdf = local }) {
                                         Icon(Icons.Default.DeleteOutline, "Delete offline PDF", tint = Color(0xFFFF8A80))
                                     }
                                 }
@@ -518,6 +517,27 @@ fun TelegramDocumentLibraryScreen(
         }
         status?.let { Text(it, color = StudyAccent, fontSize = 12.sp) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+    }
+    pendingDeletePdf?.let { file ->
+        AlertDialog(
+            onDismissRequest = { pendingDeletePdf = null },
+            title = { Text("Delete offline PDF?") },
+            text = { Text(file.nameWithoutExtension) },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (file.delete()) {
+                        // Trigger the row's local-file check on the next composition.
+                        pendingDeletePdf = null
+                    } else {
+                        error = "Could not delete this PDF."
+                        pendingDeletePdf = null
+                    }
+                }) { Text("Delete", color = Color(0xFFFF8A80)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeletePdf = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 
