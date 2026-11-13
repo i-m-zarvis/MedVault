@@ -282,6 +282,7 @@ class MainActivity : ComponentActivity() {
                         .windowInsetsPadding(WindowInsets.displayCutout)
                 ) {
                 MedVaultRoot(
+                    showBrandSplash = showBrandSplash,
                     connected = connected,
                     authBusy = authBusy,
                     loading = loading,
@@ -1653,6 +1654,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun MedVaultRoot(
+    showBrandSplash: Boolean,
     connected: Boolean, authBusy: Boolean, loading: Boolean, status: String,
     items: List<DriveItem>, folderName: String, canGoBack: Boolean,
     selectedVideo: DriveItem?, screen: String, activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit, activeAccountEmail: String,
@@ -1735,7 +1737,7 @@ private fun MedVaultRoot(
                 }
             }
         }
-        if (screen in mainTabs && !pipMode) {
+        if (screen in mainTabs && !pipMode && !showBrandSplash) {
             MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
                 onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
