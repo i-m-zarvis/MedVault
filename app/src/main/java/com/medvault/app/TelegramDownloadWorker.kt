@@ -52,15 +52,12 @@ class TelegramDownloadWorker(
 
         val auth = TelegramAuthManager.getInstance(applicationContext) { }
         auth.start()
-        var ready = false
-        repeat(90) {
-            if (auth.currentState is TelegramAuthManager.State.Ready) {
-                ready = true
-                return@repeat
-            }
+        var attempts = 0
+        while (auth.currentState !is TelegramAuthManager.State.Ready && attempts < 90) {
             delay(1000)
+            attempts++
         }
-        if (!ready && auth.currentState !is TelegramAuthManager.State.Ready) return Result.retry()
+        if (auth.currentState !is TelegramAuthManager.State.Ready) return Result.retry()
 
         createNotificationChannel()
         setForeground(createForegroundInfo("Preparing offline lecture", 0))
@@ -157,8 +154,8 @@ class TelegramDownloadWorker(
         }
     }
 
-    private suspend fun setProgressAsyncCompat(progress: Int, downloaded: Long, total: Long) {
-        setProgress(Data.Builder()
+    private fun setProgressAsyncCompat(progress: Int, downloaded: Long, total: Long) {
+        setProgressAsync(Data.Builder()
             .putString(DriveDownloadWorker.KEY_FILE_NAME, inputData.getString(KEY_TITLE) ?: "Telegram lecture")
             .putInt("progress", progress)
             .putLong(DriveDownloadWorker.KEY_DOWNLOADED, downloaded)
