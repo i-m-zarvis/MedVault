@@ -107,6 +107,27 @@ internal object LiquidMotion {
 }
 
 /**
+ * Shared tactile response for high-value interactive surfaces.
+ * The animated transform is applied in the draw phase to avoid per-frame layout work.
+ */
+@Composable
+private fun Modifier.liquidPressFeedback(
+    interactionSource: MutableInteractionSource,
+    pressedScale: Float = 0.985f
+): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressedScale else 1f,
+        animationSpec = LiquidMotion.Touch,
+        label = "liquid_surface_press"
+    )
+    return this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}
+
+/**
  * Lightweight glass approximation for API 26+: translucent layered tint,
  * a restrained cool highlight and a hairline edge. This is not backdrop blur;
  * API 31+ blur must be implemented at the parent/backdrop layer, not on this child.
@@ -265,8 +286,11 @@ fun MedVaultHomeScreen(
                         Text("MEDVAULT · LIQUID", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
                         Text("Your study space.", color = HomeInk, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
                     }
+                    val profileInteraction = remember { MutableInteractionSource() }
                     Surface(
                         onClick = onSettings,
+                        interactionSource = profileInteraction,
+                        modifier = Modifier.liquidPressFeedback(profileInteraction, 0.96f),
                         color = HomePanel,
                         shape = RoundedCornerShape(18.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, HomeBorder)
@@ -289,11 +313,13 @@ fun MedVaultHomeScreen(
                     ) {
                         listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
                             val selected = activeEdition == edition
+                            val editionInteraction = remember { MutableInteractionSource() }
                             Surface(
                                 modifier = Modifier.weight(1f)
                                     .liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp)
+                                    .liquidPressFeedback(editionInteraction)
                                     .then(if (selected) Modifier.border(1.dp, HomeBlue.copy(alpha = 0.62f), RoundedCornerShape(18.dp)) else Modifier)
-                                    .clickable { onEditionChange(edition) },
+                                    .clickable(interactionSource = editionInteraction, indication = null) { onEditionChange(edition) },
                                 color = Color.Transparent,
                                 shape = RoundedCornerShape(18.dp),
                                 border = null
@@ -347,7 +373,14 @@ fun MedVaultHomeScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("PHARMACOLOGY", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                             Spacer(Modifier.weight(1f))
-                            Surface(color = HomeBlue, shape = RoundedCornerShape(50), onClick = onDailyDose) {
+                            val studyNowInteraction = remember { MutableInteractionSource() }
+                            Surface(
+                                color = HomeBlue,
+                                shape = RoundedCornerShape(50),
+                                onClick = onDailyDose,
+                                interactionSource = studyNowInteraction,
+                                modifier = Modifier.liquidPressFeedback(studyNowInteraction, 0.96f)
+                            ) {
                                 Row(Modifier.padding(horizontal = 13.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text("Study now", color = Color(0xFF111522), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     Icon(Icons.Default.ArrowForward, null, tint = Color(0xFF111522), modifier = Modifier.size(14.dp))
@@ -511,9 +544,13 @@ private fun HomeActionTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = modifier.liquidPanel(if (title == "Flashcards") LiquidViolet else LiquidTeal, 22.dp),
+        interactionSource = interactionSource,
+        modifier = modifier
+            .liquidPanel(if (title == "Flashcards") LiquidViolet else LiquidTeal, 22.dp)
+            .liquidPressFeedback(interactionSource),
         shape = RoundedCornerShape(22.dp),
         color = Color.Transparent
     ) {
@@ -543,8 +580,12 @@ private fun HomeEditorialCard(
     onClick: (() -> Unit)?,
     footnote: String
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
-        modifier = if (onClick != null) Modifier.fillMaxWidth().clickable(onClick = onClick) else Modifier.fillMaxWidth(),
+        modifier = if (onClick != null) Modifier.fillMaxWidth()
+            .liquidPressFeedback(interactionSource)
+            .clickable(interactionSource = interactionSource, onClick = onClick)
+            else Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = HomePanel)
     ) {
