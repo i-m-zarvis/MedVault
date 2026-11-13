@@ -18,6 +18,7 @@ class DownloadRepository(context: Context) {
 
     companion object {
         private const val DOWNLOAD_TAG = "medvault_download"
+        private const val SOURCE_TAG_PREFIX = "medvault_source_"
         private const val UNIQUE_WORK_PREFIX = "medvault_download_"
         private const val ACCOUNT_TAG_PREFIX = "medvault_account_"
         private const val PREFS = "medvault_download_controls"
@@ -79,6 +80,29 @@ class DownloadRepository(context: Context) {
         setPaused(appContext, file.id, file.accountId, false)
         val request = request(file)
         workManager.enqueueUniqueWork(workName(file), ExistingWorkPolicy.KEEP, request)
+        return request.id
+    }
+
+    fun enqueueTelegram(lecture: TelegramLecture): UUID {
+        val uniqueKey = "telegram_" + lecture.chatId + "_" + lecture.messageId
+        val request = OneTimeWorkRequestBuilder<TelegramDownloadWorker>()
+            .setInputData(Data.Builder()
+                .putString(TelegramDownloadWorker.KEY_STABLE_ID, lecture.stableId)
+                .putString(TelegramDownloadWorker.KEY_TITLE, lecture.title)
+                .putString(TelegramDownloadWorker.KEY_FILE_NAME, lecture.fileName)
+                .putString(TelegramDownloadWorker.KEY_MIME_TYPE, lecture.mimeType)
+                .putInt(TelegramDownloadWorker.KEY_FILE_ID, lecture.fileId)
+                .putLong(TelegramDownloadWorker.KEY_CHAT_ID, lecture.chatId)
+                .putLong(TelegramDownloadWorker.KEY_MESSAGE_ID, lecture.messageId)
+                .putInt(TelegramDownloadWorker.KEY_TOPIC_ID, lecture.topicId)
+                .putInt(TelegramDownloadWorker.KEY_DURATION, lecture.durationSeconds)
+                .putLong(TelegramDownloadWorker.KEY_FILE_SIZE, lecture.fileSizeBytes)
+                .build())
+            .addTag(DOWNLOAD_TAG)
+            .addTag(SOURCE_TAG_PREFIX + "telegram")
+            .addTag(UNIQUE_WORK_PREFIX + uniqueKey)
+            .build()
+        workManager.enqueueUniqueWork(UNIQUE_WORK_PREFIX + uniqueKey, ExistingWorkPolicy.KEEP, request)
         return request.id
     }
 
