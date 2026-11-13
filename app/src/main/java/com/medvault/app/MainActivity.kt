@@ -3770,8 +3770,8 @@ private fun VideoScreen(
                             Column(
                                 Modifier.align(Alignment.BottomEnd)
                                     .padding(end = safeInset, bottom = screenHeight * 0.205f + 48.dp)
-                                    .width(160.dp)
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .width(136.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(
                                         Brush.verticalGradient(
                                             listOf(Color(0xE83A4050), Color(0xED202635), Color(0xF5151A25))
@@ -3782,13 +3782,13 @@ private fun VideoScreen(
                                         Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x22FFFFFF))),
                                         RoundedCornerShape(16.dp)
                                     )
-                                    .padding(6.dp)
+                                    .padding(5.dp)
                             ) {
                                 listOf(0.5f, 1f, 1.5f, 2f).forEach { rate ->
                                     val selected = speed == rate
                                     Row(
-                                        Modifier.fillMaxWidth().height(40.dp)
-                                            .clip(RoundedCornerShape(10.dp))
+                                        Modifier.fillMaxWidth().height(34.dp)
+                                            .clip(RoundedCornerShape(9.dp))
                                             .background(if (selected) Color(0x22FFFFFF) else Color.Transparent)
                                             .clickable {
                                                 speed = rate
@@ -3796,7 +3796,7 @@ private fun VideoScreen(
                                                 settingsExpanded = false
                                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             }
-                                            .padding(horizontal = 12.dp),
+                                            .padding(horizontal = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
@@ -3807,7 +3807,7 @@ private fun VideoScreen(
                                                 else -> "2.0×"
                                             },
                                             color = Color.White,
-                                            fontSize = 14.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -3816,7 +3816,7 @@ private fun VideoScreen(
                                                 Icons.Default.Check,
                                                 contentDescription = "Selected",
                                                 tint = Color(0xFFB49AFF),
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     }
@@ -3937,8 +3937,8 @@ private fun VideoScreen(
                             Column(
                                 Modifier.align(Alignment.BottomStart)
                                     .padding(start = 12.dp, bottom = 52.dp)
-                                    .width(160.dp)
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .width(136.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(Brush.verticalGradient(
                                         listOf(Color(0xE83A4050), Color(0xED202635), Color(0xF5151A25))
                                     ))
@@ -3947,13 +3947,13 @@ private fun VideoScreen(
                                         Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x22FFFFFF))),
                                         RoundedCornerShape(16.dp)
                                     )
-                                    .padding(6.dp)
+                                    .padding(5.dp)
                             ) {
                                 listOf(0.5f, 1f, 1.5f, 2f).forEach { rate ->
                                     val selected = speed == rate
                                     Row(
-                                        Modifier.fillMaxWidth().height(40.dp)
-                                            .clip(RoundedCornerShape(10.dp))
+                                        Modifier.fillMaxWidth().height(34.dp)
+                                            .clip(RoundedCornerShape(9.dp))
                                             .background(if (selected) Color(0x22FFFFFF) else Color.Transparent)
                                             .clickable {
                                                 speed = rate
@@ -3961,7 +3961,7 @@ private fun VideoScreen(
                                                 settingsExpanded = false
                                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             }
-                                            .padding(horizontal = 12.dp),
+                                            .padding(horizontal = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
@@ -3972,13 +3972,13 @@ private fun VideoScreen(
                                                 else -> "2.0×"
                                             },
                                             color = Color.White,
-                                            fontSize = 14.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                                             modifier = Modifier.weight(1f)
                                         )
                                         if (selected) Icon(
                                             Icons.Default.Check, "Selected",
-                                            tint = Color(0xFFB49AFF), modifier = Modifier.size(18.dp)
+                                            tint = Color(0xFFB49AFF), modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -4262,10 +4262,10 @@ private fun PlayerGlassAction(
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 
