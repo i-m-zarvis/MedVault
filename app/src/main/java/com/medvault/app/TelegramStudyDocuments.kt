@@ -510,7 +510,7 @@ fun TelegramDocumentLibraryScreen(
                                         color = StudyMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.55.sp
                                     )
                                 }
-                                LiquidBookmarkButton(contentId = "pdf:${document.stableId}", title = document.title, contentType = "pdf")
+                                LiquidBookmarkButton(contentId = "pdf:${document.stableId}", title = document.title, contentType = "pdf", sourceEdition = sourceEdition)
                                 if (isDownloaded) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF62D7C8), modifier = Modifier.size(19.dp))
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {

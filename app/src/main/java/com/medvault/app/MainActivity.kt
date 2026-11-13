@@ -1818,7 +1818,7 @@ private fun MedVaultRoot(
                         setupMode = false, onManageSources = onOpenStudySources,
                         activeEdition = MedVaultEdition.REVISION, state = remember { TelegramLibraryScreenState() }, progressRevision = telegramProgressRevision,
                         onDeleteOffline = onDeleteOffline)
-                    "bookmarks" -> MedVaultBookmarksScreen(onBack = onHome)
+                    "bookmarks" -> MedVaultBookmarksScreen(onBack = onHome, onPlayLecture = onPlayTelegramLecture, onOpenPdf = onOpenPdf)
                     "planner" -> MedVaultStudyPlannerScreen(onBack = onHome)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome, onDeleteOffline)
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
@@ -2445,7 +2445,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                     Text(subjectName, color = Color(0xFF9299AA), fontSize = 10.sp,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
-                                LiquidBookmarkButton(contentId = "video:${lecture.stableId}", title = lecture.title, contentType = "video")
+                                LiquidBookmarkButton(contentId = "video:${lecture.stableId}", title = lecture.title, contentType = "video", sourceEdition = activeEdition)
                                 IconButton(onClick = { onDownloadLecture(lecture) }) {
                                     Icon(Icons.Default.Download, "Download", tint = Color(0xFF9299AA), modifier = Modifier.size(19.dp))
                                 }
@@ -2681,7 +2681,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             else -> Icon(Icons.Default.Download, "Download for offline", tint = Color.White.copy(alpha = 0.72f))
                         }
                     }
-                    LiquidBookmarkButton(contentId = "video:${lecture.stableId}", title = displayTitle, contentType = "video")
+                    LiquidBookmarkButton(contentId = "video:${lecture.stableId}", title = displayTitle, contentType = "video", sourceEdition = activeEdition)
                     }
                     androidx.compose.material3.HorizontalDivider(
                         modifier = Modifier.padding(start = 134.dp),

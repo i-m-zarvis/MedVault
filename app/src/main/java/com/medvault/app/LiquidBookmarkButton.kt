@@ -17,9 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import org.json.JSONObject
 
 @Composable
-fun LiquidBookmarkButton(contentId: String, title: String, contentType: String) {
+fun LiquidBookmarkButton(contentId: String, title: String, contentType: String, sourceEdition: MedVaultEdition) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("medvault_bookmarks", Context.MODE_PRIVATE) }
     var saved by remember(contentId) { mutableStateOf(prefs.contains(contentId)) }
@@ -29,8 +30,17 @@ fun LiquidBookmarkButton(contentId: String, title: String, contentType: String) 
             .border(1.dp, Color.White.copy(alpha = if (saved) 0.24f else 0.12f), CircleShape)
             .clickable {
                 saved = !saved
-                if (saved) prefs.edit().putString(contentId, "$contentType|$title").apply()
-                else prefs.edit().remove(contentId).apply()
+                if (saved) {
+                    val parts = contentId.split(":")
+                    val payload = JSONObject()
+                        .put("type", contentType)
+                        .put("title", title)
+                        .put("edition", sourceEdition.name)
+                        .put("chatId", parts.getOrNull(1)?.toLongOrNull() ?: 0L)
+                        .put("topicId", parts.getOrNull(2)?.toIntOrNull() ?: 0)
+                        .put("messageId", parts.getOrNull(3)?.toLongOrNull() ?: 0L)
+                    prefs.edit().putString(contentId, payload.toString()).apply()
+                } else prefs.edit().remove(contentId).apply()
             },
         contentAlignment = Alignment.Center
     ) {
