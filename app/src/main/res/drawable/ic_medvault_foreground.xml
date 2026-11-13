@@ -1,45 +1,6 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <!-- Open book -->
-    <path
-        android:fillColor="#FFBDEBFF"
-        android:pathData="M54,82 C42,72 27,68 12,73 L12,38 C28,31 42,35 54,47 C66,35 80,31 96,38 L96,73 C81,68 66,72 54,82 Z" />
-    <path
-        android:fillColor="#FF5AAEFF"
-        android:pathData="M17,42 C29,38 41,42 50,51 L50,75 C40,68 29,66 17,69 Z" />
-    <path
-        android:fillColor="#FF83C8FF"
-        android:pathData="M58,51 C67,42 79,38 91,42 L91,69 C79,66 68,68 58,75 Z" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF0A3157"
-        android:strokeWidth="1.6"
-        android:pathData="M54,47 L54,80" />
-
-    <!-- Vault / roof outline -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF9EDFFF"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M22,39 L22,24 L54,8 L86,24 L86,39" />
-
-    <!-- Medical staff and serpent -->
-    <path
-        android:fillColor="#FF07345D"
-        android:pathData="M51,24 L57,24 L57,61 L51,61 Z" />
-    <path
-        android:fillColor="#FF07345D"
-        android:pathData="M54,17 A4,4 0,1 0 54,25 A4,4 0,1 0 54,17 Z" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF07345D"
-        android:strokeWidth="2.3"
-        android:strokeLineCap="round"
-        android:pathData="M54,29 C39,28 39,41 54,42 C69,43 69,55 54,55" />
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/medvault_emblem_freeform"
+    android:insetLeft="13dp"
+    android:insetTop="10dp"
+    android:insetRight="13dp"
+    android:insetBottom="10dp" />
