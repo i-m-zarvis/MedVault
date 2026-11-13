@@ -78,11 +78,19 @@ fun DownloadManagerScreen(
             downloadDirectory.listFiles()?.asSequence()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
         }
     }
-    val storageFree by produceState(initialValue = 0L, context.filesDir) {
-        value = withContext(Dispatchers.IO) { context.filesDir.usableSpace }
+    val deviceStorage by produceState(
+        initialValue = android.os.StatFs(context.filesDir.path).let { it.totalBytes to it.availableBytes },
+        context.filesDir, downloadedLectures, storageUsed
+    ) {
+        value = withContext(Dispatchers.IO) {
+            val stat = android.os.StatFs(context.filesDir.path)
+            stat.totalBytes to stat.availableBytes
+        }
     }
-    val storageTotal = storageUsed + storageFree
-    val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
+    val storageTotal = deviceStorage.first.coerceAtLeast(1L)
+    val storageFree = deviceStorage.second.coerceAtLeast(0L)
+    val storageUsedOnDevice = (storageTotal - storageFree).coerceAtLeast(0L)
+    val storageFraction = storageUsedOnDevice.toFloat() / storageTotal.toFloat()
     var libraryQuery by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<DownloadedLecture?>(null) }
     fun isPaused(work: WorkInfo): Boolean {
@@ -167,7 +175,7 @@ fun DownloadManagerScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("OFFLINE STORAGE", color = DownloadAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.weight(1f))
-                    Text(formatDownloadSize(storageUsed), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${formatDownloadSize(storageFree)} free", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.size(8.dp))
                 LinearProgressIndicator(
@@ -176,7 +184,7 @@ fun DownloadManagerScreen(
                     color = DownloadAccent
                 )
                 Spacer(Modifier.size(5.dp))
-                Text("${formatDownloadSize(storageFree)} available on device · app-private storage", color = DownloadMuted, fontSize = 11.sp)
+                Text("${formatDownloadSize(storageUsedOnDevice)} used of ${formatDownloadSize(storageTotal)} device storage", color = DownloadMuted, fontSize = 11.sp)
             }
         }
 
