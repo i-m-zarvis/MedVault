@@ -3480,7 +3480,6 @@ private fun VideoScreen(
     var duration by remember(player) { mutableLongStateOf(player.duration.takeIf { it > 0L } ?: 0L) }
     var isSeeking by remember(player) { mutableStateOf(false) }
     var speed by remember(player) { mutableFloatStateOf(player.playbackParameters.speed) }
-    var playerVolume by remember(player) { mutableFloatStateOf(player.volume) }
     var controlsVisible by remember(player) { mutableStateOf(true) }
     var settingsExpanded by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -3497,9 +3496,6 @@ private fun VideoScreen(
             }
             override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
                 speed = playbackParameters.speed
-            }
-            override fun onVolumeChanged(volume: Float) {
-                playerVolume = volume
             }
         }
         player.addListener(listener)
@@ -3542,7 +3538,6 @@ private fun VideoScreen(
         return
     }
 
-    val speeds = listOf(0.5f, 1f, 1.5f, 2f)
     val glassShape = RoundedCornerShape(50)
     val glassBorder = Brush.verticalGradient(
         listOf(Color(0x88FFFFFF), Color(0x35FFFFFF), Color(0x18FFFFFF))
@@ -3662,43 +3657,6 @@ private fun VideoScreen(
                             }
                         }
 
-                        // Top-right: 140 x 36 dp volume glass, synchronised with ExoPlayer.
-                        PlayerGlassCapsule(
-                            modifier = Modifier.align(Alignment.TopEnd)
-                                .padding(end = safeInset, top = safeInset)
-                                .width(140.dp).height(36.dp)
-                        ) {
-                            PlayerVolumeSlider(
-                                value = playerVolume,
-                                onValueChange = {
-                                    playerVolume = it
-                                    player.volume = it
-                                },
-                                modifier = Modifier.weight(1f).padding(start = 9.dp)
-                            )
-                            Box(
-                                Modifier.size(30.dp).clip(CircleShape)
-                                    .clickable {
-                                        val next = if (playerVolume > 0f) 0f else 1f
-                                        playerVolume = next
-                                        player.volume = next
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    when {
-                                        playerVolume <= 0f -> Icons.Default.VolumeOff
-                                        playerVolume < 0.5f -> Icons.Default.VolumeDown
-                                        else -> Icons.Default.VolumeUp
-                                    },
-                                    contentDescription = if (playerVolume > 0f) "Mute" else "Unmute",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                            }
-                        }
-
                         // Three independent circles. No oversized shared transport capsule.
                         Row(
                             modifier = Modifier.align(Alignment.Center).width(centerClusterWidth),
@@ -3737,6 +3695,13 @@ private fun VideoScreen(
                                 controlsVisible = true
                             }
                         }
+
+                        Box(
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(154.dp)
+                                .background(Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color(0x66000000), Color(0xD9000000))
+                                ))
+                        )
 
                         // Lower-left title and custom 4 dp timeline.
                         Column(
@@ -3936,23 +3901,20 @@ private fun VideoScreen(
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(formatTime(position), color = Color.White, fontSize = 10.sp)
-                                Slider(
-                                    value = if (duration > 0L) position.toFloat().coerceIn(0f, duration.toFloat()) else 0f,
-                                    onValueChange = {
+                                PlayerTimeline(
+                                    position = position,
+                                    duration = duration,
+                                    onSeekChange = {
                                         isSeeking = true
-                                        position = it.toLong()
+                                        position = it
                                     },
-                                    onValueChangeFinished = {
-                                        player.seekTo(position.coerceIn(0L, duration.coerceAtLeast(0L)))
+                                    onSeekFinished = {
+                                        player.seekTo(it.coerceIn(0L, duration.coerceAtLeast(0L)))
+                                        position = it
                                         isSeeking = false
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     },
-                                    valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
-                                    modifier = Modifier.weight(1f).height(28.dp).padding(horizontal = 5.dp),
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = Color.White,
-                                        activeTrackColor = Color.White,
-                                        inactiveTrackColor = Color(0x77FFFFFF)
-                                    )
+                                    modifier = Modifier.weight(1f).padding(horizontal = 5.dp)
                                 )
                                 Text(formatTime(duration), color = Color.White, fontSize = 10.sp)
                             }
@@ -3961,81 +3923,65 @@ private fun VideoScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(9.dp)
                             ) {
-                                Box {
-                                    PlayerGlassAction("${speed}×") { settingsExpanded = true }
-                                    DropdownMenu(
-                                        expanded = settingsExpanded,
-                                        onDismissRequest = { settingsExpanded = false },
-                                        modifier = Modifier.width(216.dp).heightIn(max = 340.dp)
-                                            .clip(RoundedCornerShape(26.dp))
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(Color(0xE82B3447), Color(0xEA182235), Color(0xF20B1220))
-                                                ),
-                                                RoundedCornerShape(26.dp)
-                                            )
-                                            .border(
-                                                1.dp,
-                                                Brush.verticalGradient(listOf(Color(0xAAFFFFFF), Color(0x33FFFFFF))),
-                                                RoundedCornerShape(26.dp)
-                                            )
+                                PlayerGlassAction("${speed}×") {
+                                    settingsExpanded = !settingsExpanded
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                PlayerGlassIconAction(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                                PlayerGlassIconAction(Icons.Default.Fullscreen, "Enter fullscreen", onFullscreen)
+                            }
+                        }
+
+                        // Same compact glass speed selector in portrait and landscape.
+                        if (settingsExpanded) {
+                            Column(
+                                Modifier.align(Alignment.BottomStart)
+                                    .padding(start = 12.dp, bottom = 52.dp)
+                                    .width(160.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Brush.verticalGradient(
+                                        listOf(Color(0xE83A4050), Color(0xED202635), Color(0xF5151A25))
+                                    ))
+                                    .border(
+                                        1.dp,
+                                        Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x22FFFFFF))),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .padding(6.dp)
+                            ) {
+                                listOf(0.5f, 1f, 1.5f, 2f).forEach { rate ->
+                                    val selected = speed == rate
+                                    Row(
+                                        Modifier.fillMaxWidth().height(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (selected) Color(0x22FFFFFF) else Color.Transparent)
+                                            .clickable {
+                                                speed = rate
+                                                player.setPlaybackSpeed(rate)
+                                                settingsExpanded = false
+                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                            .padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            "PLAYBACK SPEED",
-                                            color = Color(0xFFB8C0D0),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
-                                        )
-                                        speeds.forEach { rate ->
-                                            DropdownMenuItem(
-                                                modifier = Modifier.height(38.dp),
-                                                text = {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
-                                                        if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
-                                                    }
-                                                },
-                                                onClick = {
-                                                    speed = rate
-                                                    player.setPlaybackSpeed(rate)
-                                                    settingsExpanded = false
-                                                }
-                                            )
-                                        }
-                                        Divider(color = Color(0x44FFFFFF))
-                                        Text(
-                                            "VOLUME",
-                                            color = Color(0xFFB8C0D0),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(start = 16.dp, top = 10.dp)
-                                        )
-                                        Slider(
-                                            value = playerVolume,
-                                            onValueChange = {
-                                                playerVolume = it
-                                                player.volume = it
+                                            when (rate) {
+                                                0.5f -> "0.5×"
+                                                1f -> "1.0×"
+                                                1.5f -> "1.5×"
+                                                else -> "2.0×"
                                             },
-                                            valueRange = 0f..1f,
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            colors = SliderDefaults.colors(
-                                                thumbColor = Color.White,
-                                                activeTrackColor = Color.White,
-                                                inactiveTrackColor = Color(0x66777777)
-                                            )
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (selected) Icon(
+                                            Icons.Default.Check, "Selected",
+                                            tint = Color(0xFFB49AFF), modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
-                                PlayerGlassIconAction(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
-                                PlayerGlassIconAction(
-                                    if (playerVolume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                    if (playerVolume > 0f) "Mute" else "Unmute"
-                                ) {
-                                    playerVolume = if (playerVolume > 0f) 0f else 1f
-                                    player.volume = playerVolume
-                                }
-                                PlayerGlassIconAction(Icons.Default.Fullscreen, "Enter fullscreen", onFullscreen)
                             }
                         }
                     }
@@ -4108,24 +4054,43 @@ private fun PlayerTimeline(
         val radius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
         val progressWidth = size.width * fraction
 
+        // Dark glass rail remains visible over white lecture slides; a subtle
+        // light rim keeps it defined over dark footage.
+        drawRoundRect(
+            color = Color.Black.copy(alpha = 0.48f),
+            topLeft = Offset(0f, top - 1.dp.toPx()),
+            size = androidx.compose.ui.geometry.Size(size.width, trackHeight + 2.dp.toPx()),
+            cornerRadius = CornerRadius((trackHeight + 2.dp.toPx()) / 2f)
+        )
         drawRoundRect(
             color = Color.White.copy(alpha = 0.34f),
             topLeft = Offset(0f, top),
             size = androidx.compose.ui.geometry.Size(size.width, trackHeight),
             cornerRadius = radius
         )
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.16f),
+            topLeft = Offset(0f, top),
+            size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()),
+            cornerRadius = CornerRadius(1.dp.toPx())
+        )
         if (progressWidth > 0f) {
             drawRoundRect(
-                color = Color.White.copy(alpha = 0.20f),
-                topLeft = Offset(0f, top - 2.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(progressWidth, trackHeight + 4.dp.toPx()),
-                cornerRadius = CornerRadius((trackHeight + 4.dp.toPx()) / 2f)
+                color = Color.Black.copy(alpha = 0.22f),
+                topLeft = Offset(0f, top - 1.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(progressWidth, trackHeight + 2.dp.toPx()),
+                cornerRadius = CornerRadius((trackHeight + 2.dp.toPx()) / 2f)
             )
             drawRoundRect(
                 color = Color.White,
                 topLeft = Offset(0f, top),
                 size = androidx.compose.ui.geometry.Size(progressWidth, trackHeight),
                 cornerRadius = radius
+            )
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.28f),
+                radius = (if (dragging) 5.5.dp else 3.dp).toPx(),
+                center = Offset(progressWidth.coerceIn(0f, size.width), size.height / 2f)
             )
             drawCircle(
                 color = Color.White,
