@@ -29,7 +29,14 @@ data class DownloadedLecture(
     val localPath: String,
     val downloadId: Long,
     val downloadedAt: Long,
-    val accountId: String = "default"
+    val accountId: String = "default",
+    val source: String = "drive",
+    val chatId: Long = 0L,
+    val topicId: Int = 0,
+    val messageId: Long = 0L,
+    val telegramFileId: Int = 0,
+    val mimeType: String = "video/mp4",
+    val durationSeconds: Int = 0
 )
 
 data class WatchRecord(
