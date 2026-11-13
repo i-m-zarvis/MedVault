@@ -1801,7 +1801,7 @@ private fun MedVaultRoot(
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
                         onRapidRevision = onOpenRapidRevision, onNotes = onOpenNotes, onBookmarks = onOpenBookmarks, onPlanner = onOpenPlanner, onSettings = onSettings,
-                        onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
+                        onHistory = onHistory, history = emptyList(), onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
                         onPlayLecture = onPlayTelegramLecture, onDownloadLecture = onDownloadTelegramLecture,
@@ -1845,7 +1845,7 @@ private fun MedVaultRoot(
                         onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
                     else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
                         onRapidRevision = onOpenRapidRevision, onNotes = onOpenNotes, onBookmarks = onOpenBookmarks, onPlanner = onOpenPlanner, onSettings = onSettings,
-                        onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
+                        onHistory = onHistory, history = emptyList(), onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                 }
             }
