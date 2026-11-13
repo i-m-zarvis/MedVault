@@ -570,6 +570,7 @@ fun MedVaultBottomBarHost(
     onOffline: () -> Unit,
     onProfile: () -> Unit
 ) {
+    val context = LocalContext.current
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         Dialog(
             onDismissRequest = {},
@@ -584,7 +585,7 @@ fun MedVaultBottomBarHost(
             SideEffect {
                 dialogWindow?.let { window ->
                     window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
-                    val blurEnabled = LocalContext.current
+                    val blurEnabled = context
                         .getSystemService(WindowManager::class.java)
                         ?.isCrossWindowBlurEnabled == true
                     if (blurEnabled) {
