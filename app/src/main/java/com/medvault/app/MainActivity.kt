@@ -1975,9 +1975,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Video Library", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(topic?.name ?: "Video Library", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "HIGH-YIELD MEDIA",
+                    if (topic == null) "HIGH-YIELD MEDIA" else "SUBJECT COLLECTION",
                     color = Color(0xFFB18CFF),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -2006,7 +2006,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 placeholder = {
-                    Text("Search topics, modules, teachers…", color = AppMuted)
+                    Text(if (topic == null) "Search topics, modules, teachers…" else "Search lectures in ${topic?.name ?: "subject"}…", color = AppMuted)
                 },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = AppMuted) },
                 trailingIcon = {
@@ -2101,7 +2101,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Spacer(Modifier.weight(1f))
                 Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
-        } else {
+        } else if (topic == null) {
             LaunchedEffect(repo, activeEdition, authState) {
                 val sourceRepo = repo ?: return@LaunchedEffect
                 if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(activeEdition) != null && topics.isEmpty()) {
@@ -2125,205 +2125,40 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("SUBJECTS", color = Color(0xFF9299AA), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Spacer(Modifier.weight(1f))
-                Text("${visibleTopics.size} subjects", color = Color(0xFF9299AA), fontSize = 11.sp)
+                Text("${visibleTopics.size} available", color = Color(0xFF9299AA), fontSize = 11.sp)
             }
-            LazyColumn(
-                Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)
-            ) {
-                items(visibleTopics, key = { it.topicId }, contentType = { "subject" }) { item ->
-                    val expanded = topic?.topicId == item.topicId
-                    val subjectLectures = if (expanded) remember(item.topicId, messages) {
-                        messages.mapNotNull { TelegramLecture.fromMessage(item.chatId, item.topicId, it) }
-                            .distinctBy { it.stableId }.sortedBy { it.messageId }
-                    } else emptyList()
-                    val totalSeconds = subjectLectures.sumOf { it.durationSeconds.toLong() }
-                    val totalDuration = if (totalSeconds > 0L) {
-                        val hours = totalSeconds / 3600
-                        val minutes = (totalSeconds % 3600) / 60
-                        if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
-                    } else null
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
+                items(visibleTopics, key = { it.topicId }) { item ->
                     Card(
+                        Modifier.fillMaxWidth().clickable {
+                            topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
+                            repo?.loadAllTopicMessages(item) { result ->
+                                busy = false
+                                result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
+                            }
+                        },
                         colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
-                        shape = RoundedCornerShape(23.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (expanded) Color(0xFFB18CFF).copy(alpha = 0.48f) else Color.White.copy(alpha = 0.10f)
-                        )
+                        shape = RoundedCornerShape(21.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.085f))
                     ) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                Color(0xFF243B62).copy(alpha = 0.70f),
-                                                Color(0xFF30234B).copy(alpha = 0.72f)
-                                            )
-                                        )
-                                    )
-                                    .clickable {
-                                        if (expanded) {
-                                            topic = null
-                                            messages = emptyList()
-                                            hasMoreMessages = false
-                                        } else {
-                                            topic = item
-                                            topicSearch = ""
-                                            busy = true
-                                            messages = emptyList()
-                                            hasMoreMessages = false
-                                            error = null
-                                            repo?.loadAllTopicMessages(item) { result ->
-                                                busy = false
-                                                result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }
-                                                    .onFailure { error = it.message }
-                                            }
-                                        }
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 15.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(13.dp)
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(13.dp)
+                        ) {
+                            Box(
+                                Modifier.size(43.dp).background(Color(0xFF78AFFF).copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                    .border(1.dp, Color(0xFF78AFFF).copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    Modifier.size(46.dp)
-                                        .background(Color(0xFFB18CFF).copy(alpha = 0.15f), RoundedCornerShape(15.dp))
-                                        .border(1.dp, Color(0xFFB18CFF).copy(alpha = 0.25f), RoundedCornerShape(15.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        item.name.split(" ").take(2).mapNotNull { it.firstOrNull()?.toString() }.joinToString("").uppercase(),
-                                        color = Color(0xFFD0B8FF), fontWeight = FontWeight.Bold, fontSize = 13.sp
-                                    )
-                                }
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
-                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        when {
-                                            expanded && busy -> "LOADING LECTURES"
-                                            expanded -> "${subjectLectures.size} VIDEOS" + (totalDuration?.let { "  ·  ${it} TOTAL" } ?: "")
-                                            else -> "OPEN COLLECTION"
-                                        },
-                                        color = Color(0xFFADB5C8), fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.65.sp
-                                    )
-                                }
-                                if (expanded && busy) {
-                                    CircularProgressIndicator(Modifier.size(19.dp), strokeWidth = 2.dp, color = Color(0xFFB18CFF))
-                                } else {
-                                    Icon(
-                                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (expanded) "Collapse subject" else "Expand subject",
-                                        tint = Color(0xFFB8A6D8), modifier = Modifier.size(23.dp)
-                                    )
-                                }
+                                Icon(Icons.Default.MenuBook, null, tint = Color(0xFF78AFFF), modifier = Modifier.size(21.dp))
                             }
-                            if (expanded) {
-                                if (subjectLectures.isEmpty() && !busy) {
-                                    Text(
-                                        "No video lectures found in this subject.",
-                                        color = Color(0xFF9299AA), fontSize = 12.sp,
-                                        modifier = Modifier.padding(horizontal = 17.dp, vertical = 18.dp)
-                                    )
-                                }
-                                subjectLectures.forEachIndexed { index, lecture ->
-                                    val playedPositionMs = remember(lecture.stableId, progressRevision) {
-                                        context.getSharedPreferences("telegram_playback_local", android.content.Context.MODE_PRIVATE)
-                                            .getLong(lecture.stableId, 0L)
-                                    }
-                                    val progressFraction = if (lecture.durationSeconds > 0) {
-                                        (playedPositionMs.toFloat() / (lecture.durationSeconds * 1000f)).coerceIn(0f, 1f)
-                                    } else 0f
-                                    val displayTitle = remember(lecture.title) {
-                                        lecture.title.trim().replace(Regex("\\s*\\.(mp4|mkv|webm|mov)\\s*$", RegexOption.IGNORE_CASE), "").trim()
-                                    }
-                                    var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
-                                    LaunchedEffect(lecture.thumbnailFileId) {
-                                        val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
-                                        val auth = TelegramAuthManager.getInstance(context) { }
-                                        auth.sendRequest(TdApi.DownloadFile(thumbnailId, 16, 0L, 0L, true)) { result ->
-                                            val localPath = (result as? TdApi.File)?.local?.path
-                                            if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
-                                        }
-                                    }
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                                            .clip(RoundedCornerShape(17.dp))
-                                            .background(Color.White.copy(alpha = 0.075f))
-                                            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(17.dp))
-                                            .clickable { onPlayLecture(lecture) }
-                                            .padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Box(
-                                            Modifier.width(88.dp).aspectRatio(16f / 9f)
-                                                .clip(RoundedCornerShape(11.dp))
-                                                .background(Color(0xFF101827)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (thumbnailPath != null) {
-                                                AsyncImage(
-                                                    model = File(thumbnailPath!!),
-                                                    contentDescription = displayTitle,
-                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(11.dp))
-                                                )
-                                            } else {
-                                                Icon(Icons.Default.MenuBook, null, tint = Color(0xFFB18CFF), modifier = Modifier.size(23.dp))
-                                            }
-                                            Icon(
-                                                Icons.Default.PlayArrow, "Play lecture",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(27.dp)
-                                                    .background(Color.Black.copy(alpha = 0.48f), RoundedCornerShape(50))
-                                            )
-                                            if (lecture.durationSeconds > 0) {
-                                                val mins = lecture.durationSeconds / 60
-                                                val secs = lecture.durationSeconds % 60
-                                                Text(
-                                                    "${mins}:${secs.toString().padStart(2, '0')}",
-                                                    modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp)
-                                                        .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(4.dp))
-                                                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                                                    color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                            if (progressFraction > 0f) {
-                                                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp)
-                                                    .background(Color.White.copy(alpha = 0.22f))) {
-                                                    Box(Modifier.fillMaxWidth(progressFraction).fillMaxHeight()
-                                                        .background(Color(0xFFB18CFF)))
-                                                }
-                                            }
-                                        }
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                            Text(displayTitle, color = Color.White, fontWeight = FontWeight.SemiBold,
-                                                fontSize = 13.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                            val durationLabel = if (lecture.durationSeconds > 0) {
-                                                val h = lecture.durationSeconds / 3600
-                                                val m = (lecture.durationSeconds % 3600) / 60
-                                                val s = lecture.durationSeconds % 60
-                                                if (h > 0) "${h}h ${m}m" else "${m}m ${s.toString().padStart(2, '0')}s"
-                                            } else "Video lecture"
-                                            Text(durationLabel, color = Color(0xFFADB5C8), fontSize = 11.sp)
-                                            if (progressFraction > 0f) {
-                                                LinearProgressIndicator(
-                                                    progress = { progressFraction },
-                                                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(5.dp)),
-                                                    color = Color(0xFFB18CFF),
-                                                    trackColor = Color.White.copy(alpha = 0.12f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    if (index < subjectLectures.lastIndex) {
-                                        Spacer(Modifier.height(3.dp))
-                                    }
-                                }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text("OPEN SUBJECT", color = Color(0xFF9299AA), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
                             }
+                            Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF9299AA), modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -2334,7 +2169,131 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     }
                 }
             }
-        }
+        } else {
+            val lectures = remember(topic, messages) {
+                topic?.let { selected -> messages.mapNotNull { TelegramLecture.fromMessage(selected.chatId, selected.topicId, it) } }
+                    .orEmpty().distinctBy { it.stableId }.sortedBy { it.messageId }
+            }
+            error?.let { Text(it, color = Color(0xFFFF8A80)) }
+            val filteredLectures = lectures.filter { it.title.contains(topicSearch.trim(), ignoreCase = true) }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("LECTURES", color = Color(0xFF9299AA), fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Spacer(Modifier.weight(1f))
+                Text("${filteredLectures.size} loaded", color = Color(0xFF9299AA), fontSize = 11.sp)
+            }
+            LazyColumn(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)
+            ) {
+                items(filteredLectures, key = { it.stableId }, contentType = { "lecture" }) { lecture ->
+                    val playedPositionMs = remember(lecture.stableId, progressRevision) {
+                        context.getSharedPreferences("telegram_playback_local", android.content.Context.MODE_PRIVATE).getLong(lecture.stableId, 0L)
+                    }
+                    val progressFraction = if (lecture.durationSeconds > 0) (playedPositionMs.toFloat() / (lecture.durationSeconds * 1000f)).coerceIn(0f, 1f) else 0f
+                    val displayTitle = remember(lecture.title) { lecture.title.replace(Regex("\\.(mp4|mkv|webm|mov)$", RegexOption.IGNORE_CASE), "") }
+                    var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
+                    LaunchedEffect(lecture.thumbnailFileId) {
+                        val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
+                        val auth = TelegramAuthManager.getInstance(context) { }
+                        auth.sendRequest(TdApi.DownloadFile(thumbnailId, 16, 0L, 0L, true)) { result ->
+                            val localPath = (result as? TdApi.File)?.local?.path
+                            if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
+                        }
+                    }
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .clickable { onPlayLecture(lecture) }
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                Modifier.width(108.dp).aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(Color(0xFF17243A))
+                                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(11.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (thumbnailPath != null) {
+                                    AsyncImage(
+                                        model = File(thumbnailPath!!),
+                                        contentDescription = displayTitle,
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(11.dp))
+                                    )
+                                } else {
+                                    Icon(Icons.Default.MenuBook, null, tint = Color(0xFF78AFFF), modifier = Modifier.size(27.dp))
+                                }
+                                Box(
+                                    Modifier.align(Alignment.Center).size(29.dp)
+                                        .background(Color.Black.copy(alpha = 0.52f), RoundedCornerShape(50)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, "Play lecture", tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                                if (progressFraction > 0f) {
+                                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.20f))) {
+                                        Box(Modifier.fillMaxWidth(progressFraction).fillMaxHeight().background(Color(0xFF78AFFF)))
+                                    }
+                                }
+                            }
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Text(
+                                    displayTitle,
+                                    color = Color(0xFFF5F6FA),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    lineHeight = 19.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (lecture.durationSeconds > 0) {
+                                    val hours = lecture.durationSeconds / 3600
+                                    val minutes = (lecture.durationSeconds % 3600) / 60
+                                    val seconds = lecture.durationSeconds % 60
+                                    val durationLabel = if (hours > 0) "${hours}h ${minutes}m" else if (minutes > 0) "${minutes}m ${seconds.toString().padStart(2, '0')}s" else "${seconds}s"
+                                    Text(
+                                        durationLabel,
+                                        color = Color(0xFF9299AA),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else {
+                                    Text("Video lecture", color = Color(0xFF9299AA), fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 134.dp),
+                        color = Color.White.copy(alpha = 0.075f),
+                        thickness = 0.7.dp
+                    )
+                }
+                if (filteredLectures.isEmpty()) {
+                    item {
+                        Text(
+                            if (topicSearch.isNotBlank()) "No lectures match this search."
+                            else "No video lectures are available in this subject yet.",
+                            color = Color(0xFF9299AA),
+                            fontSize = 13.sp,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                        )
+                    }
+                }
+            }
+
         }
     }
 }
