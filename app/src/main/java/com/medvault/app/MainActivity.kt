@@ -1833,7 +1833,8 @@ private fun MedVaultRoot(
                         status = status, onBack = onFolderBack, onRefresh = onRefresh, onGlobalSearch = onGlobalSearch,
                         onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
                     else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings,
+                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
+                        onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                 }
             }
