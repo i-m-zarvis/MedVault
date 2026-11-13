@@ -1931,6 +1931,7 @@ private class TelegramLibraryScreenState {
     val status = mutableStateOf<String?>(null)
     val error = mutableStateOf<String?>(null)
     val topicSearch = mutableStateOf("")
+    val topicMessagesCache = mutableStateOf<Map<String, List<org.drinkless.tdlib.TdApi.Message>>>(emptyMap())
 }
 
 @Composable
@@ -1950,6 +1951,47 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var status by state.status
     var error by state.error
     var topicSearch by state.topicSearch
+    var topicMessagesCache by state.topicMessagesCache
+
+    // Keep each opened subject's history for this screen session. Re-entering a
+    // subject is instant and does not trigger another TDLib history request.
+    val openTopic: (TelegramForumTopic) -> Unit = { selected ->
+        topic = selected
+        topicSearch = ""
+        error = null
+        val cacheKey = "${selected.chatId}:${selected.topicId}"
+        val cachedMessages = topicMessagesCache[cacheKey]
+        if (cachedMessages != null) {
+            messages = cachedMessages
+            busy = false
+            hasMoreMessages = false
+        } else {
+            messages = emptyList()
+            busy = true
+            hasMoreMessages = false
+            val sourceRepo = repo
+            if (sourceRepo == null) {
+                busy = false
+                error = "Video library is not ready yet. Try again."
+            } else {
+                sourceRepo.loadTopicMessagesProgressively(
+                    selected,
+                    onPage = { page ->
+                        messages = page
+                        topicMessagesCache = topicMessagesCache + (cacheKey to page)
+                    },
+                    onComplete = { result ->
+                        busy = false
+                        result.onSuccess {
+                            messages = it
+                            topicMessagesCache = topicMessagesCache + (cacheKey to it)
+                        }.onFailure { error = it.message }
+                    }
+                )
+            }
+        }
+    }
+
     val visibleTopics = remember(topics, topicSearch) {
         topics.filter { it.name.contains(topicSearch.trim(), ignoreCase = true) }
     }
@@ -2088,16 +2130,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                     items(visibleTopics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
-                            topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
-                            repo?.loadTopicMessagesProgressively(
-                                item,
-                                onPage = { page -> messages = page },
-                                onComplete = { result ->
-                                    busy = false
-                                    result.onSuccess { messages = it; hasMoreMessages = false }
-                                        .onFailure { error = it.message }
-                                }
-                            )
+                            openTopic(item)
                         }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
@@ -2140,11 +2173,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 items(visibleTopics, key = { it.topicId }) { item ->
                     Card(
                         Modifier.fillMaxWidth().clickable {
-                            topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
-                            repo?.loadAllTopicMessages(item) { result ->
-                                busy = false
-                                result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
-                            }
+                            openTopic(item)
                         },
                         colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
                         shape = RoundedCornerShape(21.dp),
