@@ -2249,7 +2249,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 placeholder = {
-                    Text(if (topic == null) "Search topics, modules, teachers…" else "Search lectures in ${topic?.name ?: "subject"}…", color = AppMuted)
+                    Text("Search", color = AppMuted)
                 },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = AppMuted) },
                 trailingIcon = {
@@ -2713,7 +2713,7 @@ private fun VideosDashboard(
                     onValueChange = { query = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("Search lectures") },
+                    placeholder = { Text("Search") },
                     leadingIcon = { Icon(Icons.Default.Search, null) },
                     shape = RoundedCornerShape(14.dp)
                 )
@@ -3290,7 +3290,7 @@ private fun DriveBrowser(
                 .fillMaxWidth()
                 .padding(top = 8.dp),
             singleLine = true,
-            placeholder = { Text("Search all Google Drive") },
+            placeholder = { Text("Search") },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = null, tint = muted)
             },
