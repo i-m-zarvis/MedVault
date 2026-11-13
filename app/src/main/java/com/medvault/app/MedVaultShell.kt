@@ -309,9 +309,7 @@ fun MedVaultHomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("YOUR LIBRARY", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onSettings, contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)) {
-                            Text("Manage", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                        Spacer(Modifier.width(1.dp))
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
