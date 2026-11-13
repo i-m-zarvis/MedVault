@@ -2069,6 +2069,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var status by state.status
     var error by state.error
     var topicSearch by state.topicSearch
+    var pendingDeleteLecture by remember { mutableStateOf<DownloadedLecture?>(null) }
     // Keep a small LRU of completed subject histories. A generation token owns
     // each request so callbacks from a screen we have left cannot mutate it.
     val openTopic: (TelegramForumTopic) -> Unit = { selected ->
@@ -2514,7 +2515,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     }
                     if (offlineCopy != null) {
                         IconButton(
-                            onClick = { onDeleteOffline(offlineCopy) },
+                            onClick = { pendingDeleteLecture = offlineCopy },
                             modifier = Modifier.size(42.dp)
                         ) {
                             Icon(Icons.Default.DeleteOutline, "Delete offline copy", tint = Color(0xFFFF8A80))
@@ -2578,6 +2579,22 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         }
             }
         }
+    }
+    pendingDeleteLecture?.let { lecture ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteLecture = null },
+            title = { Text("Delete offline copy?") },
+            text = { Text(lecture.name) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteOffline(lecture)
+                    pendingDeleteLecture = null
+                }) { Text("Delete", color = Color(0xFFFF8A80)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteLecture = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 
