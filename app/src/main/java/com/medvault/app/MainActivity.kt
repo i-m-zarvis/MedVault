@@ -3626,12 +3626,7 @@ private fun VideoScreen(
                 }
             }
 
-            AnimatedVisibility(
-                visible = controlsVisible,
-                enter = fadeIn(animationSpec = tween(180)),
-                exit = fadeOut(animationSpec = tween(260)),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            PlayerControlsVisibility(visible = controlsVisible) {
                 Box(Modifier.fillMaxSize()) {
                     // Top floating glass toolbar.
                     Row(
@@ -3832,6 +3827,21 @@ private fun VideoScreen(
                     fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun PlayerControlsVisibility(
+    visible: Boolean,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(180)),
+        exit = fadeOut(animationSpec = tween(260)),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        content()
     }
 }
 
