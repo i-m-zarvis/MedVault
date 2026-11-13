@@ -132,6 +132,8 @@ class MainActivity : ComponentActivity() {
     private var selectedPdfTitle by mutableStateOf("Document")
     private var pdfReturnScreen by mutableStateOf("qbank")
     private var screen by mutableStateOf("home")
+    private var playerReturnScreen by mutableStateOf("videos")
+    private var telegramProgressRevision by mutableIntStateOf(0)
     private var accountMenu by mutableStateOf(false)
     private var pipMode by mutableStateOf(false)
     private var fullscreen by mutableStateOf(false)
@@ -293,6 +295,7 @@ class MainActivity : ComponentActivity() {
                     canGoBack = folderStack.isNotEmpty(),
                     selectedVideo = selectedVideo,
                     screen = screen,
+                    telegramProgressRevision = telegramProgressRevision,
                     activeEdition = activeEdition,
                     onEditionChange = { edition ->
                         activeEdition = edition
@@ -372,10 +375,9 @@ class MainActivity : ComponentActivity() {
                         screen = "home"
                     },
                     onPlayerBack = {
-                        val returnToTelegram = selectedTelegramLecture != null
                         saveCurrentProgress()
                         leavePlayer()
-                        screen = "videos"
+                        screen = playerReturnScreen
                     },
 
                     onFolderBack = {
@@ -890,6 +892,7 @@ class MainActivity : ComponentActivity() {
             getSharedPreferences("telegram_playback_local", MODE_PRIVATE).edit()
                 .putLong(lecture.stableId, if (completed) duration else position.coerceAtLeast(0L))
                 .apply()
+            telegramProgressRevision++
             return
         }
 
@@ -1421,6 +1424,7 @@ class MainActivity : ComponentActivity() {
 
         player = newPlayer
         selectedVideo = item
+        playerReturnScreen = screen
         screen = "player"
 
         var resumeApplied = false
@@ -1519,6 +1523,7 @@ class MainActivity : ComponentActivity() {
             mimeType = lecture.mimeType,
             accountId = "telegram-local"
         )
+        playerReturnScreen = screen
         screen = "player"
 
         var resumeApplied = false
@@ -1656,7 +1661,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MedVaultRoot(
     showBrandSplash: Boolean,
-    connected: Boolean, authBusy: Boolean, loading: Boolean, status: String,
+    connected: Boolean, authBusy: Boolean, loading: Boolean, status: String, telegramProgressRevision: Int,
     items: List<DriveItem>, folderName: String, canGoBack: Boolean,
     selectedVideo: DriveItem?, screen: String, activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit, activeAccountEmail: String,
     onOpenTelegram: () -> Unit, onOpenTelegramLibrary: () -> Unit,
@@ -1681,6 +1686,7 @@ private fun MedVaultRoot(
     onRetryDownload: (WorkInfo) -> Unit, onPlayOffline: (DownloadedLecture) -> Unit,
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
+    val telegramLibraryState = remember { TelegramLibraryScreenState() }
     val mainTabs = setOf("home", "videos", "qbank", "offline", "settings")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
@@ -1705,7 +1711,8 @@ private fun MedVaultRoot(
                         onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
-                        onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources, activeEdition = activeEdition)
+                        onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources,
+                        activeEdition = activeEdition, state = telegramLibraryState, progressRevision = telegramProgressRevision)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice)
                     "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition)
