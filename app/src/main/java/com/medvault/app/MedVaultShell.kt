@@ -556,6 +556,65 @@ private fun HomeEditorialCard(
     }
 }
 
+/**
+ * Uses Android's cross-window blur to sample the real app content behind the dock.
+ * If the system disables cross-window blur, the existing glass surface remains
+ * readable and functional without blur.
+ */
+@Composable
+fun MedVaultBottomBarHost(
+    selected: String,
+    onHome: () -> Unit,
+    onVideos: () -> Unit,
+    onQBank: () -> Unit,
+    onOffline: () -> Unit,
+    onProfile: () -> Unit
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+            SideEffect {
+                dialogWindow?.let { window ->
+                    window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                    val blurEnabled = LocalContext.current
+                        .getSystemService(WindowManager::class.java)
+                        ?.isCrossWindowBlurEnabled == true
+                    if (blurEnabled) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                        window.setBackgroundBlurRadius(40)
+                        window.setDimAmount(0.10f)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                        window.setBackgroundBlurRadius(0)
+                        window.setDimAmount(0f)
+                    }
+                    window.attributes = window.attributes.apply {
+                        gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                        width = WindowManager.LayoutParams.MATCH_PARENT
+                        height = WindowManager.LayoutParams.WRAP_CONTENT
+                        dimAmount = if (blurEnabled) 0.10f else 0f
+                    }
+                }
+            }
+            Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
+                MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile)
+            }
+        }
+    } else {
+        MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile)
+    }
+}
+
 @Composable
 fun MedVaultBottomBar(
     selected: String,
