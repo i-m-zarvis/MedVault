@@ -1998,6 +1998,9 @@ private class TelegramLibraryScreenState {
 @Composable
 private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    DisposableEffect(state) {
+        onDispose { state.cancelTopicRequest() }
+    }
     var authState by state.authState
     var repo by state.repo
     var groups by state.groups
