@@ -1,6 +1,0 @@
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/medvault_emblem_freeform"
-    android:insetLeft="13dp"
-    android:insetTop="10dp"
-    android:insetRight="13dp"
-    android:insetBottom="10dp" />

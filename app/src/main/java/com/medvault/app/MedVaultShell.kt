@@ -259,7 +259,7 @@ fun MedVaultHomeScreen(
                                     Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(RoundedCornerShape(50)).background(HomeBlue))
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("CONTINUE FROM ${'$'}{formatWatchPosition(resume.positionMs)}", color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text("CONTINUE FROM ${formatWatchPosition(resume.positionMs)}", color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     Spacer(Modifier.weight(1f))
                                     Surface(color = HomeBlue, shape = RoundedCornerShape(50)) {
                                         Row(Modifier.padding(horizontal = 15.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -318,7 +318,7 @@ fun MedVaultHomeScreen(
                                         Surface(color = HomeBlue.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp)) { Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, null, tint = HomeBlue) } }
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Text(record.name, color = HomeInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Text(if (record.completed) "Completed" else "Continue · ${'$'}{formatWatchPosition(record.positionMs)}", color = HomeMuted, fontSize = 11.sp)
+                                            Text(if (record.completed) "Completed" else "Continue · ${formatWatchPosition(record.positionMs)}", color = HomeMuted, fontSize = 11.sp)
                                         }
                                         Icon(Icons.Default.ChevronRight, null, tint = HomeMuted, modifier = Modifier.size(19.dp))
                                     }
