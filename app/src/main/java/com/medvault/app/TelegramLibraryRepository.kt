@@ -130,7 +130,7 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         callback: (Result<List<TdApi.Message>>) -> Unit
     ) {
         val request: TdApi.Function<*> = if (topic.topicId == 0) {
-            TdApi.GetChatHistory(topic.chatId, fromMessageId, 0, limit.coerceIn(1, 100), false)
+            TdApi.GetChatHistory(topic.chatId, fromMessageId, if (fromMessageId == 0L) 0 else -1, limit.coerceIn(1, 100), false)
         } else {
             TdApi.GetForumTopicHistory(topic.chatId, topic.topicId, fromMessageId, 0, limit.coerceIn(1, 100))
         }
