@@ -2681,6 +2681,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             else -> Icon(Icons.Default.Download, "Download for offline", tint = Color.White.copy(alpha = 0.72f))
                         }
                     }
+                    LiquidBookmarkButton(contentId = "video:${lecture.stableId}", title = displayTitle, contentType = "video")
                     }
                     androidx.compose.material3.HorizontalDivider(
                         modifier = Modifier.padding(start = 134.dp),
