@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -82,6 +84,7 @@ fun DownloadManagerScreen(
     val storageTotal = storageUsed + storageFree
     val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
     var libraryQuery by remember { mutableStateOf("") }
+    var pendingDelete by remember { mutableStateOf<DownloadedLecture?>(null) }
     fun isPaused(work: WorkInfo): Boolean {
         val fileId = work.tags.firstOrNull { it.startsWith("medvault_download_") }
             ?.removePrefix("medvault_download_") ?: return false
@@ -252,7 +255,7 @@ fun DownloadManagerScreen(
                     OfflineLectureCard(
                         lecture = lecture,
                         onPlay = { onPlayOffline(lecture) },
-                        onDelete = { onDeleteOffline(lecture) }
+                        onDelete = { pendingDelete = lecture }
                     )
                 }
             }
@@ -290,6 +293,35 @@ fun DownloadManagerScreen(
                 }
             }
         }
+    }
+
+    pendingDelete?.let { lecture ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            containerColor = Color(0xFF1A2033),
+            title = { Text("Delete offline copy?") },
+            text = {
+                Text(
+                    "“${lecture.name}” will be removed from this device. The original Telegram video and source message will not be affected.",
+                    color = DownloadMuted
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteOffline(lecture)
+                        pendingDelete = null
+                    }
+                ) {
+                    Text("Delete", color = Color(0xFFFF8A80))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("Keep download", color = DownloadAccent)
+                }
+            }
+        )
     }
 }
 
