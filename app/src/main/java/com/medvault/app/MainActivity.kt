@@ -1738,9 +1738,8 @@ private fun MedVaultRoot(
             }
         }
         if (screen in mainTabs && !pipMode && !showBrandSplash) {
-            // The dock lives in a separate blur window; reserve its footprint in this
-            // Column so scrollable content ends above the floating dock instead of behind it.
-            Spacer(Modifier.fillMaxWidth().height(90.dp))
+            // Floating dock overlays the scroll layer; individual scroll containers own
+            // their bottom content insets so items can scroll behind and clear the glass.
             MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
                 onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
@@ -2031,7 +2030,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
             if (groups.isNotEmpty()) {
                 Text("FORUM GROUPS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                     items(groups, key = { it.chatId }) { group ->
                         Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2054,7 +2053,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             } else if (topics.isNotEmpty()) {
                 Text("SUBJECTS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                     items(visibleTopics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
                             topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
@@ -2100,7 +2099,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Spacer(Modifier.weight(1f))
                 Text("${visibleTopics.size} available", color = Color(0xFF9299AA), fontSize = 11.sp)
             }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                 items(visibleTopics, key = { it.topicId }) { item ->
                     Card(
                         Modifier.fillMaxWidth().clickable {
@@ -2148,7 +2147,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     .orEmpty().distinctBy { it.stableId }.sortedBy { it.messageId }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                 items(lectures.filter { it.title.contains(topicSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { lecture ->
                     var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
                     LaunchedEffect(lecture.thumbnailFileId) {
