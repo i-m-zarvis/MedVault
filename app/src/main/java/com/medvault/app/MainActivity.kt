@@ -1783,7 +1783,8 @@ private fun MedVaultRoot(
                         onPlayLecture = onPlayTelegramLecture, onDownloadLecture = onDownloadTelegramLecture,
                         downloadedLectures = downloadedLectures, downloadWorkItems = downloadWorkItems,
                         setupMode = false, onManageSources = onOpenStudySources,
-                        activeEdition = activeEdition, state = telegramLibraryState, progressRevision = telegramProgressRevision)
+                        activeEdition = activeEdition, state = telegramLibraryState, progressRevision = telegramProgressRevision,
+                        onDeleteOffline = onDeleteOffline)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice, state = qbankLibraryState)
                     "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, state = notesLibraryState)
@@ -2049,7 +2050,7 @@ private class TelegramLibraryScreenState {
 }
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, onDownloadLecture: (TelegramLecture) -> Unit, downloadedLectures: List<DownloadedLecture>, downloadWorkItems: List<WorkInfo>, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int) {
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, onDownloadLecture: (TelegramLecture) -> Unit, downloadedLectures: List<DownloadedLecture>, downloadWorkItems: List<WorkInfo>, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int, onDeleteOffline: (DownloadedLecture) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(state) {
         onDispose { state.cancelTopicRequest() }
@@ -2509,6 +2510,14 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                     Text("Video lecture", color = Color(0xFF9299AA), fontSize = 12.sp)
                                 }
                             }
+                        }
+                    }
+                    if (offlineCopy != null) {
+                        IconButton(
+                            onClick = { onDeleteOffline(offlineCopy) },
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, "Delete offline copy", tint = Color(0xFFFF8A80))
                         }
                     }
                     IconButton(
