@@ -1706,9 +1706,11 @@ private fun MedVaultRoot(
             transitionSpec = {
                 if (initialState == "player" || targetState == "player") EnterTransition.None togetherWith ExitTransition.None
                 else (fadeIn(animationSpec = LiquidMotion.FadeIn) +
-                    slideInHorizontally(animationSpec = LiquidMotion.NavigationOffset) { it / 18 }) togetherWith
+                    slideInHorizontally(animationSpec = LiquidMotion.NavigationOffset) { it / 5 } +
+                    scaleIn(initialScale = 0.985f, animationSpec = LiquidMotion.Navigation)) togetherWith
                     (fadeOut(animationSpec = LiquidMotion.FadeOut) +
-                    slideOutHorizontally(animationSpec = LiquidMotion.NavigationOffset) { -it / 22 })
+                    slideOutHorizontally(animationSpec = LiquidMotion.NavigationOffset) { -it / 9 } +
+                    androidx.compose.animation.scaleOut(targetScale = 0.992f, animationSpec = LiquidMotion.Navigation))
             },
             label = "medvault_navigation"
         ) { targetScreen ->
