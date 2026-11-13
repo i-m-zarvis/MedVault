@@ -341,15 +341,20 @@ fun TelegramDocumentLibraryScreen(
 
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
-            Column(Modifier.weight(1f)) {
-                Text(if (edition == MedVaultEdition.QBANK) "QBank Vault" else "Notes Library", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(selectedTopic?.name ?: selectedGroup ?: "PRACTICE MODULES  ·  PDF LIBRARY", color = StudyAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) {
+                Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(if (edition == MedVaultEdition.QBANK) "QBank Vault" else "Notes Vault",
+                    fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(selectedTopic?.name ?: selectedGroup ?: "STUDY DOCUMENTS",
+                    color = StudyAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (edition == MedVaultEdition.QBANK) {
-                TextButton(onClick = onOpenPractice) { Text("Practice MCQs") }
+                TextButton(onClick = onOpenPractice) { Text("Practice", color = StudyAccent, fontWeight = FontWeight.SemiBold) }
             }
-            if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = StudyAccent)
         }
 
         if (selectedTopic != null && documents.isNotEmpty()) {
@@ -422,29 +427,54 @@ fun TelegramDocumentLibraryScreen(
                 if (topics.isEmpty() && !busy) item { Text("No topics found in this source group.", color = StudyMuted) }
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("DOCUMENTS", color = StudyMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Spacer(Modifier.weight(1f))
+                Text("${documents.count { it.title.contains(documentSearch.trim(), ignoreCase = true) }} files", color = StudyMuted, fontSize = 11.sp)
+            }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 112.dp)) {
                 items(documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { document ->
                     val local = TelegramPdfStore.localFile(context, sourceEdition, document)
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2038)), shape = RoundedCornerShape(26.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFFF7777), modifier = Modifier.size(28.dp))
-                                Spacer(Modifier.width(10.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(document.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(if (document.fileSizeBytes > 0) "${document.fileSizeBytes / (1024 * 1024)} MB · PDF" else "PDF document", color = StudyMuted, fontSize = 11.sp)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
+                        shape = RoundedCornerShape(21.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.085f))
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(
+                                    Modifier.size(48.dp).background(Color(0xFFFF7777).copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                        .border(1.dp, Color(0xFFFF7777).copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFFF8585), modifier = Modifier.size(25.dp))
                                 }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(document.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                                        lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        if (document.fileSizeBytes > 0) "${document.fileSizeBytes / (1024 * 1024)} MB  ·  PDF" else "PDF DOCUMENT",
+                                        color = StudyMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.55.sp
+                                    )
+                                }
+                                if (local.isFile) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF62D7C8), modifier = Modifier.size(19.dp))
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    enabled = downloadingId != document.stableId && local.isFile,
-                                    onClick = { onOpenPdf(local, document.title) },
-                                    modifier = Modifier.weight(1f)
-                                ) { Icon(Icons.Default.Visibility, null); Spacer(Modifier.width(5.dp)); Text("Open offline") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
                                 OutlinedButton(
+                                    enabled = local.isFile && downloadingId != document.stableId,
+                                    onClick = { onOpenPdf(local, document.title) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StudyAccent)
+                                ) {
+                                    Icon(Icons.Default.Visibility, null, modifier = Modifier.size(17.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Open", maxLines = 1)
+                                }
+                                Button(
                                     enabled = downloadingId != document.stableId,
                                     onClick = {
-                                        val manager = auth ?: return@OutlinedButton
+                                        val manager = auth ?: return@Button
                                         downloadingId = document.stableId
                                         error = null
                                         TelegramPdfStore.download(context, manager, sourceEdition, document) { result ->
@@ -453,17 +483,26 @@ fun TelegramDocumentLibraryScreen(
                                                 .onFailure { error = it.message }
                                         }
                                     },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = StudyAccent.copy(alpha = 0.16f), contentColor = StudyAccent)
                                 ) {
-                                    Icon(Icons.Default.Download, null)
-                                    Spacer(Modifier.width(5.dp))
-                                    Text(if (downloadingId == document.stableId) "Downloading…" else if (local.isFile) "Downloaded" else "Download")
+                                    if (downloadingId == document.stableId) {
+                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = StudyAccent)
+                                    } else {
+                                        Icon(if (local.isFile) Icons.Default.CheckCircle else Icons.Default.Download, null, modifier = Modifier.size(17.dp))
+                                    }
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(if (downloadingId == document.stableId) "Saving…" else if (local.isFile) "Downloaded" else "Download", maxLines = 1)
                                 }
                             }
                         }
                     }
                 }
-                if (documents.isEmpty() && !busy) item { Text("No PDF documents found in this topic's latest messages.", color = StudyMuted) }
+                if (documents.isEmpty() && !busy) item {
+                    Text("No PDF documents found in this topic.", color = StudyMuted, fontSize = 13.sp,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp))
+                }
             }
         }
         status?.let { Text(it, color = StudyAccent, fontSize = 12.sp) }
