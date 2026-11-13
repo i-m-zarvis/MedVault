@@ -1024,6 +1024,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 if (showAbout) {
                     Text("MedVault is a personal medical learning library for lectures, question banks, tests and revision.", color = ShellMuted, fontSize = 12.sp)
                     Text("Version 1.0", color = ShellMuted, fontSize = 11.sp)
+                    Text("Developed by Aftab Khan", color = ShellBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
