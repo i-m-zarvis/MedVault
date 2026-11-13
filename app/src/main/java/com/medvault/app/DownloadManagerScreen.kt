@@ -302,7 +302,7 @@ fun DownloadManagerScreen(
             title = { Text("Delete offline copy?") },
             text = {
                 Text(
-                    "“${lecture.name}” will be removed from this device. The original Telegram video and source message will not be affected.",
+                    "“${lecture.name}” will be removed from this device. The original source file or message will not be affected.",
                     color = DownloadMuted
                 )
             },
