@@ -3734,7 +3734,7 @@ private fun VideoScreen(
                                         .heightIn(max = (screenHeight * 0.72f).coerceAtLeast(220.dp))
                                         .clip(RoundedCornerShape(26.dp))
                                         .background(
-                                            Brush.verticalGradient(listOf(Color(0xEAF1F4FA), Color(0xE51A2233), Color(0xF2182233))),
+                                            Brush.verticalGradient(listOf(Color(0xE82B3447), Color(0xEA182235), Color(0xF20B1220))),
                                             RoundedCornerShape(26.dp)
                                         )
                                         .border(1.dp, Brush.verticalGradient(listOf(Color(0xAAFFFFFF), Color(0x33FFFFFF))), RoundedCornerShape(26.dp))
@@ -3926,7 +3926,7 @@ private fun VideoScreen(
                                             .clip(RoundedCornerShape(26.dp))
                                             .background(
                                                 Brush.verticalGradient(
-                                                    listOf(Color(0xEAF1F4FA), Color(0xE51A2233), Color(0xF2182233))
+                                                    listOf(Color(0xE82B3447), Color(0xEA182235), Color(0xF20B1220))
                                                 ),
                                                 RoundedCornerShape(26.dp)
                                             )
