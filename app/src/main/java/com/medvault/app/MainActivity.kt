@@ -30,12 +30,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -2029,11 +2032,10 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             } else {
                 onBack()
             }
+            backProgress.animateTo(0f, spring(dampingRatio = 0.88f, stiffness = 520f))
         } catch (cancelled: CancellationException) {
             backProgress.animateTo(0f, spring(dampingRatio = 0.88f, stiffness = 520f))
             throw cancelled
-        } finally {
-            backProgress.snapTo(0f)
         }
     }
     val activeTitle = when (activeEdition) {
@@ -2225,10 +2227,19 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                 items(visibleTopics, key = { it.topicId }) { item ->
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val pressed by interactionSource.collectIsPressedAsState()
+                    val cardScale by animateFloatAsState(
+                        targetValue = if (pressed) 0.985f else 1f,
+                        animationSpec = spring(dampingRatio = 0.78f, stiffness = 700f),
+                        label = "subject_card_press"
+                    )
                     Card(
-                        Modifier.fillMaxWidth().clickable {
-                            openTopic(item)
-                        },
+                        Modifier.fillMaxWidth()
+                            .graphicsLayer { scaleX = cardScale; scaleY = cardScale }
+                            .clickable(interactionSource = interactionSource, indication = null) {
+                                openTopic(item)
+                            },
                         colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
                         shape = RoundedCornerShape(21.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.085f))
