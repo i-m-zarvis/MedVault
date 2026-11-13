@@ -2501,9 +2501,11 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                         }
                     }
                     IconButton(
-                        onClick = { if (offlineCopy == null && downloadWork?.state != WorkInfo.State.RUNNING && downloadWork?.state != WorkInfo.State.ENQUEUED) onDownloadLecture(lecture) },
-                        enabled = offlineCopy == null && downloadWork?.state != WorkInfo.State.RUNNING && downloadWork?.state != WorkInfo.State.ENQUEUED,
+                        onClick = { if (offlineCopy == null && downloadWork?.state != WorkInfo.State.RUNNING && downloadWork?.state != WorkInfo.State.ENQUEUED && downloadWork?.state != WorkInfo.State.BLOCKED) onDownloadLecture(lecture) },
+                        enabled = offlineCopy == null && downloadWork?.state != WorkInfo.State.RUNNING && downloadWork?.state != WorkInfo.State.ENQUEUED && downloadWork?.state != WorkInfo.State.BLOCKED,
                         modifier = Modifier.size(42.dp)
+                            .background(Color.White.copy(alpha = 0.045f), RoundedCornerShape(50))
+                            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(50))
                     ) {
                         when {
                             offlineCopy != null -> Icon(Icons.Default.CheckCircle, "Available offline", tint = Color(0xFF63D6B0))
