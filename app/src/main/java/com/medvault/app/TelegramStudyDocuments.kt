@@ -436,7 +436,9 @@ fun TelegramDocumentLibraryScreen(
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 112.dp)) {
                 items(documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { document ->
+                    var localFileRevision by remember(document.stableId) { mutableStateOf(0) }
                     val local = TelegramPdfStore.localFile(context, sourceEdition, document)
+                    val isDownloaded = localFileRevision >= 0 && local.isFile
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
                         shape = RoundedCornerShape(21.dp),
@@ -459,11 +461,11 @@ fun TelegramDocumentLibraryScreen(
                                         color = StudyMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.55.sp
                                     )
                                 }
-                                if (local.isFile) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF62D7C8), modifier = Modifier.size(19.dp))
+                                if (isDownloaded) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF62D7C8), modifier = Modifier.size(19.dp))
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
                                 OutlinedButton(
-                                    enabled = local.isFile && downloadingId != document.stableId,
+                                    enabled = isDownloaded && downloadingId != document.stableId,
                                     onClick = { onOpenPdf(local, document.title) },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(14.dp),
@@ -472,6 +474,13 @@ fun TelegramDocumentLibraryScreen(
                                     Icon(Icons.Default.Visibility, null, modifier = Modifier.size(17.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text("Open", maxLines = 1)
+                                }
+                                if (isDownloaded) {
+                                    IconButton(onClick = {
+                                        if (local.delete()) localFileRevision++
+                                    }) {
+                                        Icon(Icons.Default.DeleteOutline, "Delete offline PDF", tint = Color(0xFFFF8A80))
+                                    }
                                 }
                                 Button(
                                     enabled = downloadingId != document.stableId,
