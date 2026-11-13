@@ -259,13 +259,18 @@ fun MedVaultHomeScreen(
         }
     }
     val spinning = refreshRequested && activeWork != null
-    val spinTransition = rememberInfiniteTransition(label = "vault-refresh")
-    val rotation by spinTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)
-        ), label = "vault-rotation"
-    )
+    val rotation = if (spinning) {
+        val spinTransition = rememberInfiniteTransition(label = "vault-refresh")
+        val animatedRotation by spinTransition.animateFloat(
+            initialValue = 0f, targetValue = 360f,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                animation = androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)
+            ), label = "vault-rotation"
+        )
+        animatedRotation
+    } else {
+        0f
+    }
     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).nestedScroll(refreshConnection)) {
     LazyColumn(
         state = listState,
