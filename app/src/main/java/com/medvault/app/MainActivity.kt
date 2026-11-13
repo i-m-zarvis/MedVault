@@ -45,6 +45,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -2057,7 +2058,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     items(visibleTopics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
                             topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
-                            repo?.loadTopicMessages(item) { result ->
+                            repo?.loadAllTopicMessages(item) { result ->
                                 busy = false
                                 result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
                             }
@@ -2104,7 +2105,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     Card(
                         Modifier.fillMaxWidth().clickable {
                             topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
-                            repo?.loadTopicMessages(item) { result ->
+                            repo?.loadAllTopicMessages(item) { result ->
                                 busy = false
                                 result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
                             }
@@ -2255,24 +2256,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     }
                 }
             }
-            if (hasMoreMessages) {
-                OutlinedButton(
-                    enabled = !busy && messages.isNotEmpty(),
-                    onClick = {
-                        val oldest = messages.minOfOrNull { it.id } ?: return@OutlinedButton
-                        busy = true
-                        repo?.loadTopicMessages(topic!!, fromMessageId = oldest) { result ->
-                            busy = false
-                            result.onSuccess { page ->
-                                val merged = (messages + page).distinctBy { it.id }
-                                messages = merged
-                                hasMoreMessages = page.size >= 100
-                            }.onFailure { error = it.message }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(if (busy) "Loading…" else "Load older messages") }
-            }
+
         }
     }
 }
