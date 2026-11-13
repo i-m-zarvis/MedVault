@@ -177,18 +177,22 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
      */
     fun loadTopicMessagesProgressively(
         topic: TelegramForumTopic,
+        shouldContinue: () -> Boolean = { true },
         onPage: (List<TdApi.Message>) -> Unit,
         onComplete: (Result<List<TdApi.Message>>) -> Unit
     ) {
         val collected = linkedMapOf<Long, TdApi.Message>()
         var firstPageDelivered = false
         fun loadPage(fromMessageId: Long) {
+            if (!shouldContinue()) return
             loadTopicMessages(topic, fromMessageId = fromMessageId, limit = 100) { result ->
+                if (!shouldContinue()) return@loadTopicMessages
                 result.onFailure {
                     if (!firstPageDelivered) onComplete(Result.failure(it))
                     else onComplete(Result.success(collected.values.sortedByDescending { msg -> msg.id }))
                 }
                 result.onSuccess { page ->
+                    if (!shouldContinue()) return@onSuccess
                     page.forEach { collected[it.id] = it }
                     val ordered = collected.values.sortedByDescending { it.id }
                     firstPageDelivered = true
