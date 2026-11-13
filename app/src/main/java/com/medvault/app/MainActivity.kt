@@ -1787,7 +1787,7 @@ private fun MedVaultRoot(
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice, state = qbankLibraryState)
                     "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, state = notesLibraryState)
-                    "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
+                    "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome, onDeleteOffline)
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
                     "daily_dose" -> MedVaultQuestionScreen(onBack = onHome, dailyMode = true)
