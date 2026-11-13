@@ -1948,7 +1948,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Text(topic?.name ?: "Lectures", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     if (topic == null) "YOUR VIDEO LIBRARY" else "LECTURE COLLECTION",
-                    color = LiquidViolet,
+                    color = Color(0xFFB18CFF),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp
@@ -1957,16 +1957,16 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             if (topic == null) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = HomeBlue.copy(alpha = 0.13f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, HomeBlue.copy(alpha = 0.30f))
+                    color = Color(0xFF78AFFF).copy(alpha = 0.13f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF78AFFF).copy(alpha = 0.30f))
                 ) {
                     Text("EDITION ${activeEdition.name}", modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-                        color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                        color = Color(0xFF78AFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
                 }
             }
             if (busy) {
                 Spacer(Modifier.width(10.dp))
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = HomeBlue)
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFF78AFFF))
             }
         }
         if (authState is TelegramAuthManager.State.Ready) {
@@ -1988,13 +1988,13 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 },
                 shape = RoundedCornerShape(18.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = HomeBlue.copy(alpha = 0.75f),
+                    focusedBorderColor = Color(0xFF78AFFF).copy(alpha = 0.75f),
                     unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
                     focusedContainerColor = Color(0xAA172238),
                     unfocusedContainerColor = Color(0x88131D30),
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
-                    cursorColor = HomeBlue
+                    cursorColor = Color(0xFF78AFFF)
                 )
             )
         }
@@ -2093,9 +2093,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("SUBJECTS", color = HomeMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text("SUBJECTS", color = Color(0xFF9299AA), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Spacer(Modifier.weight(1f))
-                Text("${visibleTopics.size} available", color = HomeMuted, fontSize = 11.sp)
+                Text("${visibleTopics.size} available", color = Color(0xFF9299AA), fontSize = 11.sp)
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleTopics, key = { it.topicId }) { item ->
@@ -2117,24 +2117,24 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             horizontalArrangement = Arrangement.spacedBy(13.dp)
                         ) {
                             Box(
-                                Modifier.size(43.dp).background(HomeBlue.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                                    .border(1.dp, HomeBlue.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
+                                Modifier.size(43.dp).background(Color(0xFF78AFFF).copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                    .border(1.dp, Color(0xFF78AFFF).copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.MenuBook, null, tint = HomeBlue, modifier = Modifier.size(21.dp))
+                                Icon(Icons.Default.MenuBook, null, tint = Color(0xFF78AFFF), modifier = Modifier.size(21.dp))
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text("OPEN SUBJECT", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                                Text("OPEN SUBJECT", color = Color(0xFF9299AA), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = HomeMuted, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF9299AA), modifier = Modifier.size(20.dp))
                         }
                     }
                 }
                 if (visibleTopics.isEmpty() && topicSearch.isNotBlank()) {
                     item {
-                        Text("No subjects match this search.", color = HomeMuted, fontSize = 13.sp,
+                        Text("No subjects match this search.", color = Color(0xFF9299AA), fontSize = 13.sp,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp))
                     }
                 }
