@@ -12,6 +12,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
