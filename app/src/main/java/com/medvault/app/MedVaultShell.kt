@@ -817,13 +817,7 @@ fun MedVaultOfflineScreen(
     val videoBytes = downloadedLectures.sumOf { File(it.localPath).length() }
     val pdfBytes = pdfs.sumOf { it.length() }
     val totalBytes = videoBytes + pdfBytes
-    val totalDeviceBytes = android.os.StatFs(context.filesDir.path).totalBytes.coerceAtLeast(1L)
     val storageFraction = (totalBytes.toFloat() / totalDeviceBytes.toFloat()).coerceIn(0f, 1f)
-    fun sizeLabel(bytes: Long): String = when {
-        bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.US, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-        bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
-        else -> "${(bytes / 1024L).coerceAtLeast(0L)} KB"
-    }
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
@@ -884,7 +878,7 @@ fun MedVaultOfflineScreen(
         ) {
             item { Text("DOWNLOADED VIDEOS", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             items(downloadedLectures, key = { it.fileId }) { lecture ->
-                Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = Color(0xD91A263B)),
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xD91A263B)),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))) {
                     val key = "v:${lecture.fileId}:${lecture.accountId}"
                     Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -905,7 +899,7 @@ fun MedVaultOfflineScreen(
             }
             item { Spacer(Modifier.height(8.dp)); Text("DOWNLOADED PDFs", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             items(pdfs, key = { it.absolutePath }) { file ->
-                Card(Modifier.fillMaxWidth().clickable { onOpenPdf(file, file.nameWithoutExtension) }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = HomePanel)) {
                     val key = "p:${file.absolutePath}"
                     Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFE45E5E))
