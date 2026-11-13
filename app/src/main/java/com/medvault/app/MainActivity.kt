@@ -2089,10 +2089,15 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     items(visibleTopics, key = { it.topicId }) { item ->
                         Card(Modifier.clickable {
                             topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
-                            repo?.loadAllTopicMessages(item) { result ->
-                                busy = false
-                                result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
-                            }
+                            repo?.loadTopicMessagesProgressively(
+                                item,
+                                onPage = { page -> messages = page },
+                                onComplete = { result ->
+                                    busy = false
+                                    result.onSuccess { messages = it; hasMoreMessages = false }
+                                        .onFailure { error = it.message }
+                                }
+                            )
                         }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
@@ -2285,7 +2290,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                         thickness = 0.7.dp
                     )
                 }
-                if (filteredLectures.isEmpty()) {
+                if (filteredLectures.isEmpty() && !busy) {
                     item {
                         Text(
                             if (topicSearch.isNotBlank()) "No lectures match this search."
@@ -2294,6 +2299,19 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             fontSize = 13.sp,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                         )
+                    }
+                }
+                if (filteredLectures.isEmpty() && busy) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFFB18CFF))
+                            Spacer(Modifier.width(10.dp))
+                            Text("Loading lectures…", color = Color(0xFF9299AA), fontSize = 13.sp)
+                        }
                     }
                 }
             }
