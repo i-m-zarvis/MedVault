@@ -1692,6 +1692,7 @@ private fun MedVaultRoot(
     val mainTabs = setOf("home", "videos", "qbank", "offline", "settings")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
+            "player" -> onPlayerBack()
             "settings", "study_sources", "telegram_settings", "telegram" -> onHome()
             "drive" -> onFolderBack()
             else -> onHome()
