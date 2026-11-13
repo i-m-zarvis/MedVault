@@ -3877,7 +3877,7 @@ private fun VideoScreen(
                                 }
                             }
                         }
-                    }
+                    } else {
                         // Portrait title is presented as a floating glass pill;
                         // the old text-heavy app bar and its gear/fullscreen buttons are removed.
                         PlayerGlassCapsule(
@@ -4339,8 +4339,23 @@ private fun GlassPlayerButton(
     description: String,
     onClick: () -> Unit
 ) {
-    IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {
-        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(21.dp))
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
+        label = "glassIconScale"
+    )
+    val haptics = LocalHapticFeedback.current
+    IconButton(
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onClick()
+        },
+        interactionSource = interaction,
+        modifier = Modifier.size(34.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+    ) {
+        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(19.dp))
     }
 }
 
