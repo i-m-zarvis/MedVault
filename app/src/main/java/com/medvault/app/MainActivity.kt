@@ -2008,6 +2008,9 @@ private class TelegramLibraryScreenState {
     val error = mutableStateOf<String?>(null)
     val topicSearch = mutableStateOf("")
     val topicMessagesCache = mutableStateOf<Map<String, List<org.drinkless.tdlib.TdApi.Message>>>(emptyMap())
+    val editionSearchResults = mutableStateOf<Map<MedVaultEdition, List<Pair<String, TelegramLecture>>>>(emptyMap())
+    val editionSearchLoading = mutableStateOf(false)
+    val editionSearchLoaded = mutableStateOf<MedVaultEdition?>(null)
 
     private val topicRequestGeneration = java.util.concurrent.atomic.AtomicLong(0L)
 
@@ -2079,6 +2082,9 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var status by state.status
     var error by state.error
     var topicSearch by state.topicSearch
+    var editionSearchResults by state.editionSearchResults
+    var editionSearchLoading by state.editionSearchLoading
+    var editionSearchLoaded by state.editionSearchLoaded
     var pendingDeleteLecture by remember { mutableStateOf<DownloadedLecture?>(null) }
     // Keep a small LRU of completed subject histories. A generation token owns
     // each request so callbacks from a screen we have left cannot mutate it.
@@ -2139,6 +2145,31 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             titleU = it.selectedTitle(MedVaultEdition.U)
         }
     }
+    LaunchedEffect(topicSearch, topic, repo, activeEdition, authState, topics) {
+        if (topic != null || topicSearch.isBlank() || authState !is TelegramAuthManager.State.Ready ||
+            repo == null || repo?.selectedChatId(activeEdition) == null ||
+            editionSearchLoaded == activeEdition || editionSearchLoading || topics.isEmpty()
+        ) return@LaunchedEffect
+        editionSearchLoading = true
+        val sourceRepo = repo ?: return@LaunchedEffect
+        val collected = mutableListOf<Pair<String, TelegramLecture>>()
+        fun loadTopicAt(index: Int) {
+            if (index >= topics.size) {
+                editionSearchResults = editionSearchResults + (activeEdition to collected.toList())
+                editionSearchLoaded = activeEdition
+                editionSearchLoading = false
+                return
+            }
+            val currentTopic = topics[index]
+            sourceRepo.loadAllTopicMessages(currentTopic) { result ->
+                result.onSuccess { page ->
+                    collected += sourceRepo.extractLectures(currentTopic, page).map { currentTopic.name to it }
+                }
+                loadTopicAt(index + 1)
+            }
+        }
+        loadTopicAt(0)
+    }
     val backProgress = remember { Animatable(0f) }
     PredictiveBackHandler(enabled = true) { progress ->
         try {
@@ -2172,6 +2203,8 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         messages = emptyList()
         hasMoreMessages = false
         topicSearch = ""
+        editionSearchLoading = false
+        editionSearchLoaded = null
         topics = emptyList()
         error = null
         val sourceRepo = repo
@@ -2357,7 +2390,58 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
         } else if (targetTopic == null) {
-
+            if (topicSearch.isNotBlank()) {
+                val query = topicSearch.trim()
+                val results = remember(editionSearchResults, activeEdition, query) {
+                    editionSearchResults[activeEdition].orEmpty().filter { (_, lecture) ->
+                        lecture.title.contains(query, ignoreCase = true) ||
+                            lecture.fileName.contains(query, ignoreCase = true) ||
+                            lecture.caption.contains(query, ignoreCase = true)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("VIDEOS", color = Color(0xFF9299AA), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(if (editionSearchLoading) "Searching…" else "${results.size} results", color = Color(0xFF9299AA), fontSize = 11.sp)
+                }
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
+                    items(results, key = { it.second.stableId }) { (subjectName, lecture) ->
+                        Card(
+                            Modifier.fillMaxWidth().clickable { onPlayLecture(lecture) },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
+                            shape = RoundedCornerShape(17.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                Icon(Icons.Default.PlayCircle, null, tint = Color(0xFF78AFFF), modifier = Modifier.size(27.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(lecture.title, color = Color.White, fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(subjectName, color = Color(0xFF9299AA), fontSize = 10.sp,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { onDownloadLecture(lecture) }) {
+                                    Icon(Icons.Default.Download, "Download", tint = Color(0xFF9299AA), modifier = Modifier.size(19.dp))
+                                }
+                            }
+                        }
+                    }
+                    if (results.isEmpty() && !editionSearchLoading) item {
+                        Text("No videos match this search.", color = Color(0xFF9299AA), fontSize = 13.sp,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp))
+                    }
+                    if (editionSearchLoading && results.isEmpty()) item {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF78AFFF))
+                            Spacer(Modifier.width(9.dp))
+                            Text("Searching this edition…", color = Color(0xFF9299AA), fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else {
             error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
             if (repo?.selectedChatId(activeEdition) == null) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
@@ -2419,6 +2503,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp))
                     }
                 }
+            }
             }
         } else {
             val lectures = remember(targetTopic, messages) {
