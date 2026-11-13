@@ -215,6 +215,7 @@ fun MedVaultHomeScreen(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val contentItems by ContentFeedDatabase.get(context).contentDao().observeAll().collectAsState(initial = emptyList())
+    val contentItemsByCategory = remember(contentItems) { contentItems.groupBy { it.category } }
     val scope = rememberCoroutineScope()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var pullPx by remember { mutableFloatStateOf(0f) }
@@ -429,19 +430,19 @@ fun MedVaultHomeScreen(
             }
         }
         item {
-            HomeLiveFeedSection("EXAM RADAR", "Official examination notices and deadlines", contentItems.filter { it.category == "exam-radar" }.take(3), "No verified exam notices have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
+            HomeLiveFeedSection("EXAM RADAR", "Official examination notices and deadlines", contentItemsByCategory["exam-radar"].orEmpty().take(3), "No verified exam notices have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            HomeLiveFeedSection("NEET PG UPDATES", "NBEMS, MCC and postgraduate entrance notices", contentItems.filter { it.category == "neet-pg" }.take(3), "No verified NEET PG updates are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
+            HomeLiveFeedSection("NEET PG UPDATES", "NBEMS, MCC and postgraduate entrance notices", contentItemsByCategory["neet-pg"].orEmpty().take(3), "No verified NEET PG updates are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            HomeLiveFeedSection("MBBS UPDATES", "Undergraduate medical education and university notices", contentItems.filter { it.category == "mbbs-updates" }.take(3), "No verified MBBS notices are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
+            HomeLiveFeedSection("MBBS UPDATES", "Undergraduate medical education and university notices", contentItemsByCategory["mbbs-updates"].orEmpty().take(3), "No verified MBBS notices are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            HomeLiveFeedSection("TRENDING IN MEDICINE", "Recent scientific and clinical developments", contentItems.filter { it.category == "trending-medicine" }.take(3), "Research updates will appear here when the collector publishes them.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
+            HomeLiveFeedSection("TRENDING IN MEDICINE", "Recent scientific and clinical developments", contentItemsByCategory["trending-medicine"].orEmpty().take(3), "Research updates will appear here when the collector publishes them.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
         item {
-            HomeLiveFeedSection("MEDICAL NEWS BULLETIN", "Indian healthcare, public health and research", contentItems.filter { it.category == "medical-news" }.take(3), "No medical news articles have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
+            HomeLiveFeedSection("MEDICAL NEWS BULLETIN", "Indian healthcare, public health and research", contentItemsByCategory["medical-news"].orEmpty().take(3), "No medical news articles have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
         }
     }
     if (pullPx > 1f || refreshRequested || showRefreshResult) {
