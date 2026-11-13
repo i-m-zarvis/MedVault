@@ -1,5 +1,12 @@
 package com.medvault.app
 
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.Gravity
+import android.view.WindowManager
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
