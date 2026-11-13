@@ -293,6 +293,7 @@ fun TelegramDocumentLibraryScreen(
     var selectedGroup by state.selectedGroup
     var documentSearch by state.documentSearch
     var pendingDeletePdf by remember { mutableStateOf<File?>(null) }
+    var localFileRevision by remember { mutableStateOf(0) }
     val sourceEdition = when (edition) {
         MedVaultEdition.QBANK -> when (activeEdition) {
             MedVaultEdition.M -> MedVaultEdition.QBANK_M
@@ -437,7 +438,6 @@ fun TelegramDocumentLibraryScreen(
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 112.dp)) {
                 items(documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { document ->
-                    var localFileRevision by remember(document.stableId) { mutableStateOf(0) }
                     val local = TelegramPdfStore.localFile(context, sourceEdition, document)
                     val isDownloaded = localFileRevision >= 0 && local.isFile
                     Card(
@@ -526,7 +526,7 @@ fun TelegramDocumentLibraryScreen(
             confirmButton = {
                 TextButton(onClick = {
                     if (file.delete()) {
-                        // Trigger the row's local-file check on the next composition.
+                        localFileRevision++
                         pendingDeletePdf = null
                     } else {
                         error = "Could not delete this PDF."
