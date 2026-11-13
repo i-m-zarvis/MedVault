@@ -1795,7 +1795,7 @@ private fun MedVaultRoot(
             Surface(Modifier.fillMaxSize(), color = AppBg) {
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
+                        onRapidRevision = { screen = "rapid_revision" }, onNotes = { screen = "notes" }, onBookmarks = { screen = "bookmarks" }, onPlanner = { screen = "planner" }, onSettings = onSettings,
                         onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
@@ -1806,6 +1806,15 @@ private fun MedVaultRoot(
                         onDeleteOffline = onDeleteOffline)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice, state = qbankLibraryState)
+                    "notes" -> TelegramDocumentLibraryScreen(MedVaultEdition.NOTES, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = MedVaultEdition.NOTES, state = remember { TelegramDocumentLibraryState() })
+                    "rapid_revision" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
+                        onPlayLecture = onPlayTelegramLecture, onDownloadLecture = onDownloadTelegramLecture,
+                        downloadedLectures = downloadedLectures, downloadWorkItems = downloadWorkItems,
+                        setupMode = false, onManageSources = onOpenStudySources,
+                        activeEdition = MedVaultEdition.REVISION, state = remember { TelegramLibraryScreenState() }, progressRevision = telegramProgressRevision,
+                        onDeleteOffline = onDeleteOffline)
+                    "bookmarks" -> MedVaultBookmarksScreen(onBack = onHome)
+                    "planner" -> MedVaultStudyPlannerScreen(onBack = onHome)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome, onDeleteOffline)
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)

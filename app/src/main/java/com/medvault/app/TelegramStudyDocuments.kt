@@ -161,7 +161,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
-    val roles = listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U, MedVaultEdition.QBANK_M, MedVaultEdition.QBANK_P, MedVaultEdition.QBANK_U, MedVaultEdition.NOTES_M, MedVaultEdition.NOTES_P, MedVaultEdition.NOTES_U)
+    val roles = listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U, MedVaultEdition.QBANK_M, MedVaultEdition.QBANK_P, MedVaultEdition.QBANK_U, MedVaultEdition.REVISION, MedVaultEdition.NOTES)
     fun label(role: MedVaultEdition) = when (role) {
         MedVaultEdition.M -> "Video · Edition M"
         MedVaultEdition.P -> "Video · Edition P"
@@ -169,9 +169,8 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
         MedVaultEdition.QBANK_M -> "QBank · Edition M"
         MedVaultEdition.QBANK_P -> "QBank · Edition P"
         MedVaultEdition.QBANK_U -> "QBank · Edition U"
-        MedVaultEdition.NOTES_M -> "Notes · Edition M"
-        MedVaultEdition.NOTES_P -> "Notes · Edition P"
-        else -> "Notes · Edition U"
+        MedVaultEdition.REVISION -> "Rapid Revision · Shared source"
+        else -> "Notes · Shared source"
     }
     LaunchedEffect(Unit) {
         val auth = TelegramAuthManager.getInstance(context) { authState = it }
@@ -311,11 +310,7 @@ fun TelegramDocumentLibraryScreen(
             MedVaultEdition.P -> MedVaultEdition.QBANK_P
             else -> MedVaultEdition.QBANK_U
         }
-        MedVaultEdition.TESTS -> when (activeEdition) {
-            MedVaultEdition.M -> MedVaultEdition.NOTES_M
-            MedVaultEdition.P -> MedVaultEdition.NOTES_P
-            else -> MedVaultEdition.NOTES_U
-        }
+        MedVaultEdition.NOTES -> MedVaultEdition.NOTES
         else -> activeEdition
     }
 

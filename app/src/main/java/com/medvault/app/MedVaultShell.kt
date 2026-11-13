@@ -204,7 +204,7 @@ internal fun Modifier.liquidPanel(
 @Composable
 fun MedVaultHomeScreen(
     onVideos: () -> Unit, onQBank: () -> Unit,
-    onDailyDose: () -> Unit, onUpdates: () -> Unit, onSettings: () -> Unit,
+    onRapidRevision: () -> Unit, onNotes: () -> Unit, onBookmarks: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit,
     onHistory: () -> Unit, history: List<WatchRecord>, onResumeLecture: (WatchRecord) -> Unit,
     activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit
 ) {
@@ -284,13 +284,15 @@ fun MedVaultHomeScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     Text("QUICK ACCESS", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HomeActionTile("Lectures", "Video library", Icons.Default.PlayCircleOutline, onVideos, Modifier.weight(1f))
-                        HomeActionTile("QBank", "Practice questions", Icons.Default.MenuBook, onQBank, Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HomeActionTile("Offline", "Saved for later", Icons.Default.Download, onUpdates, Modifier.weight(1f))
-                        Spacer(Modifier.weight(1f))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            HomeActionTile("Rapid Revision", "High-yield videos", Icons.Default.Bolt, onRapidRevision, Modifier.weight(1f))
+                            HomeActionTile("Notes", "PDFs and documents", Icons.Default.MenuBook, onNotes, Modifier.weight(1f))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            HomeActionTile("Bookmarks", "Your saved content", Icons.Default.Bookmark, onBookmarks, Modifier.weight(1f))
+                            HomeActionTile("Study Planner", "Plan your study", Icons.Default.CalendarMonth, onPlanner, Modifier.weight(1f))
+                        }
                     }
                 }
             }
