@@ -33,6 +33,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -67,8 +71,14 @@ fun DownloadManagerScreen(
 ) {
     val context = LocalContext.current
     val downloadDirectory = File(context.filesDir, "downloads")
-    val storageUsed = downloadDirectory.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
-    val storageFree = context.filesDir.usableSpace
+    val storageUsed by produceState(initialValue = 0L, downloadDirectory, downloadedLectures) {
+        value = withContext(Dispatchers.IO) {
+            downloadDirectory.listFiles()?.asSequence()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
+        }
+    }
+    val storageFree by produceState(initialValue = 0L, context.filesDir) {
+        value = withContext(Dispatchers.IO) { context.filesDir.usableSpace }
+    }
     val storageTotal = storageUsed + storageFree
     val storageFraction = if (storageTotal > 0L) storageUsed.toFloat() / storageTotal.toFloat() else 0f
     var libraryQuery by remember { mutableStateOf("") }
@@ -80,20 +90,27 @@ fun DownloadManagerScreen(
         return "$accountKey:$fileId" in pausedIds
     }
 
-    val filteredLectures = downloadedLectures
-        .filter { it.name.contains(libraryQuery.trim(), ignoreCase = true) }
-        .sortedByDescending { it.downloadedAt }
-
-    val activeItems = workItems.filter {
-        it.state == WorkInfo.State.ENQUEUED ||
-            it.state == WorkInfo.State.RUNNING ||
-            it.state == WorkInfo.State.BLOCKED
+    val filteredLectures = remember(downloadedLectures, libraryQuery) {
+        val query = libraryQuery.trim()
+        downloadedLectures
+            .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+            .sortedByDescending { it.downloadedAt }
     }
 
-    val finishedItems = workItems.filter {
-        it.state == WorkInfo.State.SUCCEEDED ||
-            it.state == WorkInfo.State.FAILED ||
-            it.state == WorkInfo.State.CANCELLED
+    val activeItems = remember(workItems) {
+        workItems.filter {
+            it.state == WorkInfo.State.ENQUEUED ||
+                it.state == WorkInfo.State.RUNNING ||
+                it.state == WorkInfo.State.BLOCKED
+        }
+    }
+
+    val finishedItems = remember(workItems) {
+        workItems.filter {
+            it.state == WorkInfo.State.SUCCEEDED ||
+                it.state == WorkInfo.State.FAILED ||
+                it.state == WorkInfo.State.CANCELLED
+        }
     }
 
     Column(
