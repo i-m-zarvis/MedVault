@@ -1815,9 +1815,10 @@ private fun MedVaultRoot(
                 }
             }
         }
-        if (screen in mainTabs && !pipMode && !showBrandSplash) {
-            // Floating dock overlays the scroll layer; individual scroll containers own
-            // their bottom content insets so items can scroll behind and clear the glass.
+        // The floating dock must leave the entire IME area to the keyboard.
+        // WindowInsets.isImeVisible is shared here so every searchable screen gets
+        // the same behaviour without per-field keyboard workarounds.
+        if (screen in mainTabs && !pipMode && !showBrandSplash && !WindowInsets.isImeVisible) {
             MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
                 onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
