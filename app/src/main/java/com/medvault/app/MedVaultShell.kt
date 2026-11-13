@@ -27,6 +27,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
@@ -95,10 +96,14 @@ internal object LiquidPalette {
  * Use low/no bounce for navigation and content; reserve slight under-damping for touch.
  */
 internal object LiquidMotion {
-    val Navigation = spring<Float>(dampingRatio = 0.94f, stiffness = 560f)
-    val Selection = spring<Float>(dampingRatio = 0.88f, stiffness = 480f)
-    val Touch = spring<Float>(dampingRatio = 0.78f, stiffness = 720f)
-    val Content = spring<Float>(dampingRatio = 1.0f, stiffness = 360f)
+    // Navigation springs are deliberately overdamped: fast, controlled, no theatrical bounce.
+    val Navigation = spring<Float>(dampingRatio = 0.96f, stiffness = 520f)
+    val NavigationOffset = spring<IntOffset>(dampingRatio = 0.96f, stiffness = 520f)
+    val Selection = spring<Float>(dampingRatio = 0.90f, stiffness = 560f)
+    val Touch = spring<Float>(dampingRatio = 0.82f, stiffness = 760f)
+    val Content = spring<Float>(dampingRatio = 1.0f, stiffness = 420f)
+    val FadeIn = tween<Float>(durationMillis = 150)
+    val FadeOut = tween<Float>(durationMillis = 110)
 }
 
 /**
