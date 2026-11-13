@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.io.FileOutputStream
@@ -166,10 +167,8 @@ class TelegramDownloadWorker(
             .build())
     }
 
-    private fun coroutineContextEnsureActive() {
-        kotlinx.coroutines.currentCoroutineContext().let { context ->
-            if (!context.isActive) throw CancellationException("Download cancelled")
-        }
+    private suspend fun coroutineContextEnsureActive() {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
     }
 
     private fun createNotificationChannel() {
