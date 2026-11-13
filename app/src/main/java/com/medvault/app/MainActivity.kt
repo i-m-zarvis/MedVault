@@ -669,6 +669,20 @@ class MainActivity : ComponentActivity() {
     // DOWNLOAD MANAGER
     // ---------------------------------------------------------
 
+    private fun enqueueTelegramDownload(lecture: TelegramLecture) {
+        val existing = DownloadStore.find(this, lecture.stableId, "telegram")
+        if (existing != null && File(existing.localPath).isFile) {
+            Toast.makeText(this, "Already available offline.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            downloadRepository.enqueueTelegram(lecture)
+            Toast.makeText(this, "Added to offline downloads.", Toast.LENGTH_SHORT).show()
+        } catch (error: Exception) {
+            Toast.makeText(this, "Could not queue download: ${error.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun requestDownload(file: DriveItem) {
         if (!connected || accessToken.isNullOrBlank()) {
             Toast.makeText(
@@ -1522,10 +1536,16 @@ class MainActivity : ComponentActivity() {
         val resumePosition = getSharedPreferences("telegram_playback_local", MODE_PRIVATE)
             .getLong(lecture.stableId, 0L)
         val auth = TelegramAuthManager.getInstance(this) { }
+        val offlineCopy = DownloadStore.find(this, lecture.stableId, "telegram")
+            ?.localPath?.let(::File)?.takeIf { it.isFile }
         val sourceFactory = TelegramRangeDataSource.Factory(auth, lecture.fileId, lecture.fileSizeBytes)
-        val newPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(sourceFactory))
-            .build()
+        val newPlayer = if (offlineCopy != null) {
+            ExoPlayer.Builder(this).build()
+        } else {
+            ExoPlayer.Builder(this)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(sourceFactory))
+                .build()
+        }
 
         player = newPlayer
         selectedTelegramLecture = lecture
@@ -1557,7 +1577,7 @@ class MainActivity : ComponentActivity() {
 
         val mediaItem = MediaItem.Builder()
             .setMediaId(lecture.stableId)
-            .setUri(Uri.parse("telegram://file/${lecture.fileId}"))
+            .setUri(offlineCopy?.let { Uri.fromFile(it) } ?: Uri.parse("telegram://file/${lecture.fileId}"))
             .setMimeType(lecture.mimeType.takeIf { it.startsWith("video/") })
             .build()
         newPlayer.setMediaItem(mediaItem)
