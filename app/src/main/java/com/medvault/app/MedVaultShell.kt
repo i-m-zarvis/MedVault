@@ -203,138 +203,126 @@ internal fun Modifier.liquidPanel(
 
 @Composable
 fun MedVaultHomeScreen(
-    onVideos: () -> Unit,
-    onQBank: () -> Unit,
-    onTests: () -> Unit,
-    onDailyDose: () -> Unit,
-    onUpdates: () -> Unit,
-    onSettings: () -> Unit,
-    activeEdition: MedVaultEdition,
-    onEditionChange: (MedVaultEdition) -> Unit
+    onVideos: () -> Unit, onQBank: () -> Unit, onTests: () -> Unit,
+    onDailyDose: () -> Unit, onUpdates: () -> Unit, onSettings: () -> Unit,
+    onHistory: () -> Unit, history: List<WatchRecord>, onResumeLecture: (WatchRecord) -> Unit,
+    activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit
 ) {
-    val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
-    val contentItems by ContentFeedDatabase.get(context).contentDao().observeAll().collectAsState(initial = emptyList())
-    val contentItemsByCategory = remember(contentItems) { contentItems.groupBy { it.category } }
-    val scope = rememberCoroutineScope()
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    var pullPx by remember { mutableFloatStateOf(0f) }
-    var refreshRequested by remember { mutableStateOf(false) }
-    var showRefreshResult by remember { mutableStateOf(false) }
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val thresholdPx = with(density) { 92.dp.toPx() }
-    val workInfos by WorkManager.getInstance(context)
-        .getWorkInfosForUniqueWorkLiveData(ContentFeedScheduler.manualWorkName()).observeAsState()
-    val activeWork = workInfos.orEmpty().firstOrNull { !it.state.isFinished }
-    val refreshConnection = remember(listState, thresholdPx) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-                if (atTop && available.y > 0f && !refreshRequested) {
-                    pullPx = (pullPx + available.y * 0.58f).coerceAtMost(with(density) { 150.dp.toPx() })
-                    return Offset(0f, available.y)
-                }
-                return Offset.Zero
-            }
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                if (pullPx >= thresholdPx && !refreshRequested) {
-                    refreshRequested = true
-                    ContentFeedScheduler.refresh(context)
-                }
-                // The content surface must spring home as soon as the finger is released.
-                // Keep the refresh indicator independently pinned while background sync runs.
-                scope.launch {
-                    animate(pullPx, 0f, animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f)) { value, _ -> pullPx = value }
-                }
-                return Velocity.Zero
-            }
-        }
-    }
-    LaunchedEffect(workInfos, refreshRequested) {
-        if (refreshRequested && workInfos.orEmpty().any { it.state.isFinished }) {
-            showRefreshResult = true
-            kotlinx.coroutines.delay(650)
-            showRefreshResult = false
-            refreshRequested = false
-            animate(pullPx, 0f, animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f)) { value, _ -> pullPx = value }
-        }
-    }
-    val spinning = refreshRequested && activeWork != null
-    val rotation = if (spinning) {
-        val spinTransition = rememberInfiniteTransition(label = "vault-refresh")
-        val animatedRotation by spinTransition.animateFloat(
-            initialValue = 0f, targetValue = 360f,
-            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                animation = androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing)
-            ), label = "vault-rotation"
-        )
-        animatedRotation
-    } else {
-        0f
-    }
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).nestedScroll(refreshConnection)) {
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                translationY = pullPx * 0.82f
-                scaleY = 1f + (pullPx / with(density) { 1800.dp.toPx() }).coerceAtMost(0.075f)
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
-            },
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
-    ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("MEDVAULT", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
-                        Text("Your study space.", color = HomeInk, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
-                    }
-                    val profileInteraction = remember { MutableInteractionSource() }
-                    Surface(
-                        onClick = onSettings,
-                        interactionSource = profileInteraction,
-                        modifier = Modifier.liquidPressFeedback(profileInteraction, 0.96f),
-                        color = HomePanel,
-                        shape = RoundedCornerShape(18.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, HomeBorder)
-                    ) {
-                        Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.PersonOutline, "Profile and settings", tint = HomeInk, modifier = Modifier.size(23.dp))
-                        }
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val resume = history.firstOrNull { !it.completed && it.durationMs > 0L } ?: history.firstOrNull()
+    val recent = history.distinctBy { it.fileId + "|" + it.accountId }.take(5)
+    val progress = resume?.let { if (it.durationMs > 0L) (it.positionMs.toFloat() / it.durationMs).coerceIn(0f, 1f) else 0f } ?: 0f
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("YOUR LIBRARY", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
-                        Spacer(Modifier.width(1.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("MEDVAULT", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
+                            Text("Your study space.", color = HomeInk, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
+                        }
+                        Surface(onClick = onSettings, color = HomePanel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, HomeBorder)) {
+                            Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.PersonOutline, "Profile and settings", tint = HomeInk, modifier = Modifier.size(23.dp)) }
+                        }
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
-                            val selected = activeEdition == edition
-                            val editionInteraction = remember { MutableInteractionSource() }
-                            Surface(
-                                modifier = Modifier.weight(1f)
-                                    .liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp)
-                                    .liquidPressFeedback(editionInteraction)
-                                    .then(if (selected) Modifier.border(1.dp, HomeBlue.copy(alpha = 0.62f), RoundedCornerShape(18.dp)) else Modifier)
-                                    .clickable(interactionSource = editionInteraction, indication = null) { onEditionChange(edition) },
-                                color = Color.Transparent,
-                                shape = RoundedCornerShape(18.dp),
-                                border = null
-                            ) {
-                                Column(
-                                    Modifier.padding(vertical = 12.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Text("EDITION", color = if (selected) HomeBlue else HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                                    Text(edition.name, color = if (selected) HomeInk else HomeMuted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("YOUR LIBRARY", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
+                                val selected = activeEdition == edition
+                                Surface(Modifier.weight(1f).liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp).clickable { onEditionChange(edition) }, color = Color.Transparent, shape = RoundedCornerShape(18.dp), border = null) {
+                                    Column(Modifier.padding(vertical = 13.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("EDITION", color = if (selected) HomeBlue else HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text(edition.name, color = if (selected) HomeInk else HomeMuted, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("PICK UP WHERE YOU LEFT OFF", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                        Text("Continue watching", color = HomeInk, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (resume != null) {
+                        Surface(Modifier.fillMaxWidth().liquidGlassSurface(HomeBlue, 26.dp).clickable { onResumeLecture(resume) }, color = Color.Transparent, shape = RoundedCornerShape(26.dp), border = null) {
+                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("RESUME LEARNING", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                                    Spacer(Modifier.weight(1f))
+                                    Text("${(progress * 100).toInt()}% watched", color = HomeMuted, fontSize = 10.sp)
+                                }
+                                Text(resume.name, color = HomeInk, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))) {
+                                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(RoundedCornerShape(50)).background(HomeBlue))
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("CONTINUE FROM ${'$'}{formatWatchPosition(resume.positionMs)}", color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.weight(1f))
+                                    Surface(color = HomeBlue, shape = RoundedCornerShape(50)) {
+                                        Row(Modifier.padding(horizontal = 15.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                            Text("Resume", color = Color(0xFF111522), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Icon(Icons.Default.ArrowForward, null, tint = Color(0xFF111522), modifier = Modifier.size(15.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Surface(Modifier.fillMaxWidth().liquidPanel(HomeBlue, 24.dp).clickable(onClick = onVideos), color = Color.Transparent, shape = RoundedCornerShape(24.dp), border = null) {
+                            Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Icon(Icons.Default.PlayCircleOutline, null, tint = HomeBlue, modifier = Modifier.size(34.dp))
+                                Column(Modifier.weight(1f)) { Text("Your next lecture starts here", color = HomeInk, fontWeight = FontWeight.SemiBold); Text("Open your library and start learning.", color = HomeMuted, fontSize = 12.sp) }
+                                Icon(Icons.Default.ArrowForward, null, tint = HomeBlue)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Text("QUICK ACCESS", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        HomeActionTile("Lectures", "Video library", Icons.Default.PlayCircleOutline, onVideos, Modifier.weight(1f))
+                        HomeActionTile("QBank", "Practice questions", Icons.Default.MenuBook, onQBank, Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        HomeActionTile("Tests", "Your test library", Icons.Default.Assignment, onTests, Modifier.weight(1f))
+                        HomeActionTile("Offline", "Saved for later", Icons.Default.Download, onUpdates, Modifier.weight(1f))
+                    }
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("YOUR ACTIVITY", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                            Text("Recently accessed", color = HomeInk, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (recent.isNotEmpty()) TextButton(onClick = onHistory) { Text("See all", color = HomeBlue, fontSize = 12.sp) }
+                    }
+                    if (recent.isEmpty()) {
+                        Surface(Modifier.fillMaxWidth().liquidPanel(HomeMuted, 20.dp), color = Color.Transparent, shape = RoundedCornerShape(20.dp), border = null) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Icon(Icons.Default.History, null, tint = HomeMuted, modifier = Modifier.size(24.dp))
+                                Column { Text("Nothing here yet", color = HomeInk, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text("Lectures you watch will appear here.", color = HomeMuted, fontSize = 12.sp) }
+                            }
+                        }
+                    } else {
+                        Surface(Modifier.fillMaxWidth().liquidPanel(HomeBlue, 20.dp), color = Color.Transparent, shape = RoundedCornerShape(20.dp), border = null) {
+                            Column {
+                                recent.forEachIndexed { index, record ->
+                                    Row(Modifier.fillMaxWidth().clickable { onResumeLecture(record) }.padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Surface(color = HomeBlue.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp)) { Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, null, tint = HomeBlue) } }
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(record.name, color = HomeInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text(if (record.completed) "Completed" else "Continue · ${'$'}{formatWatchPosition(record.positionMs)}", color = HomeMuted, fontSize = 11.sp)
+                                        }
+                                        Icon(Icons.Default.ChevronRight, null, tint = HomeMuted, modifier = Modifier.size(19.dp))
+                                    }
+                                    if (index != recent.lastIndex) HorizontalDivider(color = HomeBorder.copy(alpha = 0.55f), thickness = 0.7.dp)
                                 }
                             }
                         }
@@ -342,142 +330,16 @@ fun MedVaultHomeScreen(
                 }
             }
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("PICK UP WHERE YOU LEFT OFF", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                        Text("A little learning, daily.", color = HomeInk, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Icon(Icons.Default.AutoStories, null, tint = HomeBlue.copy(alpha = 0.9f), modifier = Modifier.size(21.dp))
-                }
-                Surface(
-                    modifier = Modifier.fillMaxWidth().liquidPanel(HomeBlue, 26.dp)
-                        .border(1.dp, HomeBlue.copy(alpha = 0.18f), RoundedCornerShape(26.dp)),
-                    color = Color.Transparent,
-                    shape = RoundedCornerShape(26.dp),
-                    border = null
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(color = HomeBlue.copy(alpha = 0.13f), shape = RoundedCornerShape(50)) {
-                                Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AutoAwesome, null, tint = HomeBlue, modifier = Modifier.size(12.dp))
-                                    Text("TODAY'S CONCEPT", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                                }
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Text("12 MIN READ", color = HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
-                        }
-                        Text("ACE inhibitors\nand bradykinin", color = HomeInk, fontSize = 27.sp, fontWeight = FontWeight.Bold, lineHeight = 33.sp, letterSpacing = (-0.5).sp)
-                        Text(
-                            "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, contributing to the characteristic dry cough and, rarely, angioedema.",
-                            color = HomeMuted, fontSize = 14.sp, lineHeight = 22.sp
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("PHARMACOLOGY", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            Spacer(Modifier.weight(1f))
-                            val studyNowInteraction = remember { MutableInteractionSource() }
-                            Surface(
-                                color = HomeBlue,
-                                shape = RoundedCornerShape(50),
-                                onClick = onDailyDose,
-                                interactionSource = studyNowInteraction,
-                                modifier = Modifier.liquidPressFeedback(studyNowInteraction, 0.96f)
-                            ) {
-                                Row(Modifier.padding(horizontal = 13.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("Study now", color = Color(0xFF111522), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Icon(Icons.Default.ArrowForward, null, tint = Color(0xFF111522), modifier = Modifier.size(14.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeActionTile("Flashcards", "Quick recall", Icons.Default.Style, onDailyDose, Modifier.weight(1f))
-                    HomeActionTile("Daily MCQ", "Test yourself", Icons.Default.Psychology, onDailyDose, Modifier.weight(1f))
-                }
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeSectionHeading("CLINICAL CORNER", "Think through a clinical case")
-                var revealCase by remember { mutableStateOf(false) }
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                        .liquidPanel(Color(0xFFF4C34F), 22.dp),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            HomeTag("CASE OF THE DAY", Color(0xFFF4C34F))
-                            Spacer(Modifier.weight(1f))
-                            Icon(Icons.Default.MonitorHeart, null, tint = Color(0xFFF4C34F))
-                        }
-                        Text("Sudden severe chest pain", color = HomeInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text("A 58-year-old man develops abrupt, tearing chest pain radiating to the back. His right-arm blood pressure is higher than the left.", color = HomeMuted, fontSize = 13.sp, lineHeight = 19.sp)
-                        if (revealCase) {
-                            Text("Key consideration: acute aortic syndrome, including aortic dissection. This is an emergency; the vignette is educational and not a diagnostic rule.", color = HomeInk, fontSize = 13.sp, lineHeight = 19.sp)
-                        }
-                        TextButton(onClick = { revealCase = !revealCase }, contentPadding = PaddingValues(0.dp)) {
-                            Text(if (revealCase) "Hide clinical clue" else "Reveal the key consideration")
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            HomeLiveFeedSection("EXAM RADAR", "Official examination notices and deadlines", contentItemsByCategory["exam-radar"].orEmpty().take(3), "No verified exam notices have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
-        }
-        item {
-            HomeLiveFeedSection("NEET PG UPDATES", "NBEMS, MCC and postgraduate entrance notices", contentItemsByCategory["neet-pg"].orEmpty().take(3), "No verified NEET PG updates are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
-        }
-        item {
-            HomeLiveFeedSection("MBBS UPDATES", "Undergraduate medical education and university notices", contentItemsByCategory["mbbs-updates"].orEmpty().take(3), "No verified MBBS notices are currently published.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
-        }
-        item {
-            HomeLiveFeedSection("TRENDING IN MEDICINE", "Recent scientific and clinical developments", contentItemsByCategory["trending-medicine"].orEmpty().take(3), "Research updates will appear here when the collector publishes them.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
-        }
-        item {
-            HomeLiveFeedSection("MEDICAL NEWS BULLETIN", "Indian healthcare, public health and research", contentItemsByCategory["medical-news"].orEmpty().take(3), "No medical news articles have been published to the feed yet.", onUpdates) { url -> runCatching { uriHandler.openUri(url) } }
-        }
-    }
-    if (pullPx > 1f || refreshRequested || showRefreshResult) {
-        Canvas(
-            Modifier.align(Alignment.TopCenter)
-                .offset {
-                    val indicatorY = if (refreshRequested) with(density) { 12.dp.toPx() }
-                        else pullPx - with(density) { 42.dp.toPx() }
-                    IntOffset(0, indicatorY.toInt())
-                }
-                .size(38.dp)
-        ) {
-            val center = Offset(size.width / 2f, size.height / 2f)
-            val radius = size.minDimension * 0.39f
-            val tint = if (showRefreshResult) Color(0xFF65D6A3) else HomeBlue
-            drawArc(tint.copy(alpha = 0.9f), startAngle = -90f + if (spinning) rotation else 0f,
-                sweepAngle = if (spinning) 270f else 300f, useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
-                style = Stroke(width = 2.2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
-            rotate(if (spinning) rotation else 0f, center) {
-                drawRoundRect(tint, topLeft = Offset(center.x - radius * 0.58f, center.y - radius * 0.58f),
-                    size = androidx.compose.ui.geometry.Size(radius * 1.16f, radius * 1.16f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius * 0.22f),
-                    style = Stroke(width = 2.dp.toPx()))
-                drawCircle(tint, radius = radius * 0.18f, center = center)
-                drawLine(tint, Offset(center.x, center.y - radius * 0.18f),
-                    Offset(center.x, center.y + radius * 0.18f), strokeWidth = 1.6.dp.toPx())
-            }
-            if (showRefreshResult) {
-                drawCircle(tint, radius = 2.2.dp.toPx(), center = Offset(center.x + radius * 0.82f, center.y - radius * 0.82f))
-            }
-        }
-    }
     }
 }
 
+private fun formatWatchPosition(positionMs: Long): String {
+    val seconds = positionMs.coerceAtLeast(0L) / 1000L
+    val hours = seconds / 3600L
+    val minutes = (seconds % 3600L) / 60L
+    val remainder = seconds % 60L
+    return if (hours > 0L) "%d:%02d:%02d".format(hours, minutes, remainder) else "%d:%02d".format(minutes, remainder)
+}
 @Composable
 private fun HomeLiveFeedSection(
     title: String,

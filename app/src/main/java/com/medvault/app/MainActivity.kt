@@ -1797,7 +1797,8 @@ private fun MedVaultRoot(
             Surface(Modifier.fillMaxSize(), color = AppBg) {
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings,
+                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
+                        onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
                         onPlayLecture = onPlayTelegramLecture, onDownloadLecture = onDownloadTelegramLecture,
