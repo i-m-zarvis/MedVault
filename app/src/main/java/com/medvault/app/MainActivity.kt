@@ -754,23 +754,11 @@ class MainActivity : ComponentActivity() {
 
     private fun retryDownload(work: WorkInfo) {
         if ("medvault_source_telegram" in work.tags) {
-            val data = work.inputData
-            val lecture = TelegramLecture(
-                stableId = data.getString(TelegramDownloadWorker.KEY_STABLE_ID) ?: return,
-                chatId = data.getLong(TelegramDownloadWorker.KEY_CHAT_ID, 0L),
-                topicId = data.getInt(TelegramDownloadWorker.KEY_TOPIC_ID, 0),
-                messageId = data.getLong(TelegramDownloadWorker.KEY_MESSAGE_ID, 0L),
-                title = data.getString(TelegramDownloadWorker.KEY_TITLE) ?: "Telegram lecture",
-                fileName = data.getString(TelegramDownloadWorker.KEY_FILE_NAME) ?: "lecture.mp4",
-                caption = "",
-                fileId = data.getInt(TelegramDownloadWorker.KEY_FILE_ID, 0),
-                fileSizeBytes = data.getLong(TelegramDownloadWorker.KEY_FILE_SIZE, 0L),
-                durationSeconds = data.getInt(TelegramDownloadWorker.KEY_DURATION, 0),
-                mimeType = data.getString(TelegramDownloadWorker.KEY_MIME_TYPE) ?: "video/mp4",
-                thumbnailFileId = null,
-                messageDate = 0
-            )
-            enqueueTelegramDownload(lecture)
+            Toast.makeText(
+                this,
+                "Retry this Telegram download from its lecture listing.",
+                Toast.LENGTH_LONG
+            ).show()
             return
         }
 
@@ -2445,7 +2433,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     }
                     val downloadWork = remember(downloadWorkItems, lecture.stableId) {
                         downloadWorkItems.firstOrNull {
-                            it.inputData.getString(TelegramDownloadWorker.KEY_STABLE_ID) == lecture.stableId
+                            "medvault_telegram_id_" + lecture.stableId in it.tags
                         }
                     }
                     val downloadProgress = downloadWork?.progress?.getInt("progress", 0)?.coerceIn(0, 100) ?: 0
