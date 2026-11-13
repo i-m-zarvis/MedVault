@@ -179,22 +179,29 @@ fun MedVaultHomeScreen(
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("YOUR LIBRARY", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("YOUR LIBRARY", color = HomeMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onSettings, contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)) {
+                            Text("Manage", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
                             val selected = activeEdition == edition
                             Surface(
-                                modifier = Modifier.weight(1f).liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp)
+                                modifier = Modifier.weight(1f)
+                                    .liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp)
+                                    .then(if (selected) Modifier.border(1.dp, HomeBlue.copy(alpha = 0.62f), RoundedCornerShape(18.dp)) else Modifier)
                                     .clickable { onEditionChange(edition) },
                                 color = Color.Transparent,
                                 shape = RoundedCornerShape(18.dp),
                                 border = null
                             ) {
                                 Column(
-                                    Modifier.padding(vertical = 9.dp),
+                                    Modifier.padding(vertical = 12.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
@@ -217,7 +224,8 @@ fun MedVaultHomeScreen(
                     Icon(Icons.Default.AutoStories, null, tint = HomeBlue.copy(alpha = 0.9f), modifier = Modifier.size(21.dp))
                 }
                 Surface(
-                    modifier = Modifier.fillMaxWidth().liquidPanel(HomeBlue, 26.dp),
+                    modifier = Modifier.fillMaxWidth().liquidPanel(HomeBlue, 26.dp)
+                        .border(1.dp, HomeBlue.copy(alpha = 0.18f), RoundedCornerShape(26.dp)),
                     color = Color.Transparent,
                     shape = RoundedCornerShape(26.dp),
                     border = null
@@ -235,7 +243,7 @@ fun MedVaultHomeScreen(
                         }
                         Text("ACE inhibitors\nand bradykinin", color = HomeInk, fontSize = 27.sp, fontWeight = FontWeight.Bold, lineHeight = 33.sp, letterSpacing = (-0.5).sp)
                         Text(
-                            "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, contributing to the characteristic dry cough.",
+                            "ACE breaks down bradykinin. ACE inhibition increases bradykinin levels, contributing to the characteristic dry cough and, rarely, angioedema.",
                             color = HomeMuted, fontSize = 14.sp, lineHeight = 22.sp
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -261,15 +269,16 @@ fun MedVaultHomeScreen(
                 HomeSectionHeading("CLINICAL CORNER", "Think through a clinical case")
                 var revealCase by remember { mutableStateOf(false) }
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = HomePanel)
+                    modifier = Modifier.fillMaxWidth()
+                        .liquidPanel(Color(0xFFF4C34F), 22.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            HomeTag("CASE OF THE DAY", HomeBlue)
+                            HomeTag("CASE OF THE DAY", Color(0xFFF4C34F))
                             Spacer(Modifier.weight(1f))
-                            Icon(Icons.Default.MonitorHeart, null, tint = HomeBlue)
+                            Icon(Icons.Default.MonitorHeart, null, tint = Color(0xFFF4C34F))
                         }
                         Text("Sudden severe chest pain", color = HomeInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text("A 58-year-old man develops abrupt, tearing chest pain radiating to the back. His right-arm blood pressure is higher than the left.", color = HomeMuted, fontSize = 13.sp, lineHeight = 19.sp)
@@ -352,7 +361,11 @@ private fun HomeLiveFeedSection(
             TextButton(onClick = onOpen, contentPadding = PaddingValues(0.dp)) { Text("VIEW ALL") }
         }
         if (items.isEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = HomePanel), shape = RoundedCornerShape(14.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth().liquidPanel(LiquidTeal, 18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(18.dp)
+            ) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.RssFeed, null, tint = HomeMuted, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
@@ -362,9 +375,10 @@ private fun HomeLiveFeedSection(
         } else {
             items.forEach { article ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onArticle(article.url) },
-                    colors = CardDefaults.cardColors(containerColor = HomePanel),
-                    shape = RoundedCornerShape(14.dp)
+                    modifier = Modifier.fillMaxWidth().liquidPanel(LiquidTeal, 18.dp)
+                        .clickable { onArticle(article.url) },
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(article.title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -405,9 +419,18 @@ private fun HomeActionTile(
         shape = RoundedCornerShape(22.dp),
         color = Color.Transparent
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, tint = if (title == "Flashcards") LiquidViolet else LiquidTeal, modifier = Modifier.size(23.dp))
-            Text(title, color = HomeInk, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Column(Modifier.fillMaxWidth().heightIn(min = 142.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Surface(
+                color = (if (title == "Flashcards") LiquidViolet else LiquidTeal).copy(alpha = 0.13f),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, (if (title == "Flashcards") LiquidViolet else LiquidTeal).copy(alpha = 0.30f))
+            ) {
+                Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = if (title == "Flashcards") LiquidViolet else LiquidTeal, modifier = Modifier.size(23.dp))
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(title, color = HomeInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = HomeMuted, fontSize = 11.sp)
         }
     }
