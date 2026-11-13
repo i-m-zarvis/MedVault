@@ -782,7 +782,7 @@ fun MedVaultOfflineScreen(
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 16.dp, top = 8.dp, bottom = 112.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 112.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item { Text("DOWNLOADED VIDEOS", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
