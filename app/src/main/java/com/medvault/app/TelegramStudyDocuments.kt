@@ -266,6 +266,9 @@ class TelegramDocumentLibraryState {
     val downloadingId = mutableStateOf<String?>(null)
     val selectedGroup = mutableStateOf<String?>(null)
     val documentSearch = mutableStateOf("")
+    val allDocuments = mutableStateOf<List<Pair<String, TelegramPdfDocument>>>(emptyList())
+    val allDocumentsLoadedFor = mutableStateOf<MedVaultEdition?>(null)
+    val allDocumentsLoading = mutableStateOf(false)
     var loadedSourceEdition: MedVaultEdition? = null
 }
 
@@ -293,6 +296,9 @@ fun TelegramDocumentLibraryScreen(
     var downloadingId by state.downloadingId
     var selectedGroup by state.selectedGroup
     var documentSearch by state.documentSearch
+    var allDocuments by state.allDocuments
+    var allDocumentsLoadedFor by state.allDocumentsLoadedFor
+    var allDocumentsLoading by state.allDocumentsLoading
     var pendingDeletePdf by remember { mutableStateOf<File?>(null) }
     var localFileRevision by remember { mutableStateOf(0) }
     val sourceEdition = when (edition) {
@@ -324,6 +330,9 @@ fun TelegramDocumentLibraryScreen(
             documents = emptyList()
             topics = emptyList()
             documentSearch = ""
+            allDocuments = emptyList()
+            allDocumentsLoadedFor = null
+            allDocumentsLoading = false
             error = null
             status = null
             state.loadedSourceEdition = sourceEdition
@@ -340,6 +349,33 @@ fun TelegramDocumentLibraryScreen(
         } else {
             busy = false
         }
+    }
+
+    LaunchedEffect(documentSearch, selectedTopic, topics, repo, sourceEdition) {
+        val library = repo ?: return@LaunchedEffect
+        if (selectedTopic != null || documentSearch.isBlank() || topics.isEmpty() ||
+            allDocumentsLoadedFor == sourceEdition || allDocumentsLoading ||
+            authState !is TelegramAuthManager.State.Ready
+        ) return@LaunchedEffect
+        allDocumentsLoading = true
+        val collected = mutableListOf<Pair<String, TelegramPdfDocument>>()
+        fun loadTopicAt(index: Int) {
+            if (index >= topics.size) {
+                allDocuments = collected.toList()
+                allDocumentsLoadedFor = sourceEdition
+                allDocumentsLoading = false
+                return
+            }
+            val currentTopic = topics[index]
+            library.loadAllTopicMessages(currentTopic) { result ->
+                result.onSuccess { page ->
+                    collected += page.mapNotNull { TelegramPdfDocument.fromMessage(currentTopic.chatId, currentTopic.topicId, it) }
+                        .distinctBy { it.stableId }.map { currentTopic.name to it }
+                }
+                loadTopicAt(index + 1)
+            }
+        }
+        loadTopicAt(0)
     }
 
     BackHandler(enabled = selectedTopic != null) { selectedTopic = null; documents = emptyList() }
@@ -362,7 +398,7 @@ fun TelegramDocumentLibraryScreen(
             if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = StudyAccent)
         }
 
-        if (selectedTopic != null && documents.isNotEmpty()) {
+        if (authState is TelegramAuthManager.State.Ready && repo?.selectedChatId(sourceEdition) != null) {
             OutlinedTextField(
                 value = documentSearch,
                 onValueChange = { documentSearch = it },
@@ -399,7 +435,7 @@ fun TelegramDocumentLibraryScreen(
                     Button(onClick = onManageSources) { Icon(Icons.Default.Settings, null); Spacer(Modifier.width(6.dp)); Text("Configure library") }
                 }
             }
-        } else if (selectedTopic == null) {
+        } else if (selectedTopic == null && documentSearch.isBlank()) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
                 items(topics, key = { it.topicId }) { topic ->
                     Card(
@@ -432,13 +468,21 @@ fun TelegramDocumentLibraryScreen(
                 if (topics.isEmpty() && !busy) item { Text("No topics found in this source group.", color = StudyMuted) }
             }
         } else {
+            val visibleDocuments = if (selectedTopic == null) {
+                allDocuments.filter { (_, doc) ->
+                    val query = documentSearch.trim()
+                    doc.title.contains(query, ignoreCase = true) || doc.fileName.contains(query, ignoreCase = true)
+                }.map { it.second }
+            } else {
+                documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("DOCUMENTS", color = StudyMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text(if (selectedTopic == null) "SEARCH RESULTS" else "DOCUMENTS", color = StudyMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Spacer(Modifier.weight(1f))
-                Text("${documents.count { it.title.contains(documentSearch.trim(), ignoreCase = true) }} files", color = StudyMuted, fontSize = 11.sp)
+                Text(if (allDocumentsLoading) "Searching…" else "${visibleDocuments.size} files", color = StudyMuted, fontSize = 11.sp)
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 112.dp)) {
-                items(documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }, key = { it.stableId }) { document ->
+                items(visibleDocuments, key = { it.stableId }) { document ->
                     val local = TelegramPdfStore.localFile(context, sourceEdition, document)
                     val isDownloaded = localFileRevision >= 0 && local.isFile
                     Card(
@@ -510,9 +554,18 @@ fun TelegramDocumentLibraryScreen(
                         }
                     }
                 }
-                if (documents.isEmpty() && !busy) item {
-                    Text("No PDF documents found in this topic.", color = StudyMuted, fontSize = 13.sp,
+                if (visibleDocuments.isEmpty() && !busy && !allDocumentsLoading) item {
+                    Text(if (selectedTopic == null) "No PDFs match this search." else "No PDF documents found in this topic.",
+                        color = StudyMuted, fontSize = 13.sp,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp))
+                }
+                if (visibleDocuments.isEmpty() && allDocumentsLoading) item {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = StudyAccent)
+                        Spacer(Modifier.width(9.dp))
+                        Text("Searching this library…", color = StudyMuted, fontSize = 12.sp)
+                    }
                 }
             }
         }
