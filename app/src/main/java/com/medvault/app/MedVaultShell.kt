@@ -613,7 +613,9 @@ fun MedVaultBottomBarHost(
                     window.attributes = window.attributes.apply {
                         gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                         width = WindowManager.LayoutParams.MATCH_PARENT
-                        height = WindowManager.LayoutParams.WRAP_CONTENT
+                        // Constrain the Android window itself; WRAP_CONTENT can expand the
+                        // non-fitting Dialog to the full activity decor and intercept all touches.
+                        height = (90f * context.resources.displayMetrics.density).toInt()
                         dimAmount = if (blurEnabled) 0.10f else 0f
                     }
                 }
