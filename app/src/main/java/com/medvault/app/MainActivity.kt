@@ -1944,6 +1944,55 @@ private class TelegramLibraryScreenState {
     val error = mutableStateOf<String?>(null)
     val topicSearch = mutableStateOf("")
     val topicMessagesCache = mutableStateOf<Map<String, List<org.drinkless.tdlib.TdApi.Message>>>(emptyMap())
+
+    private var topicRequestGeneration = 0L
+
+    fun beginTopicRequest(): Long = ++topicRequestGeneration
+
+    fun isCurrentTopicRequest(requestId: Long): Boolean =
+        requestId == topicRequestGeneration
+
+    fun cancelTopicRequest() {
+        topicRequestGeneration++
+    }
+
+    fun cachedTopicMessages(key: String): List<org.drinkless.tdlib.TdApi.Message>? {
+        val cached = topicMessagesCache.value[key] ?: return null
+        val refreshed = LinkedHashMap(topicMessagesCache.value)
+        refreshed.remove(key)
+        refreshed[key] = cached
+        topicMessagesCache.value = refreshed
+        return cached
+    }
+
+    fun cacheTopicMessages(key: String, messages: List<org.drinkless.tdlib.TdApi.Message>) {
+        // Do not retain unusually large histories. The active screen can still
+        // display them; reopening simply performs a fresh progressive load.
+        if (messages.size > MAX_CACHED_MESSAGES_PER_TOPIC) {
+            if (key in topicMessagesCache.value) {
+                topicMessagesCache.value = LinkedHashMap(topicMessagesCache.value).apply { remove(key) }
+            }
+            return
+        }
+
+        val updated = LinkedHashMap(topicMessagesCache.value)
+        updated.remove(key)
+        updated[key] = messages
+        while (
+            updated.size > MAX_CACHED_TOPICS ||
+            updated.values.sumOf { it.size } > MAX_CACHED_MESSAGES_TOTAL
+        ) {
+            val eldestKey = updated.keys.firstOrNull() ?: break
+            updated.remove(eldestKey)
+        }
+        topicMessagesCache.value = updated
+    }
+
+    private companion object {
+        const val MAX_CACHED_TOPICS = 5
+        const val MAX_CACHED_MESSAGES_PER_TOPIC = 800
+        const val MAX_CACHED_MESSAGES_TOTAL = 4000
+    }
 }
 
 @Composable
@@ -1963,16 +2012,15 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     var status by state.status
     var error by state.error
     var topicSearch by state.topicSearch
-    var topicMessagesCache by state.topicMessagesCache
-
-    // Keep each opened subject's history for this screen session. Re-entering a
-    // subject is instant and does not trigger another TDLib history request.
+    // Keep a small LRU of completed subject histories. A generation token owns
+    // each request so callbacks from a screen we have left cannot mutate it.
     val openTopic: (TelegramForumTopic) -> Unit = { selected ->
+        val requestId = state.beginTopicRequest()
         topic = selected
         topicSearch = ""
         error = null
         val cacheKey = "${selected.chatId}:${selected.topicId}"
-        val cachedMessages = topicMessagesCache[cacheKey]
+        val cachedMessages = state.cachedTopicMessages(cacheKey)
         if (cachedMessages != null) {
             messages = cachedMessages
             busy = false
@@ -1988,16 +2036,18 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             } else {
                 sourceRepo.loadTopicMessagesProgressively(
                     selected,
+                    shouldContinue = { state.isCurrentTopicRequest(requestId) },
                     onPage = { page ->
-                        messages = page
-                        topicMessagesCache = topicMessagesCache + (cacheKey to page)
+                        if (state.isCurrentTopicRequest(requestId)) messages = page
                     },
                     onComplete = { result ->
-                        busy = false
-                        result.onSuccess {
-                            messages = it
-                            topicMessagesCache = topicMessagesCache + (cacheKey to it)
-                        }.onFailure { error = it.message }
+                        if (state.isCurrentTopicRequest(requestId)) {
+                            busy = false
+                            result.onSuccess {
+                                messages = it
+                                state.cacheTopicMessages(cacheKey, it)
+                            }.onFailure { error = it.message }
+                        }
                     }
                 )
             }
@@ -2026,10 +2076,13 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         try {
             progress.collect { event -> backProgress.snapTo(event.progress) }
             if (topic != null) {
+                state.cancelTopicRequest()
                 topic = null
                 messages = emptyList()
+                busy = false
                 topicSearch = ""
             } else {
+                state.cancelTopicRequest()
                 onBack()
             }
             backProgress.animateTo(0f, spring(dampingRatio = 0.88f, stiffness = 520f))
@@ -2057,7 +2110,15 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) {
+            IconButton(onClick = {
+                state.cancelTopicRequest()
+                if (topic != null) {
+                    topic = null
+                    messages = emptyList()
+                    busy = false
+                    topicSearch = ""
+                } else onBack()
+            }) {
                 Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
