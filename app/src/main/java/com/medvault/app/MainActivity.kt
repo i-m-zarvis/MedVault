@@ -3464,81 +3464,52 @@ private fun VideoScreen(
     onPip: () -> Unit,
     onProgress: (Long, Long) -> Unit
 ) {
-    var playing by remember {
-        mutableStateOf(player.isPlaying)
-    }
-
-    var playbackError by remember {
-        mutableStateOf<androidx.media3.common.PlaybackException?>(null)
-    }
-
-    var position by remember {
-        mutableLongStateOf(0L)
-    }
-
-    var duration by remember {
-        mutableLongStateOf(0L)
-    }
-
-    var isSeeking by remember {
-        mutableStateOf(false)
-    }
-
-    var speed by remember {
-        mutableFloatStateOf(1f)
-    }
-
-    var controlsVisible by remember {
-        mutableStateOf(true)
-    }
+    var playing by remember(player) { mutableStateOf(player.isPlaying) }
+    var playbackError by remember(player) { mutableStateOf<androidx.media3.common.PlaybackException?>(null) }
+    var position by remember(player) { mutableLongStateOf(player.currentPosition.coerceAtLeast(0L)) }
+    var duration by remember(player) { mutableLongStateOf(player.duration.takeIf { it > 0L } ?: 0L) }
+    var isSeeking by remember(player) { mutableStateOf(false) }
+    var speed by remember(player) { mutableFloatStateOf(player.playbackParameters.speed) }
+    var volume by remember(player) { mutableFloatStateOf(player.volume) }
+    var controlsVisible by remember(player) { mutableStateOf(true) }
+    var settingsExpanded by remember { mutableStateOf(false) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playing = isPlaying
-            }
-
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onPlaybackStateChanged(state: Int) {
-                duration =
-                    player.duration.takeIf { it > 0 } ?: 0L
+                duration = player.duration.takeIf { it > 0L } ?: 0L
                 if (state == Player.STATE_READY) playbackError = null
             }
-
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 playbackError = error
             }
+            override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
+                speed = playbackParameters.speed
+            }
         }
-
         player.addListener(listener)
-
-        onDispose {
-            player.removeListener(listener)
-        }
+        onDispose { player.removeListener(listener) }
     }
 
     LaunchedEffect(player) {
         var lastSaved = 0L
-
         while (true) {
-            if (!isSeeking) {
-                position = player.currentPosition.coerceAtLeast(0L)
-            }
-
-            duration =
-                player.duration.takeIf { it > 0 } ?: 0L
-
-            if (
-                !isSeeking &&
-                duration > 0L &&
-                position > 0L &&
-                System.currentTimeMillis() - lastSaved >= 5000L
-            ) {
+            if (!isSeeking) position = player.currentPosition.coerceAtLeast(0L)
+            duration = player.duration.takeIf { it > 0L } ?: 0L
+            if (!isSeeking && duration > 0L && position > 0L &&
+                System.currentTimeMillis() - lastSaved >= 5000L) {
                 onProgress(position, duration)
                 lastSaved = System.currentTimeMillis()
             }
+            kotlinx.coroutines.delay(350)
+        }
+    }
 
-            kotlinx.coroutines.delay(500)
+    LaunchedEffect(controlsVisible, playing, isSeeking, settingsExpanded, fullscreen) {
+        if (controlsVisible && playing && !isSeeking && !settingsExpanded) {
+            kotlinx.coroutines.delay(3200)
+            controlsVisible = false
         }
     }
 
@@ -3548,359 +3519,317 @@ private fun VideoScreen(
                 PlayerView(context).apply {
                     this.player = player
                     useController = false
-                    setShowBuffering(
-                        PlayerView.SHOW_BUFFERING_ALWAYS
-                    )
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                 }
             },
-            update = {
-                it.player = player
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
+            update = { it.player = player },
+            modifier = Modifier.fillMaxSize().background(Color.Black)
         )
-    } else {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    if (fullscreen) Color.Black else AppBg
+        return
+    }
+
+    val glass = Color(0xB81A2233)
+    val glassBorder = Color(0x55FFFFFF)
+    val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+
+    Column(
+        Modifier.fillMaxSize().background(if (fullscreen) Color.Black else AppBg)
+    ) {
+        if (!fullscreen) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.ArrowBack, "Back", tint = AppAccent)
+                }
+                Text(
+                    file.name,
+                    Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold
                 )
+                IconButton(onClick = onPip) {
+                    Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = AppAccent)
+                }
+            }
+        }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .then(if (fullscreen) Modifier.weight(1f) else Modifier.aspectRatio(16f / 9f))
+                .background(Color.Black)
         ) {
-            if (!fullscreen) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onClose) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            "Back",
-                            tint = AppAccent
-                        )
+            AndroidView(
+                factory = { context ->
+                    PlayerView(context).apply {
+                        this.player = player
+                        useController = false
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                        setShutterBackgroundColor(android.graphics.Color.BLACK)
                     }
+                },
+                update = { view ->
+                    view.player = player
+                    view.useController = false
+                },
+                modifier = Modifier.fillMaxSize()
+            )
 
-                    Text(
-                        file.name,
-                        Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            // Tap the video surface to reveal or dismiss the floating controls.
+            Box(
+                Modifier.fillMaxSize().clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    controlsVisible = !controlsVisible
+                    settingsExpanded = false
+                }
+            )
 
-                    IconButton(onClick = onPip) {
-                        Icon(
-                            Icons.Default.PictureInPictureAlt,
-                            "Picture in picture",
-                            tint = AppAccent
-                        )
+            if (playbackError != null) {
+                Card(
+                    Modifier.align(Alignment.Center).padding(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xF01A2233))
+                ) {
+                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Playback interrupted", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Check the connection and retry from your saved position.", color = Color(0xFFB8C0D0), fontSize = 12.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = {
+                            player.seekTo(position.coerceAtLeast(0L))
+                            player.prepare()
+                            player.playWhenReady = true
+                            playbackError = null
+                        }) {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Retry")
+                        }
                     }
                 }
             }
 
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (fullscreen) {
-                            Modifier.fillMaxHeight()
-                        } else {
-                            Modifier.aspectRatio(16f / 9f)
-                        }
-                    )
-                    .background(Color.Black)
-                    .clickable {
-                        controlsVisible = !controlsVisible
-                    }
+            AnimatedVisibility(
+                visible = controlsVisible,
+                enter = fadeIn(animationSpec = tween(180)),
+                exit = fadeOut(animationSpec = tween(260)),
+                modifier = Modifier.fillMaxSize()
             ) {
-                AndroidView(
-                    factory = { context ->
-                        PlayerView(context).apply {
-                            this.player = player
-                            useController = false
-                            setShowBuffering(
-                                PlayerView.SHOW_BUFFERING_ALWAYS
-                            )
-                        }
-                    },
-                    update = {
-                        it.player = player
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                if (playbackError != null) {
-                    Card(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xEE151E30)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                "Playback interrupted",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                "Check your connection, then retry from the saved position.",
-                                color = AppMuted,
-                                fontSize = 12.sp
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Button(
-                                onClick = {
-                                    player.seekTo(position.coerceAtLeast(0L))
-                                    player.prepare()
-                                    player.playWhenReady = true
-                                    playbackError = null
-                                }
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Retry playback")
-                            }
-                        }
-                    }
-                }
-
-                if (controlsVisible) {
-                    Column(
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .background(Color(0x99000000))
-                            .padding(
-                                horizontal = 12.dp,
-                                vertical = 8.dp
-                            )
+                Box(Modifier.fillMaxSize()) {
+                    // Top floating glass toolbar.
+                    Row(
+                        Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
+                            Modifier.clip(RoundedCornerShape(28.dp))
+                                .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                formatTime(position),
-                                color = Color.White,
-                                fontSize = 11.sp
-                            )
+                            GlassPlayerButton(Icons.Default.Close, "Close player", onClose)
+                            GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                        }
 
+                        Row(
+                            Modifier.clip(RoundedCornerShape(28.dp))
+                                .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box {
+                                GlassPlayerButton(Icons.Default.Settings, "Playback settings") {
+                                    settingsExpanded = true
+                                }
+                                DropdownMenu(
+                                    expanded = settingsExpanded,
+                                    onDismissRequest = { settingsExpanded = false },
+                                    modifier = Modifier.background(Color(0xF01A2233))
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Playback speed", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                                        onClick = { }
+                                    )
+                                    speeds.forEach { rate ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
+                                                    if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
+                                                }
+                                            },
+                                            onClick = {
+                                                speed = rate
+                                                player.setPlaybackSpeed(rate)
+                                                settingsExpanded = false
+                                            }
+                                        )
+                                    }
+                                    Divider(color = Color(0x44FFFFFF))
+                                    Text("VOLUME", color = Color(0xFFB8C0D0), fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
+                                    Slider(
+                                        value = volume,
+                                        onValueChange = {
+                                            volume = it
+                                            player.volume = it
+                                        },
+                                        valueRange = 0f..1f,
+                                        modifier = Modifier.width(210.dp).padding(horizontal = 12.dp),
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color.White,
+                                            activeTrackColor = Color.White,
+                                            inactiveTrackColor = Color(0x66777777)
+                                        )
+                                    )
+                                }
+                            }
+                            GlassPlayerButton(
+                                if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                if (fullscreen) "Exit fullscreen" else "Enter fullscreen",
+                                onFullscreen
+                            )
+                        }
+                    }
+
+                    // Central transport controls.
+                    Row(
+                        Modifier.align(Alignment.Center)
+                            .clip(RoundedCornerShape(40.dp))
+                            .background(Color(0x66101828))
+                            .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(40.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(22.dp)
+                    ) {
+                        GlassPlayerButton(Icons.Default.Replay10, "Back 10 seconds") {
+                            player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                        }
+                        IconButton(
+                            onClick = { if (player.isPlaying) player.pause() else player.play() },
+                            modifier = Modifier.size(66.dp)
+                        ) {
+                            Icon(
+                                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                if (playing) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                        GlassPlayerButton(Icons.Default.Forward10, "Forward 10 seconds") {
+                            val target = player.currentPosition + 10_000L
+                            player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
+                        }
+                    }
+
+                    // Bottom glass panel with title, timeline and quick actions.
+                    Column(
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color(0xB9000000), Color(0xE6000000))
+                                )
+                            )
+                            .padding(horizontal = 18.dp, vertical = 14.dp)
+                    ) {
+                        Text(
+                            file.name,
+                            color = Color.White,
+                            fontSize = if (fullscreen) 15.sp else 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(formatTime(position), color = Color.White, fontSize = 11.sp)
                             Slider(
-                                value = if (duration > 0) {
-                                    position.toFloat()
-                                        .coerceIn(0f, duration.toFloat())
-                                } else {
-                                    0f
-                                },
+                                value = if (duration > 0L) position.toFloat().coerceIn(0f, duration.toFloat()) else 0f,
                                 onValueChange = {
                                     isSeeking = true
                                     position = it.toLong()
                                 },
                                 onValueChangeFinished = {
-                                    player.seekTo(position)
+                                    player.seekTo(position.coerceIn(0L, duration.coerceAtLeast(0L)))
                                     isSeeking = false
                                 },
-                                valueRange = 0f..duration
-                                    .coerceAtLeast(1L)
-                                    .toFloat(),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(28.dp),
+                                valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+                                modifier = Modifier.weight(1f).height(28.dp).padding(horizontal = 8.dp),
                                 colors = SliderDefaults.colors(
-                                    thumbColor = AppAccent,
-                                    activeTrackColor = AppAccent,
-                                    inactiveTrackColor = Color.Gray
+                                    thumbColor = Color.White,
+                                    activeTrackColor = Color.White,
+                                    inactiveTrackColor = Color(0x77FFFFFF)
                                 )
                             )
-
-                            Text(
-                                formatTime(duration),
-                                color = Color.White,
-                                fontSize = 11.sp
-                            )
+                            Text(formatTime(duration), color = Color.White, fontSize = 11.sp)
                         }
-
                         Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
+                            Modifier.fillMaxWidth().padding(top = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            IconButton(
-                                onClick = {
-                                    player.seekTo(
-                                        (
-                                            player.currentPosition -
-                                                10000L
-                                            ).coerceAtLeast(0L)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { settingsExpanded = true }) {
+                                    Text("${speed}×", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                }
+                                Text("·", color = Color(0x99FFFFFF))
+                                TextButton(onClick = onPip) {
+                                    Icon(Icons.Default.PictureInPictureAlt, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("PiP", color = Color.White, fontSize = 12.sp)
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = {
+                                    volume = if (volume > 0f) 0f else 1f
+                                    player.volume = volume
+                                }) {
+                                    Icon(
+                                        if (volume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                                        "Mute or unmute",
+                                        tint = Color.White
                                     )
                                 }
-                            ) {
-                                Icon(
-                                    Icons.Default.Replay10,
-                                    "Back 10 seconds",
-                                    tint = Color.White
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    if (player.isPlaying) {
-                                        player.pause()
-                                    } else {
-                                        player.play()
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    if (playing) {
-                                        Icons.Default.PauseCircleFilled
-                                    } else {
-                                        Icons.Default.PlayCircleFilled
-                                    },
-                                    if (playing) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(38.dp)
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    val target = player.currentPosition + 10000L
-                                    val total = player.duration
-                                    player.seekTo(
-                                        if (total > 0L) target.coerceAtMost(total) else target
-                                    )
-                                }
-                            ) {
-                                Icon(
-                                    Icons.Default.Forward10,
-                                    "Forward 10 seconds",
-                                    tint = Color.White
-                                )
-                            }
-
-                            IconButton(onClick = onPip) {
-                                Icon(
-                                    Icons.Default.PictureInPictureAlt,
-                                    "Picture in picture",
-                                    tint = Color.White
-                                )
-                            }
-
-                            IconButton(onClick = onFullscreen) {
-                                Icon(
-                                    if (fullscreen) {
-                                        Icons.Default.FullscreenExit
-                                    } else {
-                                        Icons.Default.Fullscreen
-                                    },
-                                    "Toggle fullscreen",
-                                    tint = Color.White
-                                )
-                            }
-                        }
-
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "SPEED",
-                                color = Color.LightGray,
-                                fontSize = 10.sp
-                            )
-
-                            Spacer(Modifier.width(8.dp))
-
-                            listOf(
-                                0.5f,
-                                0.75f,
-                                1f,
-                                1.25f,
-                                1.5f,
-                                2f
-                            ).forEach { rate ->
-
-                                TextButton(
-                                    onClick = {
-                                        speed = rate
-                                        player.setPlaybackSpeed(rate)
-                                    },
-                                    contentPadding = PaddingValues(
-                                        horizontal = 7.dp,
-                                        vertical = 0.dp
-                                    )
-                                ) {
-                                    Text(
-                                        "${rate}x",
-                                        color = if (speed == rate) {
-                                            AppAccent
-                                        } else {
-                                            Color.White
-                                        },
-                                        fontSize = 11.sp
+                                IconButton(onClick = onFullscreen) {
+                                    Icon(
+                                        if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                        "Toggle fullscreen",
+                                        tint = Color.White
                                     )
                                 }
                             }
                         }
                     }
                 }
-
-                if (fullscreen) {
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            "Close player",
-                            tint = Color.White
-                        )
-                    }
-                }
-            }
-
-            if (!fullscreen) {
-                Spacer(Modifier.height(14.dp))
-
-                Text(
-                    "NOW PLAYING",
-                    color = AppAccent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-
-                Text(
-                    file.name,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(
-                        horizontal = 16.dp,
-                        vertical = 5.dp
-                    ),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    "Streaming from your video library or local storage",
-                    color = AppMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
             }
         }
+
+        if (!fullscreen) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
+                Text("NOW PLAYING", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(file.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("Your lecture • Resume position is saved automatically", color = AppMuted,
+                    fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassPlayerButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {
+        Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(21.dp))
     }
 }
 
