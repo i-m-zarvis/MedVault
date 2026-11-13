@@ -143,6 +143,33 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         }
     }
 
+    /**
+     * Loads the complete topic history in sequential TDLib pages.
+     * Telegram caps each history response at 100 messages; the UI should not
+     * require the learner to manually request older pages to see the sequence.
+     */
+    fun loadAllTopicMessages(
+        topic: TelegramForumTopic,
+        callback: (Result<List<TdApi.Message>>) -> Unit
+    ) {
+        val collected = linkedMapOf<Long, TdApi.Message>()
+        fun loadPage(fromMessageId: Long) {
+            loadTopicMessages(topic, fromMessageId = fromMessageId, limit = 100) { result ->
+                result.onFailure { callback(Result.failure(it)) }
+                result.onSuccess { page ->
+                    page.forEach { collected[it.id] = it }
+                    val oldestId = page.minOfOrNull { it.id }
+                    if (page.size < 100 || oldestId == null || oldestId == fromMessageId) {
+                        callback(Result.success(collected.values.sortedByDescending { it.id }))
+                    } else {
+                        loadPage(oldestId)
+                    }
+                }
+            }
+        }
+        loadPage(0L)
+    }
+
     fun extractLectures(topic: TelegramForumTopic, messages: List<TdApi.Message>): List<TelegramLecture> =
         messages.mapNotNull { TelegramLecture.fromMessage(topic.chatId, topic.topicId, it) }
             .distinctBy { it.stableId }.sortedByDescending { it.messageId }
