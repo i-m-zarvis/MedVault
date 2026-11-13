@@ -1736,7 +1736,7 @@ private fun MedVaultRoot(
             }
         }
         if (screen in mainTabs && !pipMode) {
-            MedVaultBottomBar(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
+            MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
                 onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
     }
