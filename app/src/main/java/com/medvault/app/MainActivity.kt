@@ -1941,12 +1941,33 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
     }
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) { Icon(Icons.Default.ArrowBack, "Back") }
-            Column(Modifier.weight(1f)) {
-                Text(topic?.name ?: "Video Library", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                if (topic == null) Text("HIGH-YIELD MEDIA", color = Color(0xFFB477F5), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) {
+                Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
             }
-            if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(topic?.name ?: "Lectures", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (topic == null) "YOUR VIDEO LIBRARY" else "LECTURE COLLECTION",
+                    color = LiquidViolet,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                )
+            }
+            if (topic == null) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = HomeBlue.copy(alpha = 0.13f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HomeBlue.copy(alpha = 0.30f))
+                ) {
+                    Text("EDITION ${activeEdition.name}", modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                        color = HomeBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                }
+            }
+            if (busy) {
+                Spacer(Modifier.width(10.dp))
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = HomeBlue)
+            }
         }
         if (authState is TelegramAuthManager.State.Ready) {
             OutlinedTextField(
@@ -1965,13 +1986,15 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                         }
                     }
                 },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AppAccent,
-                    unfocusedBorderColor = AppPanel,
+                    focusedBorderColor = HomeBlue.copy(alpha = 0.75f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
+                    focusedContainerColor = Color(0xAA172238),
+                    unfocusedContainerColor = Color(0x88131D30),
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
-                    cursorColor = AppAccent
+                    cursorColor = HomeBlue
                 )
             )
         }
@@ -2069,21 +2092,50 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     }
                 }
             }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("SUBJECTS", color = HomeMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Spacer(Modifier.weight(1f))
+                Text("${visibleTopics.size} available", color = HomeMuted, fontSize = 11.sp)
+            }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleTopics, key = { it.topicId }) { item ->
-                    Card(Modifier.clickable {
-                        topic = item; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
-                        repo?.loadTopicMessages(item) { result ->
-                            busy = false
-                            result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
+                    Card(
+                        Modifier.fillMaxWidth().clickable {
+                            topic = item; topicSearch = ""; busy = true; messages = emptyList(); hasMoreMessages = false; error = null
+                            repo?.loadTopicMessages(item) { result ->
+                                busy = false
+                                result.onSuccess { messages = it; hasMoreMessages = it.size >= 100 }.onFailure { error = it.message }
+                            }
+                        },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
+                        shape = RoundedCornerShape(21.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.085f))
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(13.dp)
+                        ) {
+                            Box(
+                                Modifier.size(43.dp).background(HomeBlue.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                    .border(1.dp, HomeBlue.copy(alpha = 0.20f), RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.MenuBook, null, tint = HomeBlue, modifier = Modifier.size(21.dp))
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text("OPEN SUBJECT", color = HomeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                            }
+                            Icon(Icons.Default.ChevronRight, null, tint = HomeMuted, modifier = Modifier.size(20.dp))
                         }
-                    }, colors = CardDefaults.cardColors(containerColor = Color(0xD91B2940)),
-                        shape = RoundedCornerShape(24.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))) {
-                        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(item.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-                            Icon(Icons.Default.ChevronRight, null, tint = AppMuted)
-                        }
+                    }
+                }
+                if (visibleTopics.isEmpty() && topicSearch.isNotBlank()) {
+                    item {
+                        Text("No subjects match this search.", color = HomeMuted, fontSize = 13.sp,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp))
                     }
                 }
             }
