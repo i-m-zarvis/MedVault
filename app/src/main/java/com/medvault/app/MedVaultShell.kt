@@ -59,6 +59,61 @@ private val HomeBorder = Color(0xFF343D54)
 private val LiquidViolet = Color(0xFFB18CFF)
 private val LiquidTeal = Color(0xFF62D7C8)
 
+/**
+ * Central Liquid design tokens. These are intentionally semantic rather than
+ * screen-specific so every surface and interaction shares the same material language.
+ */
+internal object LiquidPalette {
+    val Background = Color(0xFF080B14)
+    val Surface = Color(0xCC111A2B)
+    val SurfaceRaised = Color(0xD91B2940)
+    val Primary = Color(0xFF86B8FF)
+    val Violet = Color(0xFFB69AFF)
+    val Teal = Color(0xFF6ADBCB)
+    val Amber = Color(0xFFF2C66D)
+    val Ink = Color(0xFFF4F6FC)
+    val Muted = Color(0xFFA0AABD)
+    val Hairline = Color.White.copy(alpha = 0.20f)
+}
+
+/**
+ * Motion presets for interruptible, velocity-continuous Compose spring animations.
+ * Use low/no bounce for navigation and content; reserve slight under-damping for touch.
+ */
+internal object LiquidMotion {
+    val Navigation = spring<Float>(dampingRatio = 0.94f, stiffness = 560f)
+    val Selection = spring<Float>(dampingRatio = 0.88f, stiffness = 480f)
+    val Touch = spring<Float>(dampingRatio = 0.78f, stiffness = 720f)
+    val Content = spring<Float>(dampingRatio = 1.0f, stiffness = 360f)
+}
+
+/**
+ * Lightweight glass approximation for API 26+: translucent layered tint,
+ * a restrained cool highlight and a hairline edge. This is not backdrop blur;
+ * API 31+ blur must be implemented at the parent/backdrop layer, not on this child.
+ */
+internal fun Modifier.liquidGlassSurface(
+    accent: Color = LiquidPalette.Primary,
+    radius: androidx.compose.ui.unit.Dp = 28.dp
+): Modifier {
+    val shape = RoundedCornerShape(radius)
+    return this
+        .clip(shape)
+        .background(
+            Brush.linearGradient(
+                colors = listOf(
+                    Color(0xD9233552),
+                    Color(0xC9142034),
+                    accent.copy(alpha = 0.075f)
+                )
+            )
+        )
+        .border(
+            androidx.compose.foundation.BorderStroke(1.dp, LiquidPalette.Hairline),
+            shape
+        )
+}
+
 /** A low-cost glass-like surface: layered colour, a restrained highlight and a fine edge. */
 internal fun Modifier.liquidPanel(
     accent: Color = HomeBlue,
@@ -498,10 +553,10 @@ fun MedVaultBottomBar(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color(0xCC0A0D16),
+            modifier = Modifier.fillMaxWidth().liquidGlassSurface(LiquidPalette.Primary, 34.dp),
+            color = Color.Transparent,
             shape = RoundedCornerShape(34.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+            border = null,
             shadowElevation = 4.dp
         ) {
             Row(
