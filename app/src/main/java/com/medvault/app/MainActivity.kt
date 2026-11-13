@@ -2188,6 +2188,11 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)
             ) {
                 items(filteredLectures, key = { it.stableId }, contentType = { "lecture" }) { lecture ->
+                    val playedPositionMs = remember(lecture.stableId, progressRevision) {
+                        context.getSharedPreferences("telegram_playback_local", android.content.Context.MODE_PRIVATE).getLong(lecture.stableId, 0L)
+                    }
+                    val progressFraction = if (lecture.durationSeconds > 0) (playedPositionMs.toFloat() / (lecture.durationSeconds * 1000f)).coerceIn(0f, 1f) else 0f
+                    val displayTitle = remember(lecture.title) { lecture.title.replace(Regex("\\\\.(mp4|mkv|webm|mov)$", RegexOption.IGNORE_CASE), "") }
                     var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
                     LaunchedEffect(lecture.thumbnailFileId) {
                         val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
@@ -2208,7 +2213,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Box(
-                                Modifier.width(120.dp).aspectRatio(16f / 9f)
+                                Modifier.width(108.dp).aspectRatio(16f / 9f)
                                     .clip(RoundedCornerShape(11.dp))
                                     .background(Color(0xFF17243A))
                                     .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(11.dp)),
@@ -2217,7 +2222,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                 if (thumbnailPath != null) {
                                     AsyncImage(
                                         model = File(thumbnailPath!!),
-                                        contentDescription = lecture.title,
+                                        contentDescription = displayTitle,
                                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(11.dp))
                                     )
@@ -2231,14 +2236,18 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                 ) {
                                     Icon(Icons.Default.PlayArrow, "Play lecture", tint = Color.White, modifier = Modifier.size(20.dp))
                                 }
-
+                                if (progressFraction > 0f) {
+                                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.20f))) {
+                                        Box(Modifier.fillMaxWidth(progressFraction).fillMaxHeight().background(Color(0xFF78AFFF)))
+                                    }
+                                }
                             }
                             Column(
                                 Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
                                 Text(
-                                    lecture.title,
+                                    displayTitle,
                                     color = Color(0xFFF5F6FA),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp,
