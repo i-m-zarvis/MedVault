@@ -4625,7 +4625,7 @@ private fun MedVaultBrandSplash() {
                     Image(
                         bitmap = mark,
                         contentDescription = "MedVault logo",
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(42.dp))
