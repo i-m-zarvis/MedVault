@@ -592,6 +592,10 @@ fun MedVaultBottomBarHost(
             SideEffect {
                 dialogWindow?.let { window ->
                     window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                    // The dock is a small overlay, not a full-screen touch layer.
+                    // Let all gestures outside its bounds reach the screen underneath.
+                    window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                    window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
                     val blurEnabled = context
                         .getSystemService(WindowManager::class.java)
                         ?.isCrossWindowBlurEnabled == true
@@ -614,7 +618,7 @@ fun MedVaultBottomBarHost(
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(90.dp).padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
                 MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile)
             }
         }
