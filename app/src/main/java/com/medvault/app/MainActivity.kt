@@ -3630,14 +3630,6 @@ private fun VideoScreen(
                 ) {
                     val screenWidth = maxWidth
                     val screenHeight = maxHeight
-                    val sideInset = screenWidth * 0.075f
-                    val topInset = screenHeight * 0.07f
-                    val capsuleHeight = (screenHeight * 0.115f).coerceIn(44.dp, 56.dp)
-                    val leftCapsuleWidth = (screenWidth * 0.253f).coerceIn(190.dp, 250.dp)
-                    val volumeCapsuleWidth = (screenWidth * 0.20f).coerceIn(155.dp, 205.dp)
-                    val transportWidth = (screenWidth * 0.376f).coerceIn(280.dp, 380.dp)
-                    val transportHeight = (screenHeight * 0.19f).coerceIn(72.dp, 90.dp)
-                    val contextualWidth = (screenWidth * 0.18f).coerceIn(140.dp, 180.dp)
 
                     if (fullscreen) {
                         // iOS-inspired floating controls: independent glass elements,
@@ -3803,7 +3795,6 @@ private fun VideoScreen(
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 })
                             }
-                            GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
                             GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
                         }
 
