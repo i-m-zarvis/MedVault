@@ -4432,51 +4432,148 @@ private fun formatTime(ms: Long): String {
 
 @Composable
 private fun MedVaultBrandSplash() {
-    var pulse by remember { mutableStateOf(false) }
+    val reveal = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        while (true) {
-            pulse = !pulse
-            kotlinx.coroutines.delay(650)
-        }
+        reveal.animateTo(1f, animationSpec = tween(1450, easing = androidx.compose.animation.core.FastOutSlowInEasing))
     }
+
+    val progress = reveal.value
+    val logoScale = 0.78f + (0.22f * progress)
+    val glowAlpha = 0.18f + (0.42f * progress)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))),
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF020916), Color(0xFF06152B), Color(0xFF020916))
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
+        // Subtle liquid-glass light trails behind the mark.
+        Canvas(Modifier.fillMaxSize()) {
+            val wave = androidx.compose.ui.graphics.Path().apply {
+                moveTo(-size.width * 0.12f, size.height * 0.73f)
+                cubicTo(size.width * 0.22f, size.height * 0.56f, size.width * 0.48f, size.height * 0.88f, size.width * 1.12f, size.height * 0.62f)
+            }
+            drawPath(
+                wave,
+                brush = Brush.horizontalGradient(
+                    listOf(Color.Transparent, Color(0xFF168BFF).copy(alpha = glowAlpha), Color(0xFF55C9FF).copy(alpha = glowAlpha * 0.7f), Color.Transparent)
+                ),
+                style = Stroke(width = 2.2.dp.toPx())
+            )
+            val upperWave = androidx.compose.ui.graphics.Path().apply {
+                moveTo(-size.width * 0.1f, size.height * 0.25f)
+                cubicTo(size.width * 0.25f, size.height * 0.08f, size.width * 0.63f, size.height * 0.36f, size.width * 1.1f, size.height * 0.17f)
+            }
+            drawPath(
+                upperWave,
+                color = Color(0xFF168BFF).copy(alpha = glowAlpha * 0.28f),
+                style = Stroke(width = 1.dp.toPx())
+            )
+        }
+
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            androidx.compose.material3.Surface(
-                modifier = Modifier.size(if (pulse) 92.dp else 84.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = Color(0xFF172B49),
-                shadowElevation = 18.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.MenuBook,
-                        contentDescription = null,
-                        tint = AppAccent,
-                        modifier = Modifier.size(48.dp)
+            Box(
+                modifier = Modifier
+                    .size(142.dp)
+                    .graphicsLayer {
+                        scaleX = logoScale
+                        scaleY = logoScale
+                        alpha = progress
+                        shadowElevation = 28.dp.toPx()
+                    }
+                    .clip(RoundedCornerShape(38.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF12345D), Color(0xFF07172D), Color(0xFF0B2B50))
+                        )
                     )
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(listOf(Color(0xFFB9E7FF), Color(0x5578BFFF), Color(0xFF238EFF))),
+                        RoundedCornerShape(38.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(Modifier.fillMaxSize().padding(20.dp)) {
+                    val sx = size.width / 100f
+                    val sy = size.height / 100f
+                    fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
+
+                    val book = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(p(50f, 79f).x, p(50f, 79f).y)
+                        cubicTo(p(37f, 68f).x, p(37f, 68f).y, p(20f, 65f).x, p(20f, 65f).y, p(8f, 70f).x, p(8f, 70f).y)
+                        lineTo(p(8f, 35f).x, p(8f, 35f).y)
+                        cubicTo(p(24f, 27f).x, p(24f, 27f).y, p(39f, 32f).x, p(39f, 32f).y, p(50f, 43f).x, p(50f, 43f).y)
+                        cubicTo(p(61f, 32f).x, p(61f, 32f).y, p(76f, 27f).x, p(76f, 27f).y, p(92f, 35f).x, p(92f, 35f).y)
+                        lineTo(p(92f, 70f).x, p(92f, 70f).y)
+                        cubicTo(p(80f, 65f).x, p(80f, 65f).y, p(63f, 68f).x, p(63f, 68f).y, p(50f, 79f).x, p(50f, 79f).y)
+                        close()
+                    }
+                    drawPath(book, Brush.horizontalGradient(listOf(Color(0xFFBCEBFF), Color(0xFF55AFFF), Color(0xFFD8F5FF))))
+                    drawLine(Color(0xFF08294A), p(50f, 44f), p(50f, 77f), strokeWidth = 2.2.dp.toPx())
+
+                    val roof = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(p(19f, 36f).x, p(19f, 36f).y)
+                        lineTo(p(19f, 19f).x, p(19f, 19f).y)
+                        lineTo(p(50f, 3f).x, p(50f, 3f).y)
+                        lineTo(p(81f, 19f).x, p(81f, 19f).y)
+                        lineTo(p(81f, 36f).x, p(81f, 36f).y)
+                    }
+                    drawPath(roof, Color(0xFF9ADFFF), style = Stroke(width = 3.2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+
+                    // Medical staff and a restrained serpent motif.
+                    drawLine(Color(0xFF07345D), p(50f, 20f), p(50f, 57f), strokeWidth = 2.4.dp.toPx())
+                    drawCircle(Color(0xFF07345D), radius = 3.2.dp.toPx(), center = p(50f, 17f))
+                    val serpent = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(p(50f, 29f).x, p(50f, 29f).y)
+                        cubicTo(p(36f, 29f).x, p(36f, 29f).y, p(37f, 40f).x, p(37f, 40f).y, p(50f, 41f).x, p(50f, 41f).y)
+                        cubicTo(p(63f, 42f).x, p(63f, 42f).y, p(63f, 51f).x, p(50f, 51f).x, p(50f, 51f).y)
+                    }
+                    drawPath(serpent, Color(0xFF07345D), style = Stroke(width = 2.1.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
                 }
             }
-            Spacer(Modifier.height(22.dp))
+
+            Spacer(Modifier.height(25.dp))
             Text(
-                "MEDVAULT",
-                color = Color.White,
-                fontSize = 27.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 3.sp
+                "MedVault",
+                color = Color.White.copy(alpha = progress),
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.8).sp
             )
             Spacer(Modifier.height(7.dp))
             Text(
-                "by Aftab",
-                color = AppMuted,
-                fontSize = 13.sp,
-                letterSpacing = 1.5.sp
+                "YOUR MEDICAL LEARNING LIBRARY",
+                color = Color(0xFFB9CDE5).copy(alpha = progress),
+                fontSize = 9.sp,
+                letterSpacing = 2.1.sp
+            )
+            Spacer(Modifier.height(34.dp))
+            Box(
+                Modifier.width(88.dp).height(3.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF163B64))
+            ) {
+                Box(
+                    Modifier.fillMaxWidth(progress.coerceIn(0.06f, 1f))
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF39A9FF), Color(0xFFD4F5FF))))
+                )
+            }
+            Spacer(Modifier.height(27.dp))
+            Text(
+                "Made with ❤️ by Aftab",
+                color = Color.White.copy(alpha = progress * 0.92f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }
