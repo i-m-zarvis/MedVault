@@ -1687,6 +1687,8 @@ private fun MedVaultRoot(
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     val telegramLibraryState = remember { TelegramLibraryScreenState() }
+    val qbankLibraryState = remember { TelegramDocumentLibraryState() }
+    val notesLibraryState = remember { TelegramDocumentLibraryState() }
     val mainTabs = setOf("home", "videos", "qbank", "offline", "settings")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
@@ -1714,8 +1716,8 @@ private fun MedVaultRoot(
                         onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources,
                         activeEdition = activeEdition, state = telegramLibraryState, progressRevision = telegramProgressRevision)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
-                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice)
-                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition)
+                    "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice, state = qbankLibraryState)
+                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, state = notesLibraryState)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome)
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
