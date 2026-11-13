@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity() {
     private val driveItems = mutableStateListOf<DriveItem>()
     private val folderStack = mutableStateListOf<FolderLocation>()
     private val watchRecords = mutableStateMapOf<String, WatchRecord>()
+    private val telegramWatchRecords = mutableStateMapOf<String, WatchRecord>()
 
     private var folderId by mutableStateOf("root")
     private var folderName by mutableStateOf("My Drive")
@@ -228,6 +229,18 @@ class MainActivity : ComponentActivity() {
             .firstOrNull { it.id == activeAccountId }?.email ?: "Google Drive"
 
         historySync = WatchHistorySync(this)
+        getSharedPreferences("telegram_watch_history", MODE_PRIVATE).all.forEach { (id, value) ->
+            val json = runCatching { JSONObject(value as? String ?: return@forEach) }.getOrNull() ?: return@forEach
+            telegramWatchRecords[id] = WatchRecord(
+                fileId = id,
+                name = json.optString("name"),
+                positionMs = json.optLong("positionMs"),
+                durationMs = json.optLong("durationMs"),
+                updatedAt = json.optLong("updatedAt"),
+                completed = json.optBoolean("completed"),
+                accountId = "telegram-local"
+            )
+        }
         downloadRepository = DownloadRepository(this)
         ContentFeedScheduler.schedule(this)
 
@@ -370,9 +383,7 @@ class MainActivity : ComponentActivity() {
                     pipMode = pipMode,
                     fullscreen = fullscreen,
                     player = player,
-                    history = watchRecords.values.sortedByDescending {
-                        it.updatedAt
-                    },
+                    history = (watchRecords.values + telegramWatchRecords.values).sortedByDescending { it.updatedAt },
                     downloadWorkItems = downloadWorkItems,
                     downloadedLectures = downloadedLectures,
                     pausedDownloadIds = pausedDownloadIds,
@@ -445,14 +456,26 @@ class MainActivity : ComponentActivity() {
                     onDownloads = { screen = "downloads" },
 
                     onHistoryFile = { record ->
-                        openFile(
-                            DriveItem(
-                                record.fileId,
-                                record.name,
-                                "video/mp4",
-                                accountId = record.accountId
-                            )
-                        )
+                        if (record.accountId == "telegram-local") {
+                            val parts = record.fileId.split(":")
+                            val chatId = parts.getOrNull(1)?.toLongOrNull()
+                            val topicId = parts.getOrNull(2)?.toIntOrNull()
+                            val messageId = parts.getOrNull(3)?.toLongOrNull()
+                            if (chatId != null && topicId != null && messageId != null) {
+                                val manager = TelegramAuthManager.getInstance(this@MainActivity) { }
+                                manager.sendRequest(TdApi.GetMessage(chatId, messageId)) { result ->
+                                    if (result is TdApi.Message) {
+                                        TelegramLecture.fromMessage(chatId, topicId, result)?.let { lecture ->
+                                            runOnUiThread { startTelegramVideo(lecture) }
+                                        }
+                                    } else if (result is TdApi.Error) {
+                                        runOnUiThread { Toast.makeText(this@MainActivity, "Could not reopen lecture: ${result.message}", Toast.LENGTH_LONG).show() }
+                                    }
+                                }
+                            }
+                        } else {
+                            openFile(DriveItem(record.fileId, record.name, "video/mp4", accountId = record.accountId))
+                        }
                     },
 
                     onFullscreen = { toggleFullscreen() },
@@ -966,8 +989,28 @@ class MainActivity : ComponentActivity() {
         if (duration <= 0L) return
         selectedTelegramLecture?.let { lecture ->
             val completed = position >= (duration * 0.95f).toLong()
+            val savedPosition = if (completed) duration else position.coerceAtLeast(0L)
             getSharedPreferences("telegram_playback_local", MODE_PRIVATE).edit()
-                .putLong(lecture.stableId, if (completed) duration else position.coerceAtLeast(0L))
+                .putLong(lecture.stableId, savedPosition)
+                .apply()
+            val record = WatchRecord(
+                fileId = lecture.stableId,
+                name = lecture.title,
+                positionMs = savedPosition,
+                durationMs = duration,
+                updatedAt = System.currentTimeMillis(),
+                completed = completed,
+                accountId = "telegram-local"
+            )
+            telegramWatchRecords[lecture.stableId] = record
+            getSharedPreferences("telegram_watch_history", MODE_PRIVATE).edit()
+                .putString(lecture.stableId, JSONObject()
+                    .put("name", record.name)
+                    .put("positionMs", record.positionMs)
+                    .put("durationMs", record.durationMs)
+                    .put("updatedAt", record.updatedAt)
+                    .put("completed", record.completed)
+                    .toString())
                 .apply()
             telegramProgressRevision++
             return
@@ -1801,7 +1844,7 @@ private fun MedVaultRoot(
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
                         onRapidRevision = onOpenRapidRevision, onNotes = onOpenNotes, onBookmarks = onOpenBookmarks, onPlanner = onOpenPlanner, onSettings = onSettings,
-                        onHistory = onHistory, history = emptyList(), onResumeLecture = onHistoryFile,
+                        onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
                         onPlayLecture = onPlayTelegramLecture, onDownloadLecture = onDownloadTelegramLecture,
@@ -1845,7 +1888,7 @@ private fun MedVaultRoot(
                         onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
                     else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
                         onRapidRevision = onOpenRapidRevision, onNotes = onOpenNotes, onBookmarks = onOpenBookmarks, onPlanner = onOpenPlanner, onSettings = onSettings,
-                        onHistory = onHistory, history = emptyList(), onResumeLecture = onHistoryFile,
+                        onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                 }
             }
