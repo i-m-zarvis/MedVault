@@ -289,7 +289,7 @@ fun MedVaultHomeScreen(
                         HomeActionTile("QBank", "Practice questions", Icons.Default.MenuBook, onQBank, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HomeActionTile("Notes", "Study documents", Icons.Default.Description, onQBank, Modifier.weight(1f))
+                        Spacer(Modifier.weight(1f))
                         HomeActionTile("Offline", "Saved for later", Icons.Default.Download, onUpdates, Modifier.weight(1f))
                     }
                 }
