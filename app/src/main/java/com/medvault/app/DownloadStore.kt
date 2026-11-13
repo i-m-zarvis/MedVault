@@ -24,7 +24,14 @@ object DownloadStore {
                     localPath = item.getString("localPath"),
                     downloadId = item.optLong("downloadId", 0L),
                     downloadedAt = item.getLong("downloadedAt"),
-                    accountId = item.optString("accountId", "default")
+                    accountId = item.optString("accountId", "default"),
+                    source = item.optString("source", "drive"),
+                    chatId = item.optLong("chatId", 0L),
+                    topicId = item.optInt("topicId", 0),
+                    messageId = item.optLong("messageId", 0L),
+                    telegramFileId = item.optInt("telegramFileId", 0),
+                    mimeType = item.optString("mimeType", "video/mp4"),
+                    durationSeconds = item.optInt("durationSeconds", 0)
                 )
                 if (File(lecture.localPath).isFile) result.add(lecture)
             }
@@ -64,6 +71,13 @@ object DownloadStore {
                 put("downloadId", lecture.downloadId)
                 put("downloadedAt", lecture.downloadedAt)
                 put("accountId", lecture.accountId)
+                put("source", lecture.source)
+                put("chatId", lecture.chatId)
+                put("topicId", lecture.topicId)
+                put("messageId", lecture.messageId)
+                put("telegramFileId", lecture.telegramFileId)
+                put("mimeType", lecture.mimeType)
+                put("durationSeconds", lecture.durationSeconds)
             })
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
