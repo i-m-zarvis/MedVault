@@ -2113,6 +2113,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             )
         }
         AnimatedContent(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             targetState = topic,
             transitionSpec = {
                 val enteringFromRight = targetState != null
@@ -2126,6 +2127,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             },
             label = "subject_collection_transition"
         ) { targetTopic ->
+            Column(Modifier.fillMaxSize()) {
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Content account is not connected.", color = AppMuted)
             Button(onClick = onConnect) { Text("Connect account") }
@@ -2398,6 +2400,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             }
 
         }
+            }
         }
     }
 }
