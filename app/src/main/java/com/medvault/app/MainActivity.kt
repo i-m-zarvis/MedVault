@@ -1839,7 +1839,7 @@ private fun MedVaultRoot(
                         status = status, onBack = onFolderBack, onRefresh = onRefresh, onGlobalSearch = onGlobalSearch,
                         onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
                     else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
+                        onRapidRevision = { screen = "rapid_revision" }, onNotes = { screen = "notes" }, onBookmarks = { screen = "bookmarks" }, onPlanner = { screen = "planner" }, onSettings = onSettings,
                         onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                 }
