@@ -2278,7 +2278,11 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     .orEmpty().distinctBy { it.stableId }.sortedBy { it.messageId }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
-            val filteredLectures = lectures.filter { it.title.contains(topicSearch.trim(), ignoreCase = true) }
+            val filteredLectures = remember(lectures, topicSearch) {
+                val query = topicSearch.trim()
+                if (query.isEmpty()) lectures
+                else lectures.filter { it.title.contains(query, ignoreCase = true) }
+            }
             Row(
                 Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
