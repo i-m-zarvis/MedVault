@@ -1,11 +1,7 @@
 package com.medvault.app
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -41,13 +36,11 @@ import org.drinkless.tdlib.TdApi
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.util.concurrent.Executors
 
 private val QuickBg = Color(0xFF080B12)
 private val QuickInk = Color(0xFFF5F6FA)
 private val QuickMuted = Color(0xFF9299AA)
 private val QuickBlue = Color(0xFF78AFFF)
-private val BookmarkIo = Executors.newSingleThreadExecutor()
 
 private data class BookmarkEntry(
     val id: String,
@@ -268,29 +261,6 @@ private fun BookmarkContentCard(
     }
 }
 
-@Composable
-private fun PdfBookmarkPreview(file: File, modifier: Modifier = Modifier) {
-    var bitmap by remember(file.absolutePath) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(file.absolutePath) {
-        BookmarkIo.execute {
-            runCatching {
-                val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                descriptor.use { fd ->
-                    PdfRenderer(fd).use { renderer ->
-                        if (renderer.pageCount > 0) renderer.openPage(0).use { page ->
-                            val width = 300
-                            val height = (width.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
-                            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { image ->
-                                page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            }
-                        } else null
-                    }
-                }
-            }.getOrNull()
-        }.also { result -> bitmap = result.getOrNull() }
-    }
-    if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = "PDF first page preview", modifier = modifier, contentScale = ContentScale.Crop)
-}
 private data class PlannerTask(val id: Long, val title: String, val subject: String, val due: String, val done: Boolean)
 
 @Composable
