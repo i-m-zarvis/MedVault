@@ -3780,7 +3780,7 @@ private fun VideoScreen(
                                     .border(
                                         1.dp,
                                         Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x22FFFFFF))),
-                                        RoundedCornerShape(16.dp)
+                                        RoundedCornerShape(14.dp)
                                     )
                                     .padding(5.dp)
                             ) {
@@ -3945,7 +3945,7 @@ private fun VideoScreen(
                                     .border(
                                         1.dp,
                                         Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x22FFFFFF))),
-                                        RoundedCornerShape(16.dp)
+                                        RoundedCornerShape(14.dp)
                                     )
                                     .padding(5.dp)
                             ) {
@@ -4262,7 +4262,8 @@ private fun PlayerGlassAction(
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .height(34.dp)
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
