@@ -2248,7 +2248,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     item {
                         Text(
                             if (topicSearch.isNotBlank()) "No lectures match this search."
-                            else "No video lectures found in this page. Load older messages to scan further back.",
+                            else "No video lectures are available in this subject yet.",
                             color = Color(0xFF9299AA),
                             fontSize = 13.sp,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
