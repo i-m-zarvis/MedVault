@@ -71,7 +71,7 @@ fun DownloadManagerScreen(
 ) {
     val context = LocalContext.current
     val downloadDirectory = File(context.filesDir, "downloads")
-    val storageUsed by produceState(initialValue = 0L, downloadDirectory, downloadedLectures) {
+    val storageUsed by produceState(initialValue = 0L, downloadDirectory, downloadedLectures, workItems) {
         value = withContext(Dispatchers.IO) {
             downloadDirectory.listFiles()?.asSequence()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
         }
