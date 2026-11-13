@@ -2207,19 +2207,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                 ) {
                                     Icon(Icons.Default.PlayArrow, "Play lecture", tint = Color.White, modifier = Modifier.size(20.dp))
                                 }
-                                if (lecture.durationSeconds > 0) {
-                                    val hours = lecture.durationSeconds / 3600
-                                    val minutes = (lecture.durationSeconds % 3600) / 60
-                                    val seconds = lecture.durationSeconds % 60
-                                    val durationLabel = if (hours > 0) "${hours}h ${minutes}m" else if (minutes > 0) "${minutes}m ${seconds.toString().padStart(2, '0')}s" else "${seconds}s"
-                                    Text(
-                                        durationLabel,
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
-                                            .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 5.dp, vertical = 2.dp),
-                                        color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+
                             }
                             Column(
                                 Modifier.weight(1f),
