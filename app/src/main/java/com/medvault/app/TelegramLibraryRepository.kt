@@ -170,6 +170,41 @@ class TelegramLibraryRepository(context: Context, private val auth: TelegramAuth
         loadPage(0L)
     }
 
+    /**
+     * Streams topic history into the UI page-by-page while continuing to fetch older
+     * messages. The first page is visible immediately; completion only controls the
+     * loading indicator and the final empty-state decision.
+     */
+    fun loadTopicMessagesProgressively(
+        topic: TelegramForumTopic,
+        onPage: (List<TdApi.Message>) -> Unit,
+        onComplete: (Result<List<TdApi.Message>>) -> Unit
+    ) {
+        val collected = linkedMapOf<Long, TdApi.Message>()
+        var firstPageDelivered = false
+        fun loadPage(fromMessageId: Long) {
+            loadTopicMessages(topic, fromMessageId = fromMessageId, limit = 100) { result ->
+                result.onFailure {
+                    if (!firstPageDelivered) onComplete(Result.failure(it))
+                    else onComplete(Result.success(collected.values.sortedByDescending { msg -> msg.id }))
+                }
+                result.onSuccess { page ->
+                    page.forEach { collected[it.id] = it }
+                    val ordered = collected.values.sortedByDescending { it.id }
+                    firstPageDelivered = true
+                    onPage(ordered)
+                    val oldestId = page.minOfOrNull { it.id }
+                    if (page.size < 100 || oldestId == null || oldestId == fromMessageId) {
+                        onComplete(Result.success(ordered))
+                    } else {
+                        loadPage(oldestId)
+                    }
+                }
+            }
+        }
+        loadPage(0L)
+    }
+
     fun extractLectures(topic: TelegramForumTopic, messages: List<TdApi.Message>): List<TelegramLecture> =
         messages.mapNotNull { TelegramLecture.fromMessage(topic.chatId, topic.topicId, it) }
             .distinctBy { it.stableId }.sortedByDescending { it.messageId }
