@@ -4444,7 +4444,7 @@ private fun formatTime(ms: Long): String {
 private fun MedVaultBrandSplash() {
     val context = LocalContext.current
     val mark = remember(context) {
-        BitmapFactory.decodeResource(context.resources, R.drawable.medvault_emblem).asImageBitmap()
+        BitmapFactory.decodeResource(context.resources, R.drawable.medvault_emblem_freeform).asImageBitmap()
     }
     val iconReveal = remember { Animatable(0f) }
     val contentReveal = remember { Animatable(0f) }
@@ -4522,7 +4522,7 @@ private fun MedVaultBrandSplash() {
             // The emblem is presented directly on the background, not inside another app-icon tile.
             Box(
                 modifier = Modifier
-                    .size(176.dp)
+                    .size(184.dp)
                     .graphicsLayer {
                         alpha = logo
                         val scale = 0.94f + 0.06f * logo
@@ -4550,7 +4550,7 @@ private fun MedVaultBrandSplash() {
                     bitmap = mark,
                     contentDescription = "MedVault emblem",
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(158.dp)
+                    modifier = Modifier.size(width = 166.dp, height = 182.dp)
                 )
             }
 
