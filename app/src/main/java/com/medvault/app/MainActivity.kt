@@ -338,6 +338,7 @@ class MainActivity : ComponentActivity() {
                     onOpenTelegram = { screen = "telegram" },
                     onOpenTelegramLibrary = { screen = "videos" },
                     onPlayTelegramLecture = { startTelegramVideo(it) },
+                    onDownloadTelegramLecture = { enqueueTelegramDownload(it) },
                     onSettings = { screen = "settings" },
                     onGoogleSettings = { screen = "google_settings" },
                     onTelegramSettings = { screen = "telegram_settings" },
@@ -1676,7 +1677,7 @@ private fun MedVaultRoot(
     items: List<DriveItem>, folderName: String, canGoBack: Boolean,
     selectedVideo: DriveItem?, screen: String, activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit, activeAccountEmail: String,
     onOpenTelegram: () -> Unit, onOpenTelegramLibrary: () -> Unit,
-    onPlayTelegramLecture: (TelegramLecture) -> Unit, onPlayerBack: () -> Unit,
+    onPlayTelegramLecture: (TelegramLecture) -> Unit, onDownloadTelegramLecture: (TelegramLecture) -> Unit, onPlayerBack: () -> Unit,
     onSettings: () -> Unit, onGoogleSettings: () -> Unit,
     onTelegramSettings: () -> Unit, onManageTelegramGroups: () -> Unit,
     onOpenQBank: () -> Unit, onOpenTests: () -> Unit, onOpenOffline: () -> Unit,
@@ -1730,7 +1731,9 @@ private fun MedVaultRoot(
                         onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenUpdates, onSettings = onSettings,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
-                        onPlayLecture = onPlayTelegramLecture, setupMode = false, onManageSources = onOpenStudySources,
+                        onPlayLecture = onPlayTelegramLecture, onDownloadLecture = onDownloadTelegramLecture,
+                        downloadedLectures = downloadedLectures, downloadWorkItems = downloadWorkItems,
+                        setupMode = false, onManageSources = onOpenStudySources,
                         activeEdition = activeEdition, state = telegramLibraryState, progressRevision = telegramProgressRevision)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice, state = qbankLibraryState)
@@ -1996,7 +1999,7 @@ private class TelegramLibraryScreenState {
 }
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int) {
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, onDownloadLecture: (TelegramLecture) -> Unit, downloadedLectures: List<DownloadedLecture>, downloadWorkItems: List<WorkInfo>, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int) {
     val context = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(state) {
         onDispose { state.cancelTopicRequest() }
