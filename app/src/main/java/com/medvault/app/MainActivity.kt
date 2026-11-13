@@ -3530,9 +3530,11 @@ private fun VideoScreen(
         return
     }
 
-    val glass = Color(0xB81A2233)
-    val glassBorder = Color(0x55FFFFFF)
     val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+    val glassShape = RoundedCornerShape(50)
+    val glassBorder = Brush.verticalGradient(
+        listOf(Color(0x88FFFFFF), Color(0x35FFFFFF), Color(0x18FFFFFF))
+    )
 
     Column(
         Modifier.fillMaxSize().background(if (fullscreen) Color.Black else AppBg)
@@ -3552,14 +3554,14 @@ private fun VideoScreen(
                     overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.SemiBold
                 )
-                IconButton(onClick = { settingsExpanded = true }) {
-                    Icon(Icons.Default.Settings, "Playback settings", tint = AppAccent)
-                }
                 Box {
+                    IconButton(onClick = { settingsExpanded = true }) {
+                        Icon(Icons.Default.Settings, "Playback settings", tint = AppAccent)
+                    }
                     DropdownMenu(
                         expanded = settingsExpanded,
                         onDismissRequest = { settingsExpanded = false },
-                        modifier = Modifier.width(230.dp).heightIn(max = 380.dp)
+                        modifier = Modifier.width(220.dp).heightIn(max = 340.dp)
                             .background(Color(0xF01A2233))
                     ) {
                         Text("PLAYBACK SPEED", color = Color(0xFFB8C0D0),
@@ -3581,23 +3583,6 @@ private fun VideoScreen(
                                 }
                             )
                         }
-                        Divider(color = Color(0x44FFFFFF))
-                        Text("VOLUME", color = Color(0xFFB8C0D0), fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
-                        Slider(
-                            value = volume,
-                            onValueChange = {
-                                volume = it
-                                player.volume = it
-                            },
-                            valueRange = 0f..1f,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color(0x66777777)
-                            )
-                        )
                     }
                 }
                 IconButton(onClick = onPip) {
@@ -3628,7 +3613,8 @@ private fun VideoScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Tap the video surface to reveal or dismiss the floating controls.
+            // The video remains edge-to-edge. Only the controls respect the
+            // physical display cutout and are positioned inside the safe area.
             Box(
                 Modifier.fillMaxSize().pointerInput(duration) {
                     detectTapGestures(
@@ -3658,7 +3644,8 @@ private fun VideoScreen(
                     Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Playback interrupted", color = Color.White, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(6.dp))
-                        Text("Check the connection and retry from your saved position.", color = Color(0xFFB8C0D0), fontSize = 12.sp)
+                        Text("Check the connection and retry from your saved position.",
+                            color = Color(0xFFB8C0D0), fontSize = 12.sp)
                         Spacer(Modifier.height(12.dp))
                         Button(onClick = {
                             player.seekTo(position.coerceAtLeast(0L))
@@ -3675,179 +3662,265 @@ private fun VideoScreen(
             }
 
             PlayerControlsVisibility(visible = controlsVisible) {
-                Box(Modifier.fillMaxSize()) {
-                    // Fullscreen gets floating top controls. Portrait keeps actions in the page header.
-                    if (fullscreen) {
-                        Row(
-                            Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                Modifier.clip(RoundedCornerShape(28.dp))
-                                    .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                GlassPlayerButton(Icons.Default.Close, "Close player", onClose)
-                                GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
-                            }
-                            Row(
-                                Modifier.clip(RoundedCornerShape(28.dp))
-                                    .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box {
-                                    GlassPlayerButton(Icons.Default.Settings, "Playback settings") {
-                                        settingsExpanded = true
-                                    }
-                                    DropdownMenu(
-                                        expanded = settingsExpanded,
-                                        onDismissRequest = { settingsExpanded = false },
-                                        modifier = Modifier.width(230.dp).heightIn(max = 380.dp)
-                                            .background(Color(0xF01A2233))
-                                    ) {
-                                        Text("PLAYBACK SPEED", color = Color(0xFFB8C0D0),
-                                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp))
-                                        speeds.forEach { rate ->
-                                            DropdownMenuItem(
-                                                modifier = Modifier.height(42.dp),
-                                                text = {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
-                                                        if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
-                                                    }
-                                                },
-                                                onClick = {
-                                                    speed = rate
-                                                    player.setPlaybackSpeed(rate)
-                                                    settingsExpanded = false
-                                                }
-                                            )
-                                        }
-                                        Divider(color = Color(0x44FFFFFF))
-                                        Text("VOLUME", color = Color(0xFFB8C0D0), fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
-                                        Slider(
-                                            value = volume,
-                                            onValueChange = {
-                                                volume = it
-                                                player.volume = it
-                                            },
-                                            valueRange = 0f..1f,
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            colors = SliderDefaults.colors(
-                                                thumbColor = Color.White,
-                                                activeTrackColor = Color.White,
-                                                inactiveTrackColor = Color(0x66777777)
-                                            )
-                                        )
-                                    }
-                                }
-                                GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
-                            }
-                        }
-                    }
-                    // Central transport controls.
-                    Row(
-                        Modifier.align(Alignment.Center)
-                            .clip(RoundedCornerShape(40.dp))
-                            .background(Color(0x66101828))
-                            .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(40.dp))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(22.dp)
-                    ) {
-                        GlassPlayerButton(Icons.Default.Replay10, "Back 10 seconds") {
-                            player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
-                        }
-                        IconButton(
-                            onClick = { if (player.isPlaying) player.pause() else player.play() },
-                            modifier = Modifier.size(66.dp)
-                        ) {
-                            Icon(
-                                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                if (playing) "Pause" else "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(48.dp)
-                            )
-                        }
-                        GlassPlayerButton(Icons.Default.Forward10, "Forward 10 seconds") {
-                            val target = player.currentPosition + 10_000L
-                            player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
-                        }
-                    }
+                BoxWithConstraints(
+                    Modifier.fillMaxSize().then(
+                        if (fullscreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout)
+                        else Modifier
+                    )
+                ) {
+                    val screenWidth = maxWidth
+                    val screenHeight = maxHeight
+                    val sideInset = screenWidth * 0.075f
+                    val topInset = screenHeight * 0.07f
+                    val capsuleHeight = (screenHeight * 0.115f).coerceIn(44.dp, 56.dp)
+                    val leftCapsuleWidth = (screenWidth * 0.253f).coerceIn(190.dp, 250.dp)
+                    val volumeCapsuleWidth = (screenWidth * 0.20f).coerceIn(155.dp, 205.dp)
+                    val transportWidth = (screenWidth * 0.376f).coerceIn(280.dp, 380.dp)
+                    val transportHeight = (screenHeight * 0.19f).coerceIn(72.dp, 90.dp)
+                    val contextualWidth = (screenWidth * 0.18f).coerceIn(140.dp, 180.dp)
 
-                    // Bottom glass panel with title, timeline and quick actions.
-                    Column(
-                        Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color.Transparent, Color(0xB9000000), Color(0xE6000000))
-                                )
-                            )
-                            .padding(horizontal = 18.dp, vertical = 14.dp)
-                    ) {
-                        Text(
-                            file.name,
-                            color = Color.White,
-                            fontSize = if (fullscreen) 15.sp else 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(Modifier.height(7.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(formatTime(position), color = Color.White, fontSize = 11.sp)
+                    if (fullscreen) {
+                        // Top-left: close and PiP in one continuous glass capsule.
+                        PlayerGlassCapsule(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(start = sideInset, top = topInset)
+                                .width(leftCapsuleWidth)
+                                .height(capsuleHeight)
+                        ) {
+                            GlassPlayerButton(Icons.Default.Close, "Close player", onClose)
+                            GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                        }
+
+                        // Top-right: a compact, directly adjustable volume capsule.
+                        PlayerGlassCapsule(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(end = sideInset, top = topInset)
+                                .width(volumeCapsuleWidth)
+                                .height(capsuleHeight)
+                        ) {
                             Slider(
-                                value = if (duration > 0L) position.toFloat().coerceIn(0f, duration.toFloat()) else 0f,
+                                value = volume,
                                 onValueChange = {
-                                    isSeeking = true
-                                    position = it.toLong()
+                                    volume = it
+                                    player.volume = it
                                 },
-                                onValueChangeFinished = {
-                                    player.seekTo(position.coerceIn(0L, duration.coerceAtLeast(0L)))
-                                    isSeeking = false
-                                },
-                                valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
-                                modifier = Modifier.weight(1f).height(28.dp).padding(horizontal = 8.dp),
+                                valueRange = 0f..1f,
+                                modifier = Modifier.weight(1f).height(34.dp).padding(start = 8.dp),
                                 colors = SliderDefaults.colors(
                                     thumbColor = Color.White,
                                     activeTrackColor = Color.White,
-                                    inactiveTrackColor = Color(0x77FFFFFF)
+                                    inactiveTrackColor = Color(0x66FFFFFF)
                                 )
                             )
-                            Text(formatTime(duration), color = Color.White, fontSize = 11.sp)
-                        }
-                        if (fullscreen) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    TextButton(onClick = { settingsExpanded = true }) {
-                                        Text("${speed}×", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                    }
-                                    Text("·", color = Color(0x99FFFFFF))
-                                    TextButton(onClick = onPip) {
-                                        Icon(Icons.Default.PictureInPictureAlt, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(5.dp))
-                                        Text("PiP", color = Color.White, fontSize = 12.sp)
-                                    }
-                                }
-                                IconButton(onClick = {
+                            IconButton(
+                                onClick = {
                                     volume = if (volume > 0f) 0f else 1f
                                     player.volume = volume
-                                }) {
-                                    Icon(
-                                        if (volume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                        "Mute or unmute", tint = Color.White
-                                    )
+                                },
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Icon(
+                                    if (volume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                                    "Mute or unmute",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(21.dp)
+                                )
+                            }
+                        }
+
+                        // Centre: the main transport cluster, sized as a single capsule.
+                        PlayerGlassCapsule(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .width(transportWidth)
+                                .height(transportHeight),
+                            stronger = true
+                        ) {
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                GlassPlayerButton(Icons.Default.Replay10, "Back 10 seconds") {
+                                    player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                                    controlsVisible = true
                                 }
+                            }
+                            IconButton(
+                                onClick = { if (player.isPlaying) player.pause() else player.play() },
+                                modifier = Modifier.size(76.dp)
+                            ) {
+                                Icon(
+                                    if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    if (playing) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                GlassPlayerButton(Icons.Default.Forward10, "Forward 10 seconds") {
+                                    val target = player.currentPosition + 10_000L
+                                    player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
+                                    controlsVisible = true
+                                }
+                            }
+                        }
+
+                        // Right-side contextual actions, kept clear of the timeline.
+                        PlayerGlassCapsule(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = sideInset, bottom = screenHeight * 0.235f)
+                                .width(contextualWidth)
+                                .height(48.dp)
+                        ) {
+                            Box {
+                                GlassPlayerButton(Icons.Default.Settings, "Playback settings") {
+                                    settingsExpanded = true
+                                }
+                                DropdownMenu(
+                                    expanded = settingsExpanded,
+                                    onDismissRequest = { settingsExpanded = false },
+                                    modifier = Modifier.width(220.dp)
+                                        .heightIn(max = (screenHeight * 0.78f).coerceAtLeast(220.dp))
+                                        .background(Color(0xF01A2233))
+                                ) {
+                                    Text(
+                                        "PLAYBACK SPEED",
+                                        color = Color(0xFFB8C0D0),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
+                                    )
+                                    speeds.forEach { rate ->
+                                        DropdownMenuItem(
+                                            modifier = Modifier.height(40.dp),
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
+                                                    if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
+                                                }
+                                            },
+                                            onClick = {
+                                                speed = rate
+                                                player.setPlaybackSpeed(rate)
+                                                settingsExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
+                        }
+
+                        // Lower-left: title and a slim, high-precision timeline.
+                        Column(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .offset(x = sideInset)
+                                .width(screenWidth * 0.849f)
+                                .padding(bottom = screenHeight * 0.055f)
+                        ) {
+                            Text(
+                                file.name,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(formatTime(position), color = Color.White, fontSize = 11.sp)
+                                Slider(
+                                    value = if (duration > 0L) position.toFloat().coerceIn(0f, duration.toFloat()) else 0f,
+                                    onValueChange = {
+                                        isSeeking = true
+                                        position = it.toLong()
+                                    },
+                                    onValueChangeFinished = {
+                                        player.seekTo(position.coerceIn(0L, duration.coerceAtLeast(0L)))
+                                        isSeeking = false
+                                    },
+                                    valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+                                    modifier = Modifier.weight(1f).height(36.dp).padding(horizontal = 8.dp),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = Color.White,
+                                        activeTrackColor = Color.White,
+                                        inactiveTrackColor = Color(0x77FFFFFF)
+                                    )
+                                )
+                                Text(formatTime(duration), color = Color.White, fontSize = 11.sp)
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                PlayerGlassAction("${speed}×") { settingsExpanded = true }
+                                PlayerGlassAction("PiP", onPip)
+                            }
+                        }
+                    } else {
+                        // Portrait keeps its controls in the normal player layout.
+                        PlayerGlassCapsule(
+                            modifier = Modifier.align(Alignment.Center)
+                                .width(220.dp).height(64.dp),
+                            stronger = true
+                        ) {
+                            GlassPlayerButton(Icons.Default.Replay10, "Back 10 seconds") {
+                                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                            }
+                            IconButton(
+                                onClick = { if (player.isPlaying) player.pause() else player.play() },
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(
+                                    if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    if (playing) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(38.dp)
+                                )
+                            }
+                            GlassPlayerButton(Icons.Default.Forward10, "Forward 10 seconds") {
+                                val target = player.currentPosition + 10_000L
+                                player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
+                            }
+                        }
+                        Column(
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                .background(Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color(0xB9000000), Color(0xE6000000))
+                                ))
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                file.name,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(formatTime(position), color = Color.White, fontSize = 10.sp)
+                                Slider(
+                                    value = if (duration > 0L) position.toFloat().coerceIn(0f, duration.toFloat()) else 0f,
+                                    onValueChange = {
+                                        isSeeking = true
+                                        position = it.toLong()
+                                    },
+                                    onValueChangeFinished = {
+                                        player.seekTo(position.coerceIn(0L, duration.coerceAtLeast(0L)))
+                                        isSeeking = false
+                                    },
+                                    valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+                                    modifier = Modifier.weight(1f).height(30.dp).padding(horizontal = 6.dp),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = Color.White,
+                                        activeTrackColor = Color.White,
+                                        inactiveTrackColor = Color(0x77FFFFFF)
+                                    )
+                                )
+                                Text(formatTime(duration), color = Color.White, fontSize = 10.sp)
                             }
                         }
                     }
@@ -3873,11 +3946,61 @@ private fun PlayerControlsVisibility(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(animationSpec = tween(180)),
-        exit = fadeOut(animationSpec = tween(260)),
+        enter = fadeIn(animationSpec = tween(220)) +
+            scaleIn(initialScale = 0.985f, animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)),
+        exit = fadeOut(animationSpec = tween(240)),
         modifier = Modifier.fillMaxSize()
     ) {
         content()
+    }
+}
+
+@Composable
+private fun PlayerGlassCapsule(
+    modifier: Modifier = Modifier,
+    stronger: Boolean = false,
+    content: @Composable RowScope.() -> Unit
+) {
+    val shape = RoundedCornerShape(50)
+    val surfaceBrush = if (stronger) {
+        Brush.verticalGradient(listOf(Color(0x72FFFFFF), Color(0x66232B3A), Color(0xA51A2233)))
+    } else {
+        Brush.verticalGradient(listOf(Color(0x58FFFFFF), Color(0x49232B3A), Color(0x98151D2B)))
+    }
+    Row(
+        modifier
+            .graphicsLayer {
+                shadowElevation = 16.dp.toPx()
+                this.shape = shape
+                clip = true
+            }
+            .background(surfaceBrush, shape)
+            .border(1.dp, Brush.verticalGradient(
+                listOf(Color(0x99FFFFFF), Color(0x42FFFFFF), Color(0x20FFFFFF))
+            ), shape)
+            .padding(horizontal = 5.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        content = content
+    )
+}
+
+@Composable
+private fun PlayerGlassAction(
+    label: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        Modifier
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x421B2433), Color(0x88151D2B))))
+            .border(1.dp, Color(0x55FFFFFF), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
