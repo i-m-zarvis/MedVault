@@ -1945,15 +1945,15 @@ private class TelegramLibraryScreenState {
     val topicSearch = mutableStateOf("")
     val topicMessagesCache = mutableStateOf<Map<String, List<org.drinkless.tdlib.TdApi.Message>>>(emptyMap())
 
-    private var topicRequestGeneration = 0L
+    private val topicRequestGeneration = java.util.concurrent.atomic.AtomicLong(0L)
 
-    fun beginTopicRequest(): Long = ++topicRequestGeneration
+    fun beginTopicRequest(): Long = topicRequestGeneration.incrementAndGet()
 
     fun isCurrentTopicRequest(requestId: Long): Boolean =
-        requestId == topicRequestGeneration
+        requestId == topicRequestGeneration.get()
 
     fun cancelTopicRequest() {
-        topicRequestGeneration++
+        topicRequestGeneration.incrementAndGet()
     }
 
     fun cachedTopicMessages(key: String): List<org.drinkless.tdlib.TdApi.Message>? {
