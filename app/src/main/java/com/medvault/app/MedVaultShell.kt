@@ -7,12 +7,15 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.livedata.observeAsState
@@ -22,6 +25,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -112,6 +117,30 @@ internal fun Modifier.liquidGlassSurface(
             androidx.compose.foundation.BorderStroke(1.dp, LiquidPalette.Hairline),
             shape
         )
+        .drawWithCache {
+            val corner = CornerRadius(radius.toPx())
+            val sheen = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.15f),
+                    accent.copy(alpha = 0.055f),
+                    Color.Transparent
+                ),
+                center = Offset(size.width * 0.14f, size.height * 0.02f),
+                radius = size.maxDimension * 1.05f
+            )
+            val edge = Color.White.copy(alpha = 0.12f)
+            onDrawWithContent {
+                drawRoundRect(brush = sheen, cornerRadius = corner)
+                drawContent()
+                // A restrained specular rim, strongest along the upper edge.
+                drawLine(
+                    color = edge,
+                    start = Offset(radius.toPx(), 0.8.dp.toPx()),
+                    end = Offset(size.width - radius.toPx(), 0.8.dp.toPx()),
+                    strokeWidth = 0.8.dp.toPx()
+                )
+            }
+        }
 }
 
 /** A low-cost glass-like surface: layered colour, a restrained highlight and a fine edge. */
@@ -567,12 +596,32 @@ fun MedVaultBottomBar(
                 items.forEachIndexed { index, item ->
                     val isSelected = selected == item.first
                     val accent = accents[index]
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val pressScale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = LiquidMotion.Touch,
+                        label = "dockPress"
+                    )
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.08f else 1f,
+                        animationSpec = LiquidMotion.Navigation,
+                        label = "dockSelection"
+                    )
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .graphicsLayer {
+                                scaleX = pressScale
+                                scaleY = pressScale
+                            }
                             .clip(RoundedCornerShape(22.dp))
-                            .clickable(onClick = actions[index])
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = actions[index]
+                            )
                             .padding(top = 5.dp, bottom = 2.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -581,7 +630,12 @@ fun MedVaultBottomBar(
                             item.third,
                             contentDescription = item.second,
                             tint = if (isSelected) accent else HomeMuted.copy(alpha = 0.82f),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier
+                                .size(22.dp)
+                                .graphicsLayer {
+                                    scaleX = iconScale
+                                    scaleY = iconScale
+                                }
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
