@@ -584,7 +584,7 @@ private fun HomeEditorialCard(
     Card(
         modifier = if (onClick != null) Modifier.fillMaxWidth()
             .liquidPressFeedback(interactionSource)
-            .clickable(interactionSource = interactionSource, onClick = onClick)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             else Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = HomePanel)
