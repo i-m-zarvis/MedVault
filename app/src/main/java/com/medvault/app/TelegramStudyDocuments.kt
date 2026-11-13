@@ -475,7 +475,10 @@ fun TelegramDocumentLibraryScreen(
                     doc.title.contains(query, ignoreCase = true) || doc.fileName.contains(query, ignoreCase = true)
                 }.map { it.second }
             } else {
-                documents.filter { it.title.contains(documentSearch.trim(), ignoreCase = true) }
+                documents.filter {
+                    it.title.contains(documentSearch.trim(), ignoreCase = true) ||
+                        it.fileName.contains(documentSearch.trim(), ignoreCase = true)
+                }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (selectedTopic == null) "SEARCH RESULTS" else "DOCUMENTS", color = StudyMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
