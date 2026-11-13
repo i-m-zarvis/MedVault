@@ -794,8 +794,26 @@ fun MedVaultOfflineScreen(
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var pendingDelete by remember { mutableStateOf<DownloadedLecture?>(null) }
-    val pdfs = remember { TelegramPdfStore.downloaded(context) }
+    var pendingDelete by remember { mutableStateOf(false) }
+    var pdfs by remember { mutableStateOf(TelegramPdfStore.downloaded(context)) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedItems by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val allKeys = remember(downloadedLectures, pdfs) {
+        downloadedLectures.map { "v:${it.fileId}:${it.accountId}" } + pdfs.map { "p:${it.absolutePath}" }
+    }
+    val selectedCount = selectedItems.size
+    val stat = remember(context) { android.os.StatFs(context.filesDir.path) }
+    val totalDeviceBytes = stat.totalBytes.coerceAtLeast(1L)
+    val availableDeviceBytes = stat.availableBytes.coerceAtLeast(0L)
+    val usedDeviceFraction = ((totalDeviceBytes - availableDeviceBytes).toFloat() / totalDeviceBytes.toFloat()).coerceIn(0f, 1f)
+    fun sizeLabel(bytes: Long): String = when {
+        bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.US, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+        bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+        else -> "${(bytes / 1024L).coerceAtLeast(0L)} KB"
+    }
+    fun toggleSelection(key: String) {
+        selectedItems = if (key in selectedItems) selectedItems - key else selectedItems + key
+    }
     val videoBytes = downloadedLectures.sumOf { File(it.localPath).length() }
     val pdfBytes = pdfs.sumOf { it.length() }
     val totalBytes = videoBytes + pdfBytes
@@ -809,9 +827,26 @@ fun MedVaultOfflineScreen(
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = ShellInk) }
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("OFFLINE VAULT", color = Color(0xFFF4C34F), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Text("Downloads", color = ShellInk, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text(if (selectionMode) "$selectedCount selected" else "Downloads", color = ShellInk, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = {
+                selectionMode = !selectionMode
+                selectedItems = emptySet()
+            }) { Text(if (selectionMode) "Cancel" else "Select", color = ShellBlue) }
+        }
+        if (selectionMode) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { selectedItems = if (selectedItems.size == allKeys.size) emptySet() else allKeys.toSet() }) {
+                    Text(if (selectedItems.size == allKeys.size) "Deselect all" else "Select all", color = ShellBlue)
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(enabled = selectedCount > 0, onClick = { pendingDelete = true }) {
+                    Icon(Icons.Default.DeleteOutline, null, tint = if (selectedCount > 0) Color(0xFFFF8A80) else ShellMuted)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Delete", color = if (selectedCount > 0) Color(0xFFFF8A80) else ShellMuted)
+                }
             }
         }
         Card(
@@ -825,12 +860,20 @@ fun MedVaultOfflineScreen(
                     Text("Downloaded storage", color = ShellMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     Text(sizeLabel(totalBytes), color = Color(0xFFF4C34F), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
-                Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))) {
+                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))) {
                     Box(Modifier.fillMaxWidth(storageFraction).fillMaxHeight().background(Color(0xFFB477F5)))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     Text("● Videos  ${sizeLabel(videoBytes)}", color = Color(0xFFB477F5), fontSize = 11.sp)
                     Text("● PDFs  ${sizeLabel(pdfBytes)}", color = Color(0xFFFF5470), fontSize = 11.sp)
+                }
+                Spacer(Modifier.height(5.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Device storage", color = ShellMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    Text("${sizeLabel(availableDeviceBytes)} free of ${sizeLabel(totalDeviceBytes)}", color = ShellInk, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                }
+                Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))) {
+                    Box(Modifier.fillMaxWidth(usedDeviceFraction).fillMaxHeight().background(Color(0xFF78AFFF)))
                 }
             }
         }
@@ -843,12 +886,19 @@ fun MedVaultOfflineScreen(
             items(downloadedLectures, key = { it.fileId }) { lecture ->
                 Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = Color(0xD91A263B)),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))) {
+                    val key = "v:${lecture.fileId}:${lecture.accountId}"
                     Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayCircle, null, tint = ShellBlue)
                         Spacer(Modifier.width(10.dp))
-                        Text(lecture.name, Modifier.weight(1f).clickable { onPlayOffline(lecture) }.padding(vertical = 7.dp), color = ShellInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        IconButton(onClick = { pendingDelete = lecture }) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete offline copy", tint = ShellMuted)
+                        Text(lecture.name, Modifier.weight(1f).clickable {
+                            if (selectionMode) toggleSelection(key) else onPlayOffline(lecture)
+                        }.padding(vertical = 7.dp), color = ShellInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (selectionMode) {
+                            Checkbox(checked = key in selectedItems, onCheckedChange = { toggleSelection(key) })
+                        } else {
+                            IconButton(onClick = { selectedItems = setOf(key); pendingDelete = true }) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete offline copy", tint = ShellMuted)
+                            }
                         }
                     }
                 }
@@ -856,14 +906,23 @@ fun MedVaultOfflineScreen(
             item { Spacer(Modifier.height(8.dp)); Text("DOWNLOADED PDFs", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             items(pdfs, key = { it.absolutePath }) { file ->
                 Card(Modifier.fillMaxWidth().clickable { onOpenPdf(file, file.nameWithoutExtension) }, colors = CardDefaults.cardColors(containerColor = HomePanel)) {
-                    Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val key = "p:${file.absolutePath}"
+                    Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFE45E5E))
                         Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
+                        Column(Modifier.weight(1f).clickable {
+                            if (selectionMode) toggleSelection(key) else onOpenPdf(file, file.nameWithoutExtension)
+                        }.padding(vertical = 7.dp)) {
                             Text(file.nameWithoutExtension, color = ShellInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${(file.length() / 1024).coerceAtLeast(1)} KB · Available offline", color = ShellMuted, fontSize = 11.sp)
                         }
-                        Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
+                        if (selectionMode) {
+                            Checkbox(checked = key in selectedItems, onCheckedChange = { toggleSelection(key) })
+                        } else {
+                            IconButton(onClick = { selectedItems = setOf(key); pendingDelete = true }) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete PDF", tint = ShellMuted)
+                            }
+                        }
                     }
                 }
             }
@@ -873,27 +932,23 @@ fun MedVaultOfflineScreen(
         }
     }
 
-    pendingDelete?.let { lecture ->
+    if (pendingDelete) {
         AlertDialog(
-            onDismissRequest = { pendingDelete = null },
+            onDismissRequest = { pendingDelete = false; selectedItems = emptySet() },
             containerColor = Color(0xFF1A2033),
-            title = { Text("Delete offline copy?", color = ShellInk) },
-            text = {
-                Text(
-                    "Remove “${lecture.name}” from this device? The original Telegram video and source message will remain untouched.",
-                    color = ShellMuted
-                )
-            },
+            title = { Text("Delete ${selectedItems.size} selected items?", color = ShellInk) },
             confirmButton = {
                 TextButton(onClick = {
-                    onDeleteOffline(lecture)
-                    pendingDelete = null
-                }) {
-                    Text("Delete", color = Color(0xFFFF8A80))
-                }
+                    downloadedLectures.filter { "v:${it.fileId}:${it.accountId}" in selectedItems }.forEach(onDeleteOffline)
+                    pdfs.filter { "p:${it.absolutePath}" in selectedItems }.forEach { it.delete() }
+                    pdfs = TelegramPdfStore.downloaded(context)
+                    selectedItems = emptySet()
+                    selectionMode = false
+                    pendingDelete = false
+                }) { Text("Delete", color = Color(0xFFFF8A80)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
+                TextButton(onClick = { pendingDelete = false; selectedItems = emptySet() }) {
                     Text("Cancel", color = ShellBlue)
                 }
             }
