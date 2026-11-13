@@ -3542,7 +3542,7 @@ private fun VideoScreen(
         return
     }
 
-    val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+    val speeds = listOf(0.5f, 1f, 1.5f, 2f)
     val glassShape = RoundedCornerShape(50)
     val glassBorder = Brush.verticalGradient(
         listOf(Color(0x88FFFFFF), Color(0x35FFFFFF), Color(0x18FFFFFF))
@@ -4288,12 +4288,24 @@ private fun PlayerGlassAction(
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(50)
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
+        label = "glassPillScale"
+    )
+    val haptics = LocalHapticFeedback.current
     Row(
         Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
             .background(Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x421B2433), Color(0x88151D2B))))
-            .border(1.dp, Color(0x55FFFFFF), shape)
-            .clickable(onClick = onClick)
+            .border(1.dp, Brush.verticalGradient(listOf(Color(0x88FFFFFF), Color(0x33FFFFFF))), shape)
+            .clickable(interactionSource = interaction, indication = null) {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
