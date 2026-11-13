@@ -16,6 +16,7 @@ import android.widget.Toast
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -28,6 +29,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -47,6 +50,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -79,6 +83,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import java.util.concurrent.Executors
 
 private val AppBg = Color(0xFF080B12)
@@ -2011,13 +2017,42 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             titleU = it.selectedTitle(MedVaultEdition.U)
         }
     }
-    BackHandler { if (topic != null) { topic = null; messages = emptyList() } else onBack() }
+    val backProgress = remember { Animatable(0f) }
+    PredictiveBackHandler(enabled = true) { progress ->
+        try {
+            progress.collect { event -> backProgress.snapTo(event.progress) }
+            if (topic != null) {
+                topic = null
+                messages = emptyList()
+                topicSearch = ""
+            } else {
+                onBack()
+            }
+        } catch (cancelled: CancellationException) {
+            backProgress.animateTo(0f, spring(dampingRatio = 0.88f, stiffness = 520f))
+            throw cancelled
+        } finally {
+            backProgress.snapTo(0f)
+        }
+    }
     val activeTitle = when (activeEdition) {
         MedVaultEdition.M -> titleM
         MedVaultEdition.P -> titleP
         else -> titleU
     }
-    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(horizontal = 18.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(
+        Modifier.fillMaxSize()
+            .graphicsLayer {
+                val progress = backProgress.value
+                translationX = size.width * 0.20f * progress
+                scaleX = 1f - 0.035f * progress
+                scaleY = 1f - 0.035f * progress
+                alpha = 1f - 0.08f * progress
+            }
+            .background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))
+            .padding(horizontal = 18.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (topic != null) { topic = null; messages = emptyList() } else onBack() }) {
                 Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
@@ -2076,10 +2111,24 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 )
             )
         }
+        AnimatedContent(
+            targetState = topic,
+            transitionSpec = {
+                val enteringFromRight = targetState != null
+                val motion = spring<Float>(dampingRatio = 0.88f, stiffness = 430f)
+                val offsetMotion = spring<IntOffset>(dampingRatio = 0.90f, stiffness = 430f)
+                (fadeIn(animationSpec = tween(170)) +
+                    slideInHorizontally(animationSpec = offsetMotion) { width -> if (enteringFromRight) width / 7 else -width / 7 } +
+                    scaleIn(initialScale = 0.975f, animationSpec = motion)) togetherWith
+                    (fadeOut(animationSpec = tween(105)) +
+                    slideOutHorizontally(animationSpec = offsetMotion) { width -> if (enteringFromRight) -width / 10 else width / 10 })
+            },
+            label = "subject_collection_transition"
+        ) { targetTopic ->
         if (authState !is TelegramAuthManager.State.Ready) {
             Text("Content account is not connected.", color = AppMuted)
             Button(onClick = onConnect) { Text("Connect account") }
-        } else if (topic == null && setupMode) {
+        } else if (targetTopic == null && setupMode) {
             Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Edition " + activeEdition.name, fontWeight = FontWeight.Bold)
@@ -2145,7 +2194,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Spacer(Modifier.weight(1f))
                 Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
-        } else if (topic == null) {
+        } else if (targetTopic == null) {
             LaunchedEffect(repo, activeEdition, authState) {
                 val sourceRepo = repo ?: return@LaunchedEffect
                 if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(activeEdition) != null && topics.isEmpty()) {
@@ -2210,8 +2259,8 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             }
         } else {
-            val lectures = remember(topic, messages) {
-                topic?.let { selected -> messages.mapNotNull { TelegramLecture.fromMessage(selected.chatId, selected.topicId, it) } }
+            val lectures = remember(targetTopic, messages) {
+                targetTopic?.let { selected -> messages.mapNotNull { TelegramLecture.fromMessage(selected.chatId, selected.topicId, it) } }
                     .orEmpty().distinctBy { it.stableId }.sortedBy { it.messageId }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80)) }
@@ -2347,6 +2396,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 }
             }
 
+        }
         }
     }
 }
