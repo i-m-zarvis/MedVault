@@ -2418,10 +2418,22 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             if (!localPath.isNullOrBlank() && File(localPath).isFile) thumbnailPath = localPath
                         }
                     }
+                    val offlineCopy = remember(downloadedLectures, lecture.stableId) {
+                        downloadedLectures.firstOrNull { it.source == "telegram" && it.fileId == lecture.stableId }
+                            ?.takeIf { File(it.localPath).isFile }
+                    }
+                    val downloadWork = remember(downloadWorkItems, lecture.stableId) {
+                        downloadWorkItems.firstOrNull {
+                            it.inputData.getString(TelegramDownloadWorker.KEY_STABLE_ID) == lecture.stableId
+                        }
+                    }
+                    val downloadProgress = downloadWork?.progress?.getInt("progress", 0)?.coerceIn(0, 100) ?: 0
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                     Column(
-                        Modifier.fillMaxWidth()
-                            .clickable { onPlayLecture(lecture) }
-                            .padding(vertical = 12.dp)
+                        Modifier.weight(1f).clickable { onPlayLecture(lecture) }
                     ) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -2487,6 +2499,27 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                 }
                             }
                         }
+                    }
+                    IconButton(
+                        onClick = { if (offlineCopy == null && downloadWork?.state != WorkInfo.State.RUNNING && downloadWork?.state != WorkInfo.State.ENQUEUED) onDownloadLecture(lecture) },
+                        enabled = offlineCopy == null && downloadWork?.state != WorkInfo.State.RUNNING && downloadWork?.state != WorkInfo.State.ENQUEUED,
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        when {
+                            offlineCopy != null -> Icon(Icons.Default.CheckCircle, "Available offline", tint = Color(0xFF63D6B0))
+                            downloadWork?.state == WorkInfo.State.RUNNING || downloadWork?.state == WorkInfo.State.ENQUEUED -> {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    progress = { downloadProgress / 100f },
+                                    modifier = Modifier.size(21.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF78AFFF),
+                                    trackColor = Color.White.copy(alpha = 0.10f)
+                                )
+                            }
+                            downloadWork?.state == WorkInfo.State.FAILED -> Icon(Icons.Default.Refresh, "Retry download", tint = Color(0xFFFFA66B))
+                            else -> Icon(Icons.Default.Download, "Download for offline", tint = Color.White.copy(alpha = 0.72f))
+                        }
+                    }
                     }
                     androidx.compose.material3.HorizontalDivider(
                         modifier = Modifier.padding(start = 134.dp),
