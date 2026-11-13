@@ -239,7 +239,7 @@ fun DownloadManagerScreen(
                 onValueChange = { libraryQuery = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Search offline lectures…") },
+                placeholder = { Text("Search") },
                 shape = RoundedCornerShape(14.dp)
             )
             Spacer(Modifier.size(6.dp))
