@@ -100,6 +100,7 @@ class DownloadRepository(context: Context) {
                 .build())
             .addTag(DOWNLOAD_TAG)
             .addTag(SOURCE_TAG_PREFIX + "telegram")
+            .addTag("medvault_telegram_id_" + lecture.stableId)
             .addTag(UNIQUE_WORK_PREFIX + uniqueKey)
             .build()
         workManager.enqueueUniqueWork(UNIQUE_WORK_PREFIX + uniqueKey, ExistingWorkPolicy.KEEP, request)
