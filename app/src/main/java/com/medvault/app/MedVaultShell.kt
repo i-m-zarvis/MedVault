@@ -289,7 +289,7 @@ fun MedVaultHomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("MEDVAULT · LIQUID", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
+                        Text("MEDVAULT", color = HomeBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
                         Text("Your study space.", color = HomeInk, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
                     }
                     val profileInteraction = remember { MutableInteractionSource() }
