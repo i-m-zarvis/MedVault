@@ -1910,22 +1910,39 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
 
 
 @Composable
-private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition) {
+private class TelegramLibraryScreenState {
+    val authState = mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting)
+    val repo = mutableStateOf<TelegramLibraryRepository?>(null)
+    val groups = mutableStateOf<List<TelegramSourceCandidate>>(emptyList())
+    val topics = mutableStateOf<List<TelegramForumTopic>>(emptyList())
+    val messages = mutableStateOf<List<org.drinkless.tdlib.TdApi.Message>>(emptyList())
+    val hasMoreMessages = mutableStateOf(false)
+    val topic = mutableStateOf<TelegramForumTopic?>(null)
+    val titleM = mutableStateOf<String?>(null)
+    val titleP = mutableStateOf<String?>(null)
+    val titleU = mutableStateOf<String?>(null)
+    val busy = mutableStateOf(false)
+    val status = mutableStateOf<String?>(null)
+    val error = mutableStateOf<String?>(null)
+    val topicSearch = mutableStateOf("")
+}
+
+private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
-    var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
-    var groups by remember { mutableStateOf<List<TelegramSourceCandidate>>(emptyList()) }
-    var topics by remember { mutableStateOf<List<TelegramForumTopic>>(emptyList()) }
-    var messages by remember { mutableStateOf<List<org.drinkless.tdlib.TdApi.Message>>(emptyList()) }
-    var hasMoreMessages by remember { mutableStateOf(false) }
-    var topic by remember { mutableStateOf<TelegramForumTopic?>(null) }
-    var titleM by remember { mutableStateOf<String?>(null) }
-    var titleP by remember { mutableStateOf<String?>(null) }
-    var titleU by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var topicSearch by remember { mutableStateOf("") }
+    var authState by state.authState
+    var repo by state.repo
+    var groups by state.groups
+    var topics by state.topics
+    var messages by state.messages
+    var hasMoreMessages by state.hasMoreMessages
+    var topic by state.topic
+    var titleM by state.titleM
+    var titleP by state.titleP
+    var titleU by state.titleU
+    var busy by state.busy
+    var status by state.status
+    var error by state.error
+    var topicSearch by state.topicSearch
     val visibleTopics = remember(topics, topicSearch) {
         topics.filter { it.name.contains(topicSearch.trim(), ignoreCase = true) }
     }
