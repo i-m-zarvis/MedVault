@@ -77,7 +77,7 @@ class TelegramDownloadWorker(
             }
         }
         auth.addUpdateListener(updateListener)
-        try {
+        return try {
             auth.sendRequest(TdApi.GetFile(fileId)) { result ->
                 val file = result as? TdApi.File ?: return@sendRequest
                 latestFile.set(file)
