@@ -250,7 +250,7 @@ fun MedVaultHomeScreen(
                 scaleY = 1f + (pullPx / with(density) { 1800.dp.toPx() }).coerceAtMost(0.075f)
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
             },
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         item {
@@ -782,7 +782,7 @@ fun MedVaultOfflineScreen(
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, top = 8.dp, bottom = 112.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item { Text("DOWNLOADED VIDEOS", color = ShellMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
