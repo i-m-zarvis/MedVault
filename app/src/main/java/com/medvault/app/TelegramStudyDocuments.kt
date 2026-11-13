@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Refresh
@@ -478,7 +479,7 @@ fun TelegramDocumentLibraryScreen(
                                 }
                                 if (isDownloaded) {
                                     IconButton(onClick = { pendingDeletePdf = local }) {
-                                        Icon(Icons.Default.DeleteOutline, "Delete offline PDF", tint = Color(0xFFFF8A80))
+                                        Icon(Icons.Default.Delete, "Delete offline PDF", tint = Color(0xFFFF8A80))
                                     }
                                 }
                                 Button(
