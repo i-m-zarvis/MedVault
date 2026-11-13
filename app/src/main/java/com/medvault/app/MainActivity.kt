@@ -2160,7 +2160,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
             }
             LazyColumn(
                 Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)
             ) {
                 items(filteredLectures, key = { it.stableId }, contentType = { "lecture" }) { lecture ->
@@ -2176,7 +2176,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     Column(
                         Modifier.fillMaxWidth()
                             .clickable { onPlayLecture(lecture) }
-                            .padding(vertical = 10.dp)
+                            .padding(vertical = 12.dp)
                     ) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -2184,10 +2184,10 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                             horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Box(
-                                Modifier.width(116.dp).height(78.dp)
-                                    .clip(RoundedCornerShape(13.dp))
+                                Modifier.width(120.dp).aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(11.dp))
                                     .background(Color(0xFF17243A))
-                                    .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(13.dp)),
+                                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(11.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (thumbnailPath != null) {
@@ -2195,17 +2195,17 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                         model = File(thumbnailPath!!),
                                         contentDescription = lecture.title,
                                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(13.dp))
+                                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(11.dp))
                                     )
                                 } else {
-                                    Icon(Icons.Default.MenuBook, null, tint = Color(0xFF78AFFF), modifier = Modifier.size(29.dp))
+                                    Icon(Icons.Default.MenuBook, null, tint = Color(0xFF78AFFF), modifier = Modifier.size(27.dp))
                                 }
                                 Box(
-                                    Modifier.align(Alignment.Center).size(31.dp)
-                                        .background(Color.Black.copy(alpha = 0.48f), RoundedCornerShape(50)),
+                                    Modifier.align(Alignment.Center).size(29.dp)
+                                        .background(Color.Black.copy(alpha = 0.52f), RoundedCornerShape(50)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.PlayArrow, "Play lecture", tint = Color.White, modifier = Modifier.size(21.dp))
+                                    Icon(Icons.Default.PlayArrow, "Play lecture", tint = Color.White, modifier = Modifier.size(20.dp))
                                 }
                                 if (lecture.durationSeconds > 0) {
                                     val hours = lecture.durationSeconds / 3600
@@ -2214,35 +2214,48 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                     val durationLabel = if (hours > 0) "${hours}h ${minutes}m" else if (minutes > 0) "${minutes}m ${seconds.toString().padStart(2, '0')}s" else "${seconds}s"
                                     Text(
                                         durationLabel,
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
-                                            .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(5.dp))
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                                            .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(4.dp))
                                             .padding(horizontal = 5.dp, vertical = 2.dp),
                                         color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
                                 Text(
                                     lecture.title,
                                     color = Color(0xFFF5F6FA),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp,
                                     lineHeight = 19.sp,
-                                    maxLines = 3,
+                                    maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text(
-                                    "VIDEO LECTURE",
-                                    color = Color(0xFF9299AA),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.0.sp
-                                )
+                                if (lecture.durationSeconds > 0) {
+                                    val hours = lecture.durationSeconds / 3600
+                                    val minutes = (lecture.durationSeconds % 3600) / 60
+                                    val seconds = lecture.durationSeconds % 60
+                                    val durationLabel = if (hours > 0) "${hours}h ${minutes}m" else if (minutes > 0) "${minutes}m ${seconds.toString().padStart(2, '0')}s" else "${seconds}s"
+                                    Text(
+                                        durationLabel,
+                                        color = Color(0xFF9299AA),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else {
+                                    Text("Video lecture", color = Color(0xFF9299AA), fontSize = 12.sp)
+                                }
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF9299AA), modifier = Modifier.size(19.dp))
                         }
                     }
-                    androidx.compose.material3.HorizontalDivider(color = Color.White.copy(alpha = 0.065f), thickness = 1.dp)
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 134.dp),
+                        color = Color.White.copy(alpha = 0.075f),
+                        thickness = 0.7.dp
+                    )
                 }
                 if (filteredLectures.isEmpty()) {
                     item {
