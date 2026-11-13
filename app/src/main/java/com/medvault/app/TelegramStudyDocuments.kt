@@ -368,7 +368,7 @@ fun TelegramDocumentLibraryScreen(
                 onValueChange = { documentSearch = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Search PDFs…", color = StudyMuted) },
+                placeholder = { Text("Search", color = StudyMuted) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = StudyMuted) },
                 shape = RoundedCornerShape(22.dp),
                 colors = OutlinedTextFieldDefaults.colors(
