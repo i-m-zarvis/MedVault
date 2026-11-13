@@ -3798,8 +3798,10 @@ private fun VideoScreen(
                             GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
                         }
 
-                        // Compact anchored speed popover with a spring expansion.
-                        AnimatedVisibility(
+                        // Isolate the animated popover in its own BoxScope. This avoids
+                        // resolving the ColumnScope overload from the surrounding layout.
+                        Box(Modifier.fillMaxSize()) {
+                            AnimatedVisibility(
                             visible = settingsExpanded,
                             enter = fadeIn(tween(130)) + scaleIn(
                                 initialScale = 0.88f,
@@ -3867,6 +3869,7 @@ private fun VideoScreen(
                                     }
                                 }
                             }
+                        }
                         }
                     } else {
                         // Portrait title is presented as a floating glass pill;
