@@ -32,6 +32,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
@@ -265,7 +269,7 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(2450)
+                kotlinx.coroutines.delay(3200)
                 showBrandSplash = false
             }
 
@@ -4441,26 +4445,41 @@ private fun MedVaultBrandSplash() {
         val bytes = Base64.decode(MedVaultBrandMark.DATA, Base64.DEFAULT)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
     }
-    val reveal = remember { Animatable(0f) }
+    val logoReveal = remember { Animatable(0f) }
     val brandReveal = remember { Animatable(0f) }
-    val progress = remember { Animatable(0f) }
+    val sweep = remember { Animatable(-1.2f) }
+    val ambient = rememberInfiniteTransition(label = "splash-ambient")
+    val auraPulse by ambient.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "aura-pulse"
+    )
 
     LaunchedEffect(Unit) {
-        reveal.animateTo(
+        logoReveal.animateTo(
             1f,
-            animationSpec = tween(1050, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = 0.78f,
+                stiffness = 155f
+            )
         )
-        kotlinx.coroutines.delay(110)
+        kotlinx.coroutines.delay(180)
+        sweep.animateTo(
+            1.35f,
+            animationSpec = tween(850, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+        )
         brandReveal.animateTo(
             1f,
-            animationSpec = tween(620, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            animationSpec = tween(680, easing = androidx.compose.animation.core.FastOutSlowInEasing)
         )
-        progress.animateTo(1f, animationSpec = tween(430))
     }
 
-    val motion = reveal.value
+    val logo = logoReveal.value
     val brand = brandReveal.value
-    val light = progress.value
 
     Box(
         modifier = Modifier
@@ -4468,151 +4487,175 @@ private fun MedVaultBrandSplash() {
             .background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0f to Color(0xFF020713),
-                        0.46f to Color(0xFF071A34),
-                        1f to Color(0xFF020713)
+                        0f to Color(0xFF030713),
+                        0.42f to Color(0xFF07182F),
+                        0.72f to Color(0xFF061329),
+                        1f to Color(0xFF020611)
                     )
                 )
             ),
         contentAlignment = Alignment.Center
     ) {
+        // Broad, soft light fields create depth without decorative neon lines.
         Canvas(Modifier.fillMaxSize()) {
-            val glow = androidx.compose.ui.graphics.Path().apply {
-                moveTo(-size.width * 0.16f, size.height * 0.77f)
-                cubicTo(
-                    size.width * 0.18f, size.height * (0.60f - motion * 0.025f),
-                    size.width * 0.58f, size.height * (0.91f - motion * 0.04f),
-                    size.width * 1.16f, size.height * 0.66f
-                )
-            }
-            drawPath(
-                glow,
-                brush = Brush.horizontalGradient(
-                    listOf(
-                        Color.Transparent,
-                        Color(0xFF147BFF).copy(alpha = 0.18f + motion * 0.16f),
-                        Color(0xFF76D8FF).copy(alpha = 0.26f + motion * 0.18f),
+            val center = Offset(size.width * 0.5f, size.height * 0.43f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF174D88).copy(alpha = 0.22f * auraPulse),
+                        Color(0xFF0B2B53).copy(alpha = 0.10f * auraPulse),
                         Color.Transparent
-                    )
+                    ),
+                    center = center,
+                    radius = size.width * 0.72f
                 ),
-                style = Stroke(width = 2.1.dp.toPx())
+                radius = size.width * 0.72f,
+                center = center
             )
-            val upperGlow = androidx.compose.ui.graphics.Path().apply {
-                moveTo(-size.width * 0.12f, size.height * 0.22f)
-                cubicTo(
-                    size.width * 0.24f, size.height * 0.08f,
-                    size.width * 0.66f, size.height * 0.34f,
-                    size.width * 1.12f, size.height * 0.16f
-                )
-            }
-            drawPath(
-                upperGlow,
-                color = Color(0xFF258FFF).copy(alpha = 0.08f + motion * 0.12f),
-                style = Stroke(width = 1.2.dp.toPx())
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF168BFF).copy(alpha = 0.12f), Color.Transparent),
+                    center = Offset(size.width * 0.5f, size.height * 0.52f),
+                    radius = size.width * 0.34f
+                ),
+                radius = size.width * 0.34f,
+                center = Offset(size.width * 0.5f, size.height * 0.52f)
             )
         }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(218.dp)
+                    .size(204.dp)
                     .graphicsLayer {
-                        alpha = motion
-                        scaleX = 0.88f + motion * 0.12f
-                        scaleY = 0.88f + motion * 0.12f
-                        translationY = (1f - motion) * 18.dp.toPx()
-                    }
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color(0x6648AFFF),
-                                Color(0x222C8EFF),
-                                Color.Transparent
-                            )
-                        ),
-                        CircleShape
-                    ),
+                        alpha = logo
+                        val scale = 0.84f + 0.16f * logo
+                        scaleX = scale
+                        scaleY = scale
+                        translationY = (1f - logo) * 26.dp.toPx()
+                        rotationY = (1f - logo) * -9f
+                        cameraDistance = 22f * density
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    bitmap = mark,
-                    contentDescription = "MedVault book and medical emblem",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .size(178.dp)
-                        .graphicsLayer {
-                            shadowElevation = 20.dp.toPx()
-                        }
+                // Diffused bloom sits behind the supplied, unredrawn brand artwork.
+                Box(
+                    Modifier
+                        .size(196.dp)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    Color(0x664CAEFF).copy(alpha = auraPulse),
+                                    Color(0x222A78C8).copy(alpha = auraPulse),
+                                    Color.Transparent
+                                )
+                            ),
+                            CircleShape
+                        )
                 )
+                Box(
+                    Modifier
+                        .size(174.dp)
+                        .clip(RoundedCornerShape(34.dp))
+                        .background(Color(0xFF06152A)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = mark,
+                        contentDescription = "MedVault logo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(34.dp))
+                    )
+                    // One restrained specular pass across the glass icon.
+                    Canvas(Modifier.fillMaxSize()) {
+                        val x = sweep.value * size.width
+                        val shine = Brush.linearGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.20f),
+                                Color(0xFF8BD5FF).copy(alpha = 0.12f),
+                                Color.Transparent
+                            ),
+                            start = Offset(x - size.width * 0.30f, 0f),
+                            end = Offset(x + size.width * 0.16f, size.height)
+                        )
+                        drawRect(brush = shine, blendMode = androidx.compose.ui.graphics.BlendMode.Screen)
+                    }
+                }
             }
 
-            Spacer(Modifier.height(13.dp))
+            Spacer(Modifier.height(24.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.graphicsLayer {
                     alpha = brand
-                    translationY = (1f - brand) * 13.dp.toPx()
+                    translationY = (1f - brand) * 16.dp.toPx()
                 }
             ) {
                 Text(
                     "Med",
-                    color = Color(0xFFF5F9FF),
-                    fontSize = 38.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-1.4).sp
+                    color = Color(0xFFF7FAFF),
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-1.8).sp
                 )
                 Text(
                     "Vault",
-                    color = Color(0xFF65B8FF),
-                    fontSize = 38.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-1.4).sp
+                    color = Color(0xFF63B7FF),
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-1.8).sp
                 )
             }
 
-            Spacer(Modifier.height(5.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 "YOUR MEDICAL LEARNING LIBRARY",
-                color = Color(0xFFB8CBE2).copy(alpha = brand),
+                color = Color(0xFFC4D5E9).copy(alpha = brand),
                 fontSize = 9.sp,
-                letterSpacing = 2.25.sp
+                letterSpacing = 2.35.sp
             )
 
-            Spacer(Modifier.height(42.dp))
+            Spacer(Modifier.height(48.dp))
             Box(
                 Modifier
-                    .width(104.dp)
-                    .height(2.5.dp)
+                    .width(112.dp)
+                    .height(2.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF16385D))
-                    .graphicsLayer { alpha = 0.55f + brand * 0.45f }
+                    .background(Color(0xFF17385B))
+                    .graphicsLayer { alpha = brand }
             ) {
                 Box(
                     Modifier
-                        .fillMaxWidth(light.coerceIn(0.04f, 1f))
+                        .fillMaxWidth(brand)
                         .fillMaxHeight()
                         .clip(CircleShape)
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Color(0xFF168BFF), Color(0xFFB9E9FF), Color(0xFF55B7FF))
+                                listOf(Color(0xFF218EFF), Color(0xFFD7F3FF), Color(0xFF5AB9FF))
                             )
                         )
                 )
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(30.dp))
             Text(
                 "Made with ❤️ by Aftab",
-                color = Color.White.copy(alpha = brand * 0.92f),
+                color = Color(0xFFE7F1FF).copy(alpha = brand),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
+                letterSpacing = 0.15.sp,
                 modifier = Modifier.graphicsLayer {
                     alpha = brand
-                    translationY = (1f - brand) * 7.dp.toPx()
+                    translationY = (1f - brand) * 8.dp.toPx()
                 }
             )
         }
