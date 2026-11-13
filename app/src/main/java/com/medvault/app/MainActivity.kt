@@ -1909,7 +1909,6 @@ private fun TelegramLoginScreen(onBack: () -> Unit) {
 }
 
 
-@Composable
 private class TelegramLibraryScreenState {
     val authState = mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting)
     val repo = mutableStateOf<TelegramLibraryRepository?>(null)
@@ -1927,6 +1926,7 @@ private class TelegramLibraryScreenState {
     val topicSearch = mutableStateOf("")
 }
 
+@Composable
 private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onPlayLecture: (TelegramLecture) -> Unit, setupMode: Boolean, onManageSources: () -> Unit = {}, activeEdition: MedVaultEdition, state: TelegramLibraryScreenState, progressRevision: Int) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var authState by state.authState
@@ -2192,7 +2192,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                         context.getSharedPreferences("telegram_playback_local", android.content.Context.MODE_PRIVATE).getLong(lecture.stableId, 0L)
                     }
                     val progressFraction = if (lecture.durationSeconds > 0) (playedPositionMs.toFloat() / (lecture.durationSeconds * 1000f)).coerceIn(0f, 1f) else 0f
-                    val displayTitle = remember(lecture.title) { lecture.title.replace(Regex("\\\\.(mp4|mkv|webm|mov)$", RegexOption.IGNORE_CASE), "") }
+                    val displayTitle = remember(lecture.title) { lecture.title.replace(Regex("\\.(mp4|mkv|webm|mov)$", RegexOption.IGNORE_CASE), "") }
                     var thumbnailPath by remember(lecture.thumbnailFileId) { mutableStateOf<String?>(null) }
                     LaunchedEffect(lecture.thumbnailFileId) {
                         val thumbnailId = lecture.thumbnailFileId ?: return@LaunchedEffect
