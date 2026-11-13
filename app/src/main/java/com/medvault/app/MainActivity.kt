@@ -2154,6 +2154,34 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
         MedVaultEdition.P -> titleP
         else -> titleU
     }
+    var editionLoadGeneration by remember { mutableStateOf(0) }
+    LaunchedEffect(repo, activeEdition, authState) {
+        val generation = ++editionLoadGeneration
+        state.cancelTopicRequest()
+        topic = null
+        messages = emptyList()
+        hasMoreMessages = false
+        topicSearch = ""
+        topics = emptyList()
+        error = null
+        val sourceRepo = repo
+        if (sourceRepo == null || authState !is TelegramAuthManager.State.Ready) {
+            busy = false
+            return@LaunchedEffect
+        }
+        if (sourceRepo.selectedChatId(activeEdition) == null) {
+            busy = false
+            return@LaunchedEffect
+        }
+        busy = true
+        val editionToLoad = activeEdition
+        sourceRepo.loadTopics(editionToLoad) { result ->
+            if (editionLoadGeneration == generation) {
+                busy = false
+                result.onSuccess { topics = it }.onFailure { error = it.message }
+            }
+        }
+    }
     Column(
         Modifier.fillMaxSize()
             .graphicsLayer {
@@ -2319,16 +2347,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Text("Configure your two video editions in Profile & Settings, then browse their subject topics.", color = AppMuted, fontSize = 13.sp)
             }
         } else if (targetTopic == null) {
-            LaunchedEffect(repo, activeEdition, authState) {
-                val sourceRepo = repo ?: return@LaunchedEffect
-                if (authState is TelegramAuthManager.State.Ready && sourceRepo.selectedChatId(activeEdition) != null && topics.isEmpty()) {
-                    busy = true
-                    sourceRepo.loadTopics(activeEdition) { result ->
-                        busy = false
-                        result.onSuccess { topics = it }.onFailure { error = it.message }
-                    }
-                }
-            }
+
             error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 12.sp) }
             if (repo?.selectedChatId(activeEdition) == null) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppPanel)) {
