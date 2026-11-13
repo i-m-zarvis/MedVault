@@ -3552,6 +3552,54 @@ private fun VideoScreen(
                     overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.SemiBold
                 )
+                IconButton(onClick = { settingsExpanded = true }) {
+                    Icon(Icons.Default.Settings, "Playback settings", tint = AppAccent)
+                }
+                Box {
+                    DropdownMenu(
+                        expanded = settingsExpanded,
+                        onDismissRequest = { settingsExpanded = false },
+                        modifier = Modifier.width(230.dp).heightIn(max = 380.dp)
+                            .background(Color(0xF01A2233))
+                    ) {
+                        Text("PLAYBACK SPEED", color = Color(0xFFB8C0D0),
+                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp))
+                        speeds.forEach { rate ->
+                            DropdownMenuItem(
+                                modifier = Modifier.height(42.dp),
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
+                                        if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
+                                    }
+                                },
+                                onClick = {
+                                    speed = rate
+                                    player.setPlaybackSpeed(rate)
+                                    settingsExpanded = false
+                                }
+                            )
+                        }
+                        Divider(color = Color(0x44FFFFFF))
+                        Text("VOLUME", color = Color(0xFFB8C0D0), fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
+                        Slider(
+                            value = volume,
+                            onValueChange = {
+                                volume = it
+                                player.volume = it
+                            },
+                            valueRange = 0f..1f,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color.White,
+                                inactiveTrackColor = Color(0x66777777)
+                            )
+                        )
+                    }
+                }
                 IconButton(onClick = onPip) {
                     Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = AppAccent)
                 }
@@ -3628,84 +3676,81 @@ private fun VideoScreen(
 
             PlayerControlsVisibility(visible = controlsVisible) {
                 Box(Modifier.fillMaxSize()) {
-                    // Top floating glass toolbar.
-                    Row(
-                        Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    // Fullscreen gets floating top controls. Portrait keeps actions in the page header.
+                    if (fullscreen) {
                         Row(
-                            Modifier.clip(RoundedCornerShape(28.dp))
-                                .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            GlassPlayerButton(Icons.Default.Close, "Close player", onClose)
-                            GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
-                        }
-
-                        Row(
-                            Modifier.clip(RoundedCornerShape(28.dp))
-                                .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box {
-                                GlassPlayerButton(Icons.Default.Settings, "Playback settings") {
-                                    settingsExpanded = true
-                                }
-                                DropdownMenu(
-                                    expanded = settingsExpanded,
-                                    onDismissRequest = { settingsExpanded = false },
-                                    modifier = Modifier.background(Color(0xF01A2233))
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Playback speed", color = Color.White, fontWeight = FontWeight.SemiBold) },
-                                        onClick = { }
-                                    )
-                                    speeds.forEach { rate ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
-                                                    if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
+                            Row(
+                                Modifier.clip(RoundedCornerShape(28.dp))
+                                    .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GlassPlayerButton(Icons.Default.Close, "Close player", onClose)
+                                GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                            }
+                            Row(
+                                Modifier.clip(RoundedCornerShape(28.dp))
+                                    .background(glass).border(1.dp, glassBorder, RoundedCornerShape(28.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box {
+                                    GlassPlayerButton(Icons.Default.Settings, "Playback settings") {
+                                        settingsExpanded = true
+                                    }
+                                    DropdownMenu(
+                                        expanded = settingsExpanded,
+                                        onDismissRequest = { settingsExpanded = false },
+                                        modifier = Modifier.width(230.dp).heightIn(max = 380.dp)
+                                            .background(Color(0xF01A2233))
+                                    ) {
+                                        Text("PLAYBACK SPEED", color = Color(0xFFB8C0D0),
+                                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp))
+                                        speeds.forEach { rate ->
+                                            DropdownMenuItem(
+                                                modifier = Modifier.height(42.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
+                                                        if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
+                                                    }
+                                                },
+                                                onClick = {
+                                                    speed = rate
+                                                    player.setPlaybackSpeed(rate)
+                                                    settingsExpanded = false
                                                 }
+                                            )
+                                        }
+                                        Divider(color = Color(0x44FFFFFF))
+                                        Text("VOLUME", color = Color(0xFFB8C0D0), fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
+                                        Slider(
+                                            value = volume,
+                                            onValueChange = {
+                                                volume = it
+                                                player.volume = it
                                             },
-                                            onClick = {
-                                                speed = rate
-                                                player.setPlaybackSpeed(rate)
-                                                settingsExpanded = false
-                                            }
+                                            valueRange = 0f..1f,
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = Color.White,
+                                                activeTrackColor = Color.White,
+                                                inactiveTrackColor = Color(0x66777777)
+                                            )
                                         )
                                     }
-                                    Divider(color = Color(0x44FFFFFF))
-                                    Text("VOLUME", color = Color(0xFFB8C0D0), fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
-                                    Slider(
-                                        value = volume,
-                                        onValueChange = {
-                                            volume = it
-                                            player.volume = it
-                                        },
-                                        valueRange = 0f..1f,
-                                        modifier = Modifier.width(210.dp).padding(horizontal = 12.dp),
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.White,
-                                            activeTrackColor = Color.White,
-                                            inactiveTrackColor = Color(0x66777777)
-                                        )
-                                    )
                                 }
+                                GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
                             }
-                            GlassPlayerButton(
-                                if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                if (fullscreen) "Exit fullscreen" else "Enter fullscreen",
-                                onFullscreen
-                            )
                         }
                     }
-
                     // Central transport controls.
                     Row(
                         Modifier.align(Alignment.Center)
@@ -3777,38 +3822,30 @@ private fun VideoScreen(
                             )
                             Text(formatTime(duration), color = Color.White, fontSize = 11.sp)
                         }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = { settingsExpanded = true }) {
-                                    Text("${speed}×", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        if (fullscreen) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { settingsExpanded = true }) {
+                                        Text("${speed}×", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Text("·", color = Color(0x99FFFFFF))
+                                    TextButton(onClick = onPip) {
+                                        Icon(Icons.Default.PictureInPictureAlt, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(5.dp))
+                                        Text("PiP", color = Color.White, fontSize = 12.sp)
+                                    }
                                 }
-                                Text("·", color = Color(0x99FFFFFF))
-                                TextButton(onClick = onPip) {
-                                    Icon(Icons.Default.PictureInPictureAlt, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(5.dp))
-                                    Text("PiP", color = Color.White, fontSize = 12.sp)
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = {
                                     volume = if (volume > 0f) 0f else 1f
                                     player.volume = volume
                                 }) {
                                     Icon(
                                         if (volume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                        "Mute or unmute",
-                                        tint = Color.White
-                                    )
-                                }
-                                IconButton(onClick = onFullscreen) {
-                                    Icon(
-                                        if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                        "Toggle fullscreen",
-                                        tint = Color.White
+                                        "Mute or unmute", tint = Color.White
                                     )
                                 }
                             }
@@ -3819,13 +3856,12 @@ private fun VideoScreen(
         }
 
         if (!fullscreen) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
-                Text("NOW PLAYING", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text(file.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp),
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("Your lecture • Resume position is saved automatically", color = AppMuted,
-                    fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
-            }
+            Text(
+                "Playback position saves automatically",
+                color = AppMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+            )
         }
     }
 }
