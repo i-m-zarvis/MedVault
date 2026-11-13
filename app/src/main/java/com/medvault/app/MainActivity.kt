@@ -27,6 +27,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -1704,7 +1705,10 @@ private fun MedVaultRoot(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             transitionSpec = {
                 if (initialState == "player" || targetState == "player") EnterTransition.None togetherWith ExitTransition.None
-                else (fadeIn() + slideInHorizontally { it / 14 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 14 })
+                else (fadeIn(animationSpec = LiquidMotion.FadeIn) +
+                    slideInHorizontally(animationSpec = LiquidMotion.NavigationOffset) { it / 18 }) togetherWith
+                    (fadeOut(animationSpec = LiquidMotion.FadeOut) +
+                    slideOutHorizontally(animationSpec = LiquidMotion.NavigationOffset) { -it / 22 })
             },
             label = "medvault_navigation"
         ) { targetScreen ->
