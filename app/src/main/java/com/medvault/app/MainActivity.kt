@@ -35,6 +35,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -54,6 +55,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.Color
@@ -3580,12 +3582,23 @@ private fun VideoScreen(
 
             // Tap the video surface to reveal or dismiss the floating controls.
             Box(
-                Modifier.fillMaxSize().clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) {
-                    controlsVisible = !controlsVisible
-                    settingsExpanded = false
+                Modifier.fillMaxSize().pointerInput(duration) {
+                    detectTapGestures(
+                        onTap = {
+                            controlsVisible = !controlsVisible
+                            settingsExpanded = false
+                        },
+                        onDoubleTap = { offset ->
+                            val target = if (offset.x < size.width / 2f) {
+                                (player.currentPosition - 10_000L).coerceAtLeast(0L)
+                            } else {
+                                val next = player.currentPosition + 10_000L
+                                if (duration > 0L) next.coerceAtMost(duration) else next
+                            }
+                            player.seekTo(target)
+                            controlsVisible = true
+                        }
+                    )
                 }
             )
 
