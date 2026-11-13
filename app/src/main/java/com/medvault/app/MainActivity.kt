@@ -840,6 +840,25 @@ class MainActivity : ComponentActivity() {
     private fun startOfflineVideo(
         lecture: DownloadedLecture
     ) {
+        if (lecture.source == "telegram") {
+            val telegramLecture = TelegramLecture(
+                stableId = lecture.fileId,
+                chatId = lecture.chatId,
+                topicId = lecture.topicId,
+                messageId = lecture.messageId,
+                title = lecture.name,
+                fileName = File(lecture.localPath).name,
+                caption = "",
+                fileId = lecture.telegramFileId,
+                fileSizeBytes = File(lecture.localPath).length(),
+                durationSeconds = lecture.durationSeconds,
+                mimeType = lecture.mimeType,
+                thumbnailFileId = null,
+                messageDate = 0
+            )
+            startTelegramVideo(telegramLecture)
+            return
+        }
         if (activeAccountId != lecture.accountId) {
             activeAccountId = lecture.accountId
             activeAccountEmail = DriveTokenVault.accounts(this)
