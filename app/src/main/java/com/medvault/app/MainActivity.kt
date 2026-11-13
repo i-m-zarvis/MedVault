@@ -3798,26 +3798,14 @@ private fun VideoScreen(
                             GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
                         }
 
-                        // Isolate the animated popover in its own BoxScope. This avoids
-                        // resolving the ColumnScope overload from the surrounding layout.
-                        Box(Modifier.fillMaxSize()) {
-                            AnimatedVisibility(
-                            visible = settingsExpanded,
-                            enter = fadeIn(tween(130)) + scaleIn(
-                                initialScale = 0.88f,
-                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
-                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f)
-                            ),
-                            exit = fadeOut(tween(110)) + androidx.compose.animation.scaleOut(
-                                targetScale = 0.92f,
-                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
-                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 560f)
-                            ),
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                                .padding(end = safeInset, bottom = screenHeight * 0.205f + 48.dp)
-                        ) {
+                        // Render the anchored speed menu only while open. Avoid the
+                        // ColumnScope AnimatedVisibility overload, which is incompatible
+                        // with this BoxWithConstraints receiver in the release compiler.
+                        if (settingsExpanded) {
                             Column(
-                                Modifier.width(160.dp)
+                                Modifier.align(Alignment.BottomEnd)
+                                    .padding(end = safeInset, bottom = screenHeight * 0.205f + 48.dp)
+                                    .width(160.dp)
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(
                                         Brush.verticalGradient(
@@ -3869,7 +3857,7 @@ private fun VideoScreen(
                                     }
                                 }
                             }
-                        }
+
                         }
                     } else {
                         // Portrait title is presented as a floating glass pill;
