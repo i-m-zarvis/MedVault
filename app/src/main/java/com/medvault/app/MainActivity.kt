@@ -34,6 +34,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.border
@@ -3475,6 +3483,7 @@ private fun VideoScreen(
     var playerVolume by remember(player) { mutableFloatStateOf(player.volume) }
     var controlsVisible by remember(player) { mutableStateOf(true) }
     var settingsExpanded by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -3631,191 +3640,244 @@ private fun VideoScreen(
                     val contextualWidth = (screenWidth * 0.18f).coerceIn(140.dp, 180.dp)
 
                     if (fullscreen) {
-                        // Top-left: close and PiP in one continuous glass capsule.
-                        PlayerGlassCapsule(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(start = sideInset, top = topInset)
-                                .width(leftCapsuleWidth)
-                                .height(capsuleHeight)
+                        // iOS-inspired floating controls: independent glass elements,
+                        // measured in dp and inset from the physical display edges.
+                        val safeInset = 24.dp
+                        val compact = screenWidth < 600.dp
+                        val clusterGap = 20.dp
+                        val centerButton = 64.dp
+                        val skipButton = 44.dp
+                        val centerClusterWidth = centerButton + skipButton * 2 + clusterGap * 2
+
+                        // Top-left: dismiss plus a compact functional PiP capsule.
+                        Row(
+                            modifier = Modifier.align(Alignment.TopStart)
+                                .padding(start = safeInset, top = safeInset),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            GlassPlayerButton(Icons.Default.Close, "Close player", onClose)
-                            GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                            PlayerGlassCircleButton(
+                                icon = Icons.Default.Close,
+                                description = "Close player",
+                                diameter = 40.dp,
+                                iconSize = 21.dp,
+                                onClick = onClose
+                            )
+                            PlayerGlassCapsule(
+                                modifier = Modifier.width(48.dp).height(40.dp)
+                            ) {
+                                GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                            }
                         }
 
-                        // Top-right: a compact, directly adjustable volume capsule.
+                        // Top-right: 140 x 36 dp volume glass, synchronised with ExoPlayer.
                         PlayerGlassCapsule(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(end = sideInset, top = topInset)
-                                .width(volumeCapsuleWidth)
-                                .height(capsuleHeight)
+                            modifier = Modifier.align(Alignment.TopEnd)
+                                .padding(end = safeInset, top = safeInset)
+                                .width(140.dp).height(36.dp)
                         ) {
-                            Slider(
+                            PlayerVolumeSlider(
                                 value = playerVolume,
                                 onValueChange = {
                                     playerVolume = it
                                     player.volume = it
                                 },
-                                valueRange = 0f..1f,
-                                modifier = Modifier.weight(1f).height(34.dp).padding(start = 8.dp),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color.White,
-                                    inactiveTrackColor = Color(0x66FFFFFF)
-                                )
+                                modifier = Modifier.weight(1f).padding(start = 9.dp)
                             )
-                            IconButton(
-                                onClick = {
-                                    playerVolume = if (playerVolume > 0f) 0f else 1f
-                                    player.volume = playerVolume
-                                },
-                                modifier = Modifier.size(42.dp)
+                            Box(
+                                Modifier.size(30.dp).clip(CircleShape)
+                                    .clickable {
+                                        val next = if (playerVolume > 0f) 0f else 1f
+                                        playerVolume = next
+                                        player.volume = next
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    if (playerVolume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                    "Mute or unmute",
+                                    when {
+                                        playerVolume <= 0f -> Icons.Default.VolumeOff
+                                        playerVolume < 0.5f -> Icons.Default.VolumeDown
+                                        else -> Icons.Default.VolumeUp
+                                    },
+                                    contentDescription = if (playerVolume > 0f) "Mute" else "Unmute",
                                     tint = Color.White,
-                                    modifier = Modifier.size(21.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
 
-                        // Centre: the main transport cluster, sized as a single capsule.
-                        PlayerGlassCapsule(
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .width(transportWidth)
-                                .height(transportHeight),
-                            stronger = true
+                        // Three independent circles. No oversized shared transport capsule.
+                        Row(
+                            modifier = Modifier.align(Alignment.Center).width(centerClusterWidth),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(clusterGap)
                         ) {
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                GlassPlayerButton(Icons.Default.Replay10, "Back 10 seconds") {
-                                    player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
-                                    controlsVisible = true
-                                }
-                            }
-                            IconButton(
-                                onClick = { if (player.isPlaying) player.pause() else player.play() },
-                                modifier = Modifier.size(76.dp)
+                            PlayerGlassCircleButton(
+                                icon = Icons.Default.Replay10,
+                                description = "Back 10 seconds",
+                                diameter = skipButton,
+                                iconSize = 25.dp
                             ) {
-                                Icon(
-                                    if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    if (playing) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(48.dp)
-                                )
+                                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                controlsVisible = true
                             }
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                GlassPlayerButton(Icons.Default.Forward10, "Forward 10 seconds") {
-                                    val target = player.currentPosition + 10_000L
-                                    player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
-                                    controlsVisible = true
-                                }
+                            PlayerGlassCircleButton(
+                                icon = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                description = if (playing) "Pause" else "Play",
+                                diameter = centerButton,
+                                iconSize = 31.dp,
+                                stronger = true
+                            ) {
+                                if (player.isPlaying) player.pause() else player.play()
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            PlayerGlassCircleButton(
+                                icon = Icons.Default.Forward10,
+                                description = "Forward 10 seconds",
+                                diameter = skipButton,
+                                iconSize = 25.dp
+                            ) {
+                                val target = player.currentPosition + 10_000L
+                                player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                controlsVisible = true
                             }
                         }
 
-                        // Right-side contextual actions, kept clear of the timeline.
-                        PlayerGlassCapsule(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(end = sideInset, bottom = screenHeight * 0.235f)
-                                .width(contextualWidth)
-                                .height(48.dp)
-                        ) {
-                            Box {
-                                GlassPlayerButton(Icons.Default.Settings, "Playback settings") {
-                                    settingsExpanded = true
-                                }
-                                DropdownMenu(
-                                    expanded = settingsExpanded,
-                                    onDismissRequest = { settingsExpanded = false },
-                                    modifier = Modifier.width(216.dp)
-                                        .heightIn(max = (screenHeight * 0.72f).coerceAtLeast(220.dp))
-                                        .clip(RoundedCornerShape(26.dp))
-                                        .background(
-                                            Brush.verticalGradient(listOf(Color(0xE82B3447), Color(0xEA182235), Color(0xF20B1220))),
-                                            RoundedCornerShape(26.dp)
-                                        )
-                                        .border(1.dp, Brush.verticalGradient(listOf(Color(0xAAFFFFFF), Color(0x33FFFFFF))), RoundedCornerShape(26.dp))
-                                ) {
-                                    Text(
-                                        "PLAYBACK SPEED",
-                                        color = Color(0xFFB8C0D0),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
-                                    )
-                                    speeds.forEach { rate ->
-                                        DropdownMenuItem(
-                                            modifier = Modifier.height(40.dp),
-                                            text = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text("${rate}×", color = Color.White, modifier = Modifier.weight(1f))
-                                                    if (speed == rate) Icon(Icons.Default.Check, null, tint = Color(0xFF9D83FF))
-                                                }
-                                            },
-                                            onClick = {
-                                                speed = rate
-                                                player.setPlaybackSpeed(rate)
-                                                settingsExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
-                        }
-
-                        // Lower-left: title and a slim, high-precision timeline.
+                        // Lower-left title and custom 4 dp timeline.
                         Column(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .offset(x = sideInset)
-                                .width(screenWidth * 0.849f)
-                                .padding(bottom = screenHeight * 0.055f)
+                            modifier = Modifier.align(Alignment.BottomStart)
+                                .padding(start = safeInset, end = safeInset, bottom = safeInset)
+                                .fillMaxWidth()
                         ) {
+                            Text(
+                                "MEDVAULT  •  NOW PLAYING",
+                                color = Color.White.copy(alpha = 0.76f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.15.sp,
+                                maxLines = 1
+                            )
+                            Spacer(Modifier.height(3.dp))
                             Text(
                                 file.name,
                                 color = Color.White,
-                                fontSize = 15.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(10.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(formatTime(position), color = Color.White, fontSize = 11.sp)
-                                Slider(
-                                    value = if (duration > 0L) position.toFloat().coerceIn(0f, duration.toFloat()) else 0f,
-                                    onValueChange = {
+                                Text(formatTime(position), color = Color.White, fontSize = 12.sp)
+                                PlayerTimeline(
+                                    position = position,
+                                    duration = duration,
+                                    onSeekChange = {
                                         isSeeking = true
-                                        position = it.toLong()
+                                        position = it
                                     },
-                                    onValueChangeFinished = {
-                                        player.seekTo(position.coerceIn(0L, duration.coerceAtLeast(0L)))
+                                    onSeekFinished = {
+                                        player.seekTo(it.coerceIn(0L, duration.coerceAtLeast(0L)))
+                                        position = it
                                         isSeeking = false
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     },
-                                    valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
-                                    modifier = Modifier.weight(1f).height(36.dp).padding(horizontal = 8.dp),
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = Color.White,
-                                        activeTrackColor = Color.White,
-                                        inactiveTrackColor = Color(0x77FFFFFF)
-                                    )
+                                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
                                 )
-                                Text(formatTime(duration), color = Color.White, fontSize = 11.sp)
-                            }
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                PlayerGlassAction("${speed}×") { settingsExpanded = true }
-                                PlayerGlassAction("PiP", onPip)
+                                Text(formatTime(duration), color = Color.White, fontSize = 12.sp)
                             }
                         }
-                    } else {
+
+                        // Bottom-right control cluster: speed, PiP and fullscreen.
+                        PlayerGlassCapsule(
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                                .padding(end = safeInset, bottom = screenHeight * 0.205f)
+                                .height(40.dp)
+                        ) {
+                            Box {
+                                PlayerGlassAction(label = "${speed}×", onClick = {
+                                    settingsExpanded = !settingsExpanded
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                })
+                            }
+                            GlassPlayerButton(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
+                            GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
+                        }
+
+                        // Compact anchored speed popover with a spring expansion.
+                        AnimatedVisibility(
+                            visible = settingsExpanded,
+                            enter = fadeIn(tween(130)) + scaleIn(
+                                initialScale = 0.88f,
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
+                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f)
+                            ),
+                            exit = fadeOut(tween(110)) + androidx.compose.animation.scaleOut(
+                                targetScale = 0.92f,
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f),
+                                animationSpec = spring(dampingRatio = 0.82f, stiffness = 560f)
+                            ),
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                                .padding(end = safeInset, bottom = screenHeight * 0.205f + 48.dp)
+                        ) {
+                            Column(
+                                Modifier.width(160.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color(0xE83A4050), Color(0xED202635), Color(0xF5151A25))
+                                        )
+                                    )
+                                    .border(
+                                        1.dp,
+                                        Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x22FFFFFF))),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .padding(6.dp)
+                            ) {
+                                listOf(0.5f, 1f, 1.5f, 2f).forEach { rate ->
+                                    val selected = speed == rate
+                                    Row(
+                                        Modifier.fillMaxWidth().height(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (selected) Color(0x22FFFFFF) else Color.Transparent)
+                                            .clickable {
+                                                speed = rate
+                                                player.setPlaybackSpeed(rate)
+                                                settingsExpanded = false
+                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                            .padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            when (rate) {
+                                                0.5f -> "0.5×"
+                                                1f -> "1.0×"
+                                                1.5f -> "1.5×"
+                                                else -> "2.0×"
+                                            },
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (selected) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color(0xFFB49AFF),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                         // Portrait title is presented as a floating glass pill;
                         // the old text-heavy app bar and its gear/fullscreen buttons are removed.
                         PlayerGlassCapsule(
