@@ -339,6 +339,10 @@ class MainActivity : ComponentActivity() {
                     onOpenDailyDose = { screen = "daily_dose" },
                     onOpenUpdates = { screen = "updates" },
                     onOpenPractice = { screen = "practice" },
+                    onOpenRapidRevision = { screen = "rapid_revision" },
+                    onOpenNotes = { screen = "notes" },
+                    onOpenBookmarks = { screen = "bookmarks" },
+                    onOpenPlanner = { screen = "planner" },
                     selectedPdfFile = selectedPdfFile,
                     selectedPdfTitle = selectedPdfTitle,
                     onOpenPdf = { file, title ->
@@ -1750,6 +1754,7 @@ private fun MedVaultRoot(
     onTelegramSettings: () -> Unit, onManageTelegramGroups: () -> Unit,
     onOpenQBank: () -> Unit, onOpenOffline: () -> Unit,
     onOpenStudySources: () -> Unit, onOpenDailyDose: () -> Unit, onOpenUpdates: () -> Unit, onOpenPractice: () -> Unit,
+    onOpenRapidRevision: () -> Unit, onOpenNotes: () -> Unit, onOpenBookmarks: () -> Unit, onOpenPlanner: () -> Unit,
     selectedPdfFile: File?, selectedPdfTitle: String,
     onOpenPdf: (File, String) -> Unit, onClosePdf: () -> Unit,
     accountMenu: Boolean, pipMode: Boolean, fullscreen: Boolean, player: ExoPlayer?,
@@ -1795,7 +1800,7 @@ private fun MedVaultRoot(
             Surface(Modifier.fillMaxSize(), color = AppBg) {
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onRapidRevision = { screen = "rapid_revision" }, onNotes = { screen = "notes" }, onBookmarks = { screen = "bookmarks" }, onPlanner = { screen = "planner" }, onSettings = onSettings,
+                        onRapidRevision = onOpenRapidRevision, onNotes = onOpenNotes, onBookmarks = onOpenBookmarks, onPlanner = onOpenPlanner, onSettings = onSettings,
                         onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
@@ -1839,7 +1844,7 @@ private fun MedVaultRoot(
                         status = status, onBack = onFolderBack, onRefresh = onRefresh, onGlobalSearch = onGlobalSearch,
                         onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
                     else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onRapidRevision = { screen = "rapid_revision" }, onNotes = { screen = "notes" }, onBookmarks = { screen = "bookmarks" }, onPlanner = { screen = "planner" }, onSettings = onSettings,
+                        onRapidRevision = onOpenRapidRevision, onNotes = onOpenNotes, onBookmarks = onOpenBookmarks, onPlanner = onOpenPlanner, onSettings = onSettings,
                         onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                 }
