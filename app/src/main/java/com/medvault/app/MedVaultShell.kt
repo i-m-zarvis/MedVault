@@ -790,9 +790,11 @@ fun MedVaultOfflineScreen(
     downloadedLectures: List<DownloadedLecture>,
     onOpenPdf: (File, String) -> Unit,
     onPlayOffline: (DownloadedLecture) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var pendingDelete by remember { mutableStateOf<DownloadedLecture?>(null) }
     val pdfs = remember { TelegramPdfStore.downloaded(context) }
     val videoBytes = downloadedLectures.sumOf { File(it.localPath).length() }
     val pdfBytes = pdfs.sumOf { it.length() }
@@ -841,11 +843,13 @@ fun MedVaultOfflineScreen(
             items(downloadedLectures, key = { it.fileId }) { lecture ->
                 Card(Modifier.fillMaxWidth().clickable { onPlayOffline(lecture) }, colors = CardDefaults.cardColors(containerColor = Color(0xD91A263B)),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))) {
-                    Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayCircle, null, tint = ShellBlue)
                         Spacer(Modifier.width(10.dp))
-                        Text(lecture.name, Modifier.weight(1f), color = ShellInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
+                        Text(lecture.name, Modifier.weight(1f).clickable { onPlayOffline(lecture) }.padding(vertical = 7.dp), color = ShellInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        IconButton(onClick = { pendingDelete = lecture }) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete offline copy", tint = ShellMuted)
+                        }
                     }
                 }
             }
@@ -867,6 +871,33 @@ fun MedVaultOfflineScreen(
                 item { Text("Nothing downloaded yet.", color = ShellMuted, modifier = Modifier.padding(vertical = 20.dp)) }
             }
         }
+    }
+
+    pendingDelete?.let { lecture ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            containerColor = Color(0xFF1A2033),
+            title = { Text("Delete offline copy?", color = ShellInk) },
+            text = {
+                Text(
+                    "Remove “${lecture.name}” from this device? The original Telegram video and source message will remain untouched.",
+                    color = ShellMuted
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteOffline(lecture)
+                    pendingDelete = null
+                }) {
+                    Text("Delete", color = Color(0xFFFF8A80))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("Cancel", color = ShellBlue)
+                }
+            }
+        )
     }
 }
 
