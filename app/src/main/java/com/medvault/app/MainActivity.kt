@@ -1,8 +1,6 @@
 package com.medvault.app
 
 import android.Manifest
-import android.graphics.BitmapFactory
-import android.util.Base64
 import android.accounts.Account
 import android.app.Activity
 import android.app.PictureInPictureParams
@@ -49,6 +47,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.border
@@ -4442,9 +4442,9 @@ private fun formatTime(ms: Long): String {
 
 @Composable
 private fun MedVaultBrandSplash() {
-    val mark = remember {
-        val bytes = Base64.decode(MedVaultBrandMark.DATA, Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
+    val context = LocalContext.current
+    val mark = remember(context) {
+        BitmapFactory.decodeResource(context.resources, R.drawable.medvault_emblem).asImageBitmap()
     }
     val iconReveal = remember { Animatable(0f) }
     val contentReveal = remember { Animatable(0f) }
