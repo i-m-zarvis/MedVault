@@ -1718,6 +1718,7 @@ class MainActivity : ComponentActivity() {
 // ROOT NAVIGATION
 // =============================================================
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun MedVaultRoot(
     showBrandSplash: Boolean,
