@@ -1738,6 +1738,9 @@ private fun MedVaultRoot(
             }
         }
         if (screen in mainTabs && !pipMode && !showBrandSplash) {
+            // The dock lives in a separate blur window; reserve its footprint in this
+            // Column so scrollable content ends above the floating dock instead of behind it.
+            Spacer(Modifier.fillMaxWidth().height(90.dp))
             MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
                 onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
