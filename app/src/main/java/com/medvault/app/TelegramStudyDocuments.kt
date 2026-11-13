@@ -67,9 +67,12 @@ data class TelegramPdfDocument(
             if (!mime.equals("application/pdf", true) &&
                 !fileName.substringBefore('?').endsWith(".pdf", true)) return null
             val caption = content.caption.text
-            val title = (caption.lineSequence().firstOrNull()?.trim().orEmpty()
+            val rawTitle = (caption.lineSequence().firstOrNull()?.trim().orEmpty()
                 .ifBlank { fileName.substringAfterLast('/') })
                 .replace(Regex("\\\\.pdf$", RegexOption.IGNORE_CASE), "").trim()
+            val title = rawTitle.takeUnless {
+                it.matches(Regex("(document[_ -]?)?\\d+", RegexOption.IGNORE_CASE))
+            } ?: "PDF document"
             return TelegramPdfDocument(
                 stableId = "$chatId:$topicId:${message.id}",
                 chatId = chatId,
