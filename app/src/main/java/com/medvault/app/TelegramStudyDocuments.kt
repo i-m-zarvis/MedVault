@@ -250,6 +250,22 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
     }
 }
 
+class TelegramDocumentLibraryState {
+    val authState = mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting)
+    val auth = mutableStateOf<TelegramAuthManager?>(null)
+    val repo = mutableStateOf<TelegramLibraryRepository?>(null)
+    val topics = mutableStateOf<List<TelegramForumTopic>>(emptyList())
+    val selectedTopic = mutableStateOf<TelegramForumTopic?>(null)
+    val documents = mutableStateOf<List<TelegramPdfDocument>>(emptyList())
+    val busy = mutableStateOf(false)
+    val error = mutableStateOf<String?>(null)
+    val status = mutableStateOf<String?>(null)
+    val downloadingId = mutableStateOf<String?>(null)
+    val selectedGroup = mutableStateOf<String?>(null)
+    val documentSearch = mutableStateOf("")
+    var loadedSourceEdition: MedVaultEdition? = null
+}
+
 @Composable
 fun TelegramDocumentLibraryScreen(
     edition: MedVaultEdition,
@@ -258,21 +274,22 @@ fun TelegramDocumentLibraryScreen(
     onManageSources: () -> Unit,
     onConnectAccount: () -> Unit,
     activeEdition: MedVaultEdition,
-    onOpenPractice: () -> Unit = {}
+    onOpenPractice: () -> Unit = {},
+    state: TelegramDocumentLibraryState
 ) {
     val context = LocalContext.current
-    var authState by remember { mutableStateOf<TelegramAuthManager.State>(TelegramAuthManager.State.Starting) }
-    var auth by remember { mutableStateOf<TelegramAuthManager?>(null) }
-    var repo by remember { mutableStateOf<TelegramLibraryRepository?>(null) }
-    var topics by remember { mutableStateOf<List<TelegramForumTopic>>(emptyList()) }
-    var selectedTopic by remember { mutableStateOf<TelegramForumTopic?>(null) }
-    var documents by remember { mutableStateOf<List<TelegramPdfDocument>>(emptyList()) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var status by remember { mutableStateOf<String?>(null) }
-    var downloadingId by remember { mutableStateOf<String?>(null) }
-    var selectedGroup by remember { mutableStateOf<String?>(null) }
-    var documentSearch by remember { mutableStateOf("") }
+    var authState by state.authState
+    var auth by state.auth
+    var repo by state.repo
+    var topics by state.topics
+    var selectedTopic by state.selectedTopic
+    var documents by state.documents
+    var busy by state.busy
+    var error by state.error
+    var status by state.status
+    var downloadingId by state.downloadingId
+    var selectedGroup by state.selectedGroup
+    var documentSearch by state.documentSearch
     val sourceEdition = when (edition) {
         MedVaultEdition.QBANK -> when (activeEdition) {
             MedVaultEdition.M -> MedVaultEdition.QBANK_M
@@ -296,12 +313,16 @@ fun TelegramDocumentLibraryScreen(
     }
 
     LaunchedEffect(repo, sourceEdition) {
-        selectedTopic = null
-        documents = emptyList()
-        topics = emptyList()
-        error = null
-        status = null
         val library = repo ?: return@LaunchedEffect
+        if (state.loadedSourceEdition != sourceEdition) {
+            selectedTopic = null
+            documents = emptyList()
+            topics = emptyList()
+            documentSearch = ""
+            error = null
+            status = null
+            state.loadedSourceEdition = sourceEdition
+        }
         selectedGroup = library.selectedTitle(sourceEdition)
         if (library.selectedChatId(sourceEdition) != null) {
             busy = true
