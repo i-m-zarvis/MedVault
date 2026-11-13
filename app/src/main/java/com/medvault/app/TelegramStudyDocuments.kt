@@ -378,11 +378,11 @@ fun TelegramDocumentLibraryScreen(
         loadTopicAt(0)
     }
 
-    BackHandler(enabled = selectedTopic != null) { selectedTopic = null; documents = emptyList() }
+    BackHandler(enabled = selectedTopic != null) { selectedTopic = null; documents = emptyList(); documentSearch = "" }
 
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B)))).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList() } else onBack() }) {
+            IconButton(onClick = { if (selectedTopic != null) { selectedTopic = null; documents = emptyList(); documentSearch = "" } else onBack() }) {
                 Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -441,10 +441,11 @@ fun TelegramDocumentLibraryScreen(
                     Card(
                         Modifier.fillMaxWidth().clickable {
                             selectedTopic = topic
+                            documentSearch = ""
                             documents = emptyList()
                             busy = true
                             error = null
-                            repo?.loadTopicMessages(topic) { result ->
+                            repo?.loadAllTopicMessages(topic) { result ->
                                 StudyMain.post {
                                     busy = false
                                     result.onSuccess { messages ->
