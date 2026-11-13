@@ -345,6 +345,7 @@ private fun DownloadWorkCard(
     val name =
         work.progress.getString(DriveDownloadWorker.KEY_FILE_NAME)
             ?: work.outputData.getString(DriveDownloadWorker.KEY_FILE_NAME)
+            ?: work.inputData.getString(DriveDownloadWorker.KEY_FILE_NAME)
             ?: "Lecture download"
 
     val progress = work.progress.getInt(

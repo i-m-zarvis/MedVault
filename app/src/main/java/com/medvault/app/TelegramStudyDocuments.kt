@@ -67,8 +67,9 @@ data class TelegramPdfDocument(
             if (!mime.equals("application/pdf", true) &&
                 !fileName.substringBefore('?').endsWith(".pdf", true)) return null
             val caption = content.caption.text
-            val title = caption.lineSequence().firstOrNull()?.trim().orEmpty()
-                .ifBlank { fileName.substringAfterLast('/') }
+            val title = (caption.lineSequence().firstOrNull()?.trim().orEmpty()
+                .ifBlank { fileName.substringAfterLast('/') })
+                .replace(Regex("\\\\.pdf$", RegexOption.IGNORE_CASE), "").trim()
             return TelegramPdfDocument(
                 stableId = "$chatId:$topicId:${message.id}",
                 chatId = chatId,
@@ -511,6 +512,7 @@ fun TelegramDocumentLibraryScreen(
                                         color = StudyMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.55.sp
                                     )
                                 }
+                                LiquidBookmarkButton(contentId = "pdf:${document.stableId}", title = document.title, contentType = "pdf")
                                 if (isDownloaded) Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF62D7C8), modifier = Modifier.size(19.dp))
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {

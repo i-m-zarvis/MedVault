@@ -334,7 +334,6 @@ class MainActivity : ComponentActivity() {
                     },
                     activeAccountEmail = activeAccountEmail,
                     onOpenQBank = { screen = "qbank" },
-                    onOpenTests = { screen = "tests" },
                     onOpenOffline = { screen = "offline" },
                     onOpenStudySources = { screen = "study_sources" },
                     onOpenDailyDose = { screen = "daily_dose" },
@@ -1749,7 +1748,7 @@ private fun MedVaultRoot(
     onPlayTelegramLecture: (TelegramLecture) -> Unit, onDownloadTelegramLecture: (TelegramLecture) -> Unit, onPlayerBack: () -> Unit,
     onSettings: () -> Unit, onGoogleSettings: () -> Unit,
     onTelegramSettings: () -> Unit, onManageTelegramGroups: () -> Unit,
-    onOpenQBank: () -> Unit, onOpenTests: () -> Unit, onOpenOffline: () -> Unit,
+    onOpenQBank: () -> Unit, onOpenOffline: () -> Unit,
     onOpenStudySources: () -> Unit, onOpenDailyDose: () -> Unit, onOpenUpdates: () -> Unit, onOpenPractice: () -> Unit,
     selectedPdfFile: File?, selectedPdfTitle: String,
     onOpenPdf: (File, String) -> Unit, onClosePdf: () -> Unit,
@@ -1769,7 +1768,6 @@ private fun MedVaultRoot(
 ) {
     val telegramLibraryState = remember { TelegramLibraryScreenState() }
     val qbankLibraryState = remember { TelegramDocumentLibraryState() }
-    val notesLibraryState = remember { TelegramDocumentLibraryState() }
     val mainTabs = setOf("home", "videos", "qbank", "offline", "settings")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
         when (screen) {
@@ -1797,7 +1795,7 @@ private fun MedVaultRoot(
             Surface(Modifier.fillMaxSize(), color = AppBg) {
                 when (targetScreen) {
                     "home" -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
+                        onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
                         onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                     "videos", "telegram_library" -> TelegramLibraryScreen(onBack = onHome, onConnect = onOpenTelegram,
@@ -1808,7 +1806,6 @@ private fun MedVaultRoot(
                         onDeleteOffline = onDeleteOffline)
                     "telegram_setup" -> TelegramStudySourcesSettingsScreen(onBack = onHome, onConnectAccount = onOpenTelegram)
                     "qbank" -> TelegramDocumentLibraryScreen(MedVaultEdition.QBANK, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, onOpenPractice = onOpenPractice, state = qbankLibraryState)
-                    "tests" -> TelegramDocumentLibraryScreen(MedVaultEdition.TESTS, onHome, onOpenPdf, onOpenStudySources, onOpenTelegram, activeEdition = activeEdition, state = notesLibraryState)
                     "offline" -> MedVaultOfflineScreen(downloadedLectures, onOpenPdf, onPlayOffline, onHome, onDeleteOffline)
                     "study_sources" -> TelegramStudySourcesSettingsScreen(onBack = onSettings, onConnectAccount = onOpenTelegram)
                     "settings" -> MedVaultSettingsScreen(onBack = onHome, onStudySources = onOpenStudySources, onConnectAccount = onOpenTelegram)
@@ -1833,7 +1830,7 @@ private fun MedVaultRoot(
                         status = status, onBack = onFolderBack, onRefresh = onRefresh, onGlobalSearch = onGlobalSearch,
                         onFolder = onFolder, onFile = onFile, onDownload = onDownload, onHome = onHome)
                     else -> MedVaultHomeScreen(onVideos = onOpenTelegramLibrary, onQBank = onOpenQBank,
-                        onTests = onOpenTests, onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
+                        onDailyDose = onOpenDailyDose, onUpdates = onOpenOffline, onSettings = onSettings,
                         onHistory = onHistory, history = history, onResumeLecture = onHistoryFile,
                         activeEdition = activeEdition, onEditionChange = onEditionChange)
                 }
@@ -2434,6 +2431,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                                     Text(subjectName, color = Color(0xFF9299AA), fontSize = 10.sp,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
+                                LiquidBookmarkButton(contentId = "video:${lecture.stableId}", title = lecture.title, contentType = "video")
                                 IconButton(onClick = { onDownloadLecture(lecture) }) {
                                     Icon(Icons.Default.Download, "Download", tint = Color(0xFF9299AA), modifier = Modifier.size(19.dp))
                                 }

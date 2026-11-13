@@ -203,7 +203,7 @@ internal fun Modifier.liquidPanel(
 
 @Composable
 fun MedVaultHomeScreen(
-    onVideos: () -> Unit, onQBank: () -> Unit, onTests: () -> Unit,
+    onVideos: () -> Unit, onQBank: () -> Unit,
     onDailyDose: () -> Unit, onUpdates: () -> Unit, onSettings: () -> Unit,
     onHistory: () -> Unit, history: List<WatchRecord>, onResumeLecture: (WatchRecord) -> Unit,
     activeEdition: MedVaultEdition, onEditionChange: (MedVaultEdition) -> Unit
@@ -289,7 +289,7 @@ fun MedVaultHomeScreen(
                         HomeActionTile("QBank", "Practice questions", Icons.Default.MenuBook, onQBank, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HomeActionTile("Tests", "Your test library", Icons.Default.Assignment, onTests, Modifier.weight(1f))
+                        HomeActionTile("Notes", "Study documents", Icons.Default.Description, onQBank, Modifier.weight(1f))
                         HomeActionTile("Offline", "Saved for later", Icons.Default.Download, onUpdates, Modifier.weight(1f))
                     }
                 }
