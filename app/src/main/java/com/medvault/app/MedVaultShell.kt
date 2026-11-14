@@ -1,5 +1,20 @@
 package com.medvault.app
 
+import android.app.Activity
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Paint as AndroidPaint
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Shader
+import android.os.Handler
+import android.os.Looper
+import android.view.PixelCopy
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+
 import androidx.compose.ui.graphics.BlendMode
 
 import androidx.compose.ui.layout.onSizeChanged
@@ -541,10 +556,6 @@ private data class LiquidDockGeometry(
         get() = androidx.compose.ui.geometry.Size(widthPx, heightPx)
 }
 
-/**
- * One geometry function is shared by the Canvas and tab graphics layers.
- * The indicator is sized relative to a tab slot, never to the whole dock.
- */
 private fun calculateLiquidDockGeometry(
     dockWidthPx: Float,
     rowWidthPx: Float,
@@ -555,35 +566,22 @@ private fun calculateLiquidDockGeometry(
     progress: Float,
     velocityStretch: Float
 ): LiquidDockGeometry {
-    val slotWidth = (rowWidthPx / 4f).coerceAtLeast(1f)
-
-    // Preserve the stadium aspect ratio while respecting narrow device widths.
-    val maximumBaseHeight = (slotWidth * 0.86f) / 1.58f
-    val baseHeight = requestedBaseHeightPx.coerceAtMost(maximumBaseHeight)
-    val baseWidth = minOf(
-        maxOf(baseHeight * 1.58f, slotWidth * 0.76f),
-        slotWidth * 0.86f
+    val geometry = LiquidDockGeometryEngine.calculate(
+        dockWidthPx = dockWidthPx,
+        contentWidthPx = rowWidthPx,
+        dockHeightPx = dockHeightPx,
+        requestedCenterX = requestedCenterX,
+        progress = progress,
+        velocityStretch = velocityStretch,
+        horizontalInsetPx = horizontalInsetPx,
+        restingHeightPx = requestedBaseHeightPx
     )
-
-    // Idle is a compact recessed capsule. The active lens grows, but remains
-    // inside its own tab slot so it cannot collide with its neighbours.
-    val currentHeight = baseHeight * (1f + 0.28f * progress)
-    val currentWidth = minOf(
-        baseWidth * (1f + (0.16f + velocityStretch) * progress),
-        slotWidth * 0.96f
-    )
-
-    val minCenterX = horizontalInsetPx + currentWidth / 2f
-    val maxCenterX = (dockWidthPx - horizontalInsetPx - currentWidth / 2f)
-        .coerceAtLeast(minCenterX)
-    val drawCenterX = requestedCenterX.coerceIn(minCenterX, maxCenterX)
-
     return LiquidDockGeometry(
-        slotWidthPx = slotWidth,
-        widthPx = currentWidth,
-        heightPx = currentHeight,
-        centerX = drawCenterX,
-        centerY = dockHeightPx / 2f
+        slotWidthPx = geometry.slotWidthPx,
+        widthPx = geometry.widthPx,
+        heightPx = geometry.heightPx,
+        centerX = geometry.centerX,
+        centerY = geometry.centerY
     )
 }
 
@@ -689,15 +687,43 @@ fun MedVaultBottomBar(
     val actions = listOf(onHome, onVideos, onQBank, onOffline)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
     val latestActions by rememberUpdatedState(actions)
-    val latestSelectedIndex by rememberUpdatedState(selectedIndex)
 
     val hapticView = LocalView.current
     val density = androidx.compose.ui.platform.LocalDensity.current
+    val activity = remember(context) { context.findActivity() }
+    var backdropBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var backdropRect by remember { mutableStateOf<Rect?>(null) }
+    val backdropCapture = remember(activity) {
+        activity?.let { owner ->
+            DockBackdropCapture(owner.window) { fresh ->
+                backdropBitmap?.takeIf { it !== fresh }?.recycle()
+                backdropBitmap = fresh
+            }
+        }
+    }
+    DisposableEffect(backdropCapture) {
+        onDispose {
+            backdropCapture?.close()
+            backdropBitmap?.recycle()
+            backdropBitmap = null
+        }
+    }
+    val backdropShader = remember(backdropBitmap) {
+        backdropBitmap?.let {
+            BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        }
+    }
+    val runtimeLensShader = remember {
+        if (Build.VERSION.SDK_INT >= 33) {
+            RuntimeShader(LiquidDockShaders.REFRACTIVE_LENS)
+        } else null
+    }
+    val lensPaint = remember { AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG) }
 
     val dockHeight = if (compact) 50.dp else 62.dp
     val dockHeightPx = with(density) { dockHeight.toPx() }
     val baseIndicatorHeightPx = with(density) {
-        (if (compact) 36.dp else 44.dp).toPx()
+        (if (compact) 42.dp else 52.dp).toPx()
     }
     val dockInnerPadding = 5.dp
     val horizontalInsetPx = with(density) { dockInnerPadding.toPx() }
@@ -832,7 +858,27 @@ fun MedVaultBottomBar(
             .navigationBarsPadding()
             .padding(start = 12.dp, end = 12.dp, bottom = 24.dp)
             .height(dockHeight)
-            .onSizeChanged { dockWidthPx = it.width },
+            .onSizeChanged { dockWidthPx = it.width }
+            .onGloballyPositioned { coordinates ->
+                val owner = activity
+                if (owner != null) {
+                    val screenOrigin = coordinates.localToScreen(Offset.Zero)
+                    val windowOrigin = IntArray(2)
+                    owner.window.decorView.getLocationOnScreen(windowOrigin)
+                    val left = (screenOrigin.x - windowOrigin[0]).toInt()
+                    val top = (screenOrigin.y - windowOrigin[1]).toInt()
+                    val rect = Rect(
+                        left.coerceAtLeast(0),
+                        top.coerceAtLeast(0),
+                        (left + coordinates.size.width).coerceAtMost(owner.window.decorView.width),
+                        (top + coordinates.size.height).coerceAtMost(owner.window.decorView.height)
+                    )
+                    if (rect.width() > 0 && rect.height() > 0) {
+                        backdropRect = rect
+                        backdropCapture?.capture(rect)
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Box(Modifier.fillMaxSize()) {
@@ -902,7 +948,44 @@ fun MedVaultBottomBar(
                         style = Stroke(0.75.dp.toPx())
                     )
                 } else {
-                    // Transparent lens body with a soft vertical optical gradient.
+                    // Android 13+: sample the cached Activity backdrop through AGSL.
+                    // The bitmap is captured asynchronously; animation frames never invoke PixelCopy.
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        backdropShader != null &&
+                        runtimeLensShader != null
+                    ) {
+                        runtimeLensShader.setInputShader("uBackdrop", backdropShader)
+                        runtimeLensShader.setFloatUniform(
+                            "uLensCenter",
+                            geometry.centerX,
+                            geometry.centerY
+                        )
+                        runtimeLensShader.setFloatUniform(
+                            "uHalfSize",
+                            geometry.widthPx / 2f,
+                            geometry.heightPx / 2f
+                        )
+                        runtimeLensShader.setFloatUniform("uProgress", progress)
+                        runtimeLensShader.setFloatUniform("uRefraction", 3.2f)
+                        runtimeLensShader.setFloatUniform("uChromatic", 1.25f)
+                        lensPaint.shader = runtimeLensShader
+                        drawIntoCanvas { canvas ->
+                            canvas.nativeCanvas.drawRoundRect(
+                                RectF(
+                                    topLeft.x,
+                                    topLeft.y,
+                                    topLeft.x + geometry.widthPx,
+                                    topLeft.y + geometry.heightPx
+                                ),
+                                geometry.heightPx / 2f,
+                                geometry.heightPx / 2f,
+                                lensPaint
+                            )
+                        }
+                        lensPaint.shader = null
+                    }
+
+                    // A restrained translucent layer preserves legibility over the sampled backdrop.
                     drawRoundRect(
                         color = Color.White.copy(alpha = 0.045f * progress),
                         topLeft = topLeft,
@@ -1011,6 +1094,7 @@ fun MedVaultBottomBar(
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            backdropRect?.let { backdropCapture?.capture(it) }
                             val tracker = VelocityTracker()
                             tracker.resetTracking()
                             tracker.addPosition(down.uptimeMillis, down.position)
