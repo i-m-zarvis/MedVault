@@ -591,12 +591,13 @@ fun MedVaultBottomBar(
             BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth().height(72.dp)
             ) {
-                val cellWidth = maxWidth / items.size
+                val contentWidth = maxWidth - 14.dp
+                val cellWidth = contentWidth / items.size
                 // The indicator is drawn behind the tabs and glides to the
                 // externally selected destination after each live drag update.
                 Box(
                     modifier = Modifier
-                        .offset(x = cellWidth * indicatorIndex)
+                        .offset(x = 7.dp + cellWidth * indicatorIndex)
                         .padding(horizontal = 2.dp, vertical = 5.dp)
                         .width(cellWidth - 4.dp)
                         .fillMaxHeight()
@@ -622,10 +623,12 @@ fun MedVaultBottomBar(
                         .fillMaxSize()
                         .padding(horizontal = 7.dp, vertical = 5.dp)
                         .pointerInput(Unit) {
+                            var lastIndex = items.indexOfFirst { it.first == latestSelected }
+                                .coerceAtLeast(0)
                             detectDragGestures(
                                 onDragStart = { start ->
                                     val width = size.width.toFloat().coerceAtLeast(1f)
-                                    var lastIndex = ((start.x / width) * items.size)
+                                    lastIndex = ((start.x / width) * items.size)
                                         .toInt().coerceIn(items.indices)
                                     // Begin tracking from the tab under the finger.
                                     if (items[lastIndex].first != latestSelected) {
@@ -638,8 +641,8 @@ fun MedVaultBottomBar(
                                     val width = size.width.toFloat().coerceAtLeast(1f)
                                     val nextIndex = ((change.position.x / width) * items.size)
                                         .toInt().coerceIn(items.indices)
-                                    val currentKey = items[nextIndex].first
-                                    if (currentKey != latestSelected) {
+                                    if (nextIndex != lastIndex) {
+                                        lastIndex = nextIndex
                                         MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
                                         latestActions[nextIndex]()
                                     }
