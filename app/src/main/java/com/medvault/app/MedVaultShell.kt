@@ -1,5 +1,11 @@
 package com.medvault.app
 
+import androidx.compose.ui.graphics.asAndroidPath
+
+import androidx.compose.ui.graphics.drawscope.drawPath
+
+import androidx.compose.ui.graphics.Path
+
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
@@ -541,50 +547,15 @@ private sealed interface DockMotionCommand {
     data class Cancel(val targetCenterX: Float) : DockMotionCommand
 }
 
-private data class LiquidDockGeometry(
-    val slotWidthPx: Float,
-    val widthPx: Float,
-    val heightPx: Float,
-    val centerX: Float,
-    val centerY: Float
-) {
-    val topLeft: Offset
-        get() = Offset(centerX - widthPx / 2f, centerY - heightPx / 2f)
-    val cornerRadius: CornerRadius
-        get() = CornerRadius(heightPx / 2f, heightPx / 2f)
-    val size: androidx.compose.ui.geometry.Size
-        get() = androidx.compose.ui.geometry.Size(widthPx, heightPx)
+private data class LiquidDockGeometry(val slotWidthPx:Float,val widthPx:Float,val heightPx:Float,val centerX:Float,val centerY:Float){
+ val topLeft get()=Offset(centerX-widthPx/2f,centerY-heightPx/2f)
+ val cornerRadius get()=CornerRadius(heightPx/2f,heightPx/2f)
+ val size get()=androidx.compose.ui.geometry.Size(widthPx,heightPx)
 }
-
-private fun calculateLiquidDockGeometry(
-    dockWidthPx: Float,
-    rowWidthPx: Float,
-    dockHeightPx: Float,
-    requestedBaseHeightPx: Float,
-    horizontalInsetPx: Float,
-    requestedCenterX: Float,
-    progress: Float,
-    velocityStretch: Float
-): LiquidDockGeometry {
-    val geometry = LiquidDockGeometryEngine.calculate(
-        dockWidthPx = dockWidthPx,
-        contentWidthPx = rowWidthPx,
-        dockHeightPx = dockHeightPx,
-        requestedCenterX = requestedCenterX,
-        progress = progress,
-        velocityStretch = velocityStretch,
-        horizontalInsetPx = horizontalInsetPx,
-        restingHeightPx = requestedBaseHeightPx
-    )
-    return LiquidDockGeometry(
-        slotWidthPx = geometry.slotWidthPx,
-        widthPx = geometry.widthPx,
-        heightPx = geometry.heightPx,
-        centerX = geometry.centerX,
-        centerY = geometry.centerY
-    )
+private fun calculateLiquidDockGeometry(dockWidthPx:Float,rowWidthPx:Float,dockHeightPx:Float,requestedBaseHeightPx:Float,horizontalInsetPx:Float,requestedCenterX:Float,progress:Float,velocityX:Float):LiquidDockGeometry{
+ val g=LiquidDockGeometryEngine.calculate(dockWidthPx,rowWidthPx,dockHeightPx,requestedCenterX,progress,velocityX,horizontalInsetPx,requestedBaseHeightPx)
+ return LiquidDockGeometry(g.slotWidthPx,g.widthPx,g.heightPx,g.centerX,g.centerY)
 }
-
 @Composable
 fun MedVaultBottomBarHost(
     selected: String,
@@ -694,6 +665,7 @@ fun MedVaultBottomBar(
     val activity = remember(context) { context.findActivity() }
     var backdropBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var backdropRect by remember { mutableStateOf<Rect?>(null) }
+    var backdropOffset by remember { mutableStateOf(Offset.Zero) }
     val backdropCapture = remember(activity) {
         activity?.let { owner ->
             DockBackdropCapture(owner.window) { fresh ->
@@ -753,19 +725,13 @@ fun MedVaultBottomBar(
         motionCommands.receiveAsFlow().collectLatest { command ->
             when (command) {
                 is DockMotionCommand.DragTo -> {
-                    indicatorCenterX.snapTo(command.centerX)
+                    indicatorCenterX.animateTo(command.centerX, spring(dampingRatio = 0.88f, stiffness = 850f))
                 }
                 is DockMotionCommand.Release -> {
                     try {
-                        if (command.dragged) {
-                            indicatorCenterX.snapTo(command.releaseCenterX)
-                        }
                         indicatorCenterX.animateTo(
                             command.targetCenterX,
-                            animationSpec = spring(
-                                dampingRatio = 0.86f,
-                                stiffness = 420f
-                            )
+                            animationSpec = spring(dampingRatio = 0.96f, stiffness = 420f)
                         )
                     } finally {
                         isIndicatorAnimating = false
@@ -776,10 +742,7 @@ fun MedVaultBottomBar(
                     try {
                         indicatorCenterX.animateTo(
                             command.targetCenterX,
-                            animationSpec = spring(
-                                dampingRatio = 0.90f,
-                                stiffness = 420f
-                            )
+                            animationSpec = spring(dampingRatio = 0.98f, stiffness = 400f)
                         )
                     } finally {
                         isIndicatorAnimating = false
@@ -814,11 +777,10 @@ fun MedVaultBottomBar(
         },
         label = "dockDropletProgress"
     )
-    val velocityStretchState = animateFloatAsState(
-        targetValue = (kotlin.math.abs(velocityStretchInput) / 9000f * 0.12f)
-            .coerceIn(0f, 0.12f),
-        animationSpec = spring(dampingRatio = 0.95f, stiffness = 600f),
-        label = "dockVelocityStretch"
+    val velocityMotionState = animateFloatAsState(
+        targetValue = (velocityStretchInput / 2400f).coerceIn(-1f, 1f),
+        animationSpec = spring(dampingRatio = 0.92f, stiffness = 850f),
+        label = "dockSignedVelocity"
     )
 
     fun tabCenterX(index: Int): Float {
@@ -872,17 +834,15 @@ fun MedVaultBottomBar(
                     val screenOrigin = coordinates.localToScreen(Offset.Zero)
                     val windowOrigin = IntArray(2)
                     owner.window.decorView.getLocationOnScreen(windowOrigin)
-                    val left = (screenOrigin.x - windowOrigin[0]).toInt()
-                    val top = (screenOrigin.y - windowOrigin[1]).toInt()
-                    val rect = Rect(
-                        left.coerceAtLeast(0),
-                        top.coerceAtLeast(0),
-                        (left + coordinates.size.width).coerceAtMost(owner.window.decorView.width),
-                        (top + coordinates.size.height).coerceAtMost(owner.window.decorView.height)
-                    )
-                    if (rect.width() > 0 && rect.height() > 0 && backdropRect != rect) {
-                        backdropRect = rect
-                        backdropCapture?.capture(rect)
+                    val left=(screenOrigin.x-windowOrigin[0]).toInt()
+                    val top=(screenOrigin.y-windowOrigin[1]).toInt()
+                    val margin=with(density){14.dp.roundToPx()}
+                    val rect=Rect(left.coerceAtLeast(0),(top-margin).coerceAtLeast(0),
+                        (left+coordinates.size.width).coerceAtMost(owner.window.decorView.width),
+                        (top+coordinates.size.height+margin).coerceAtMost(owner.window.decorView.height))
+                    val offset=Offset((left-rect.left).toFloat(),(top-rect.top).toFloat())
+                    if(rect.width()>0&&rect.height()>0&&(backdropRect!=rect||backdropOffset!=offset)){
+                        backdropRect=rect;backdropOffset=offset;backdropCapture?.capture(rect)
                     }
                 }
             },
@@ -917,179 +877,56 @@ fun MedVaultBottomBar(
 
             // Lens drawing reads animated snapshot values inside the draw scope,
             // keeping frame-by-frame animation work out of the parent composition.
-            Canvas(Modifier.fillMaxSize()) {
-                val progress = dropletProgressState.value
-                val stretch = velocityStretchState.value
-                val geometry = calculateLiquidDockGeometry(
-                    dockWidthPx = size.width,
-                    rowWidthPx = rowWidthPx.toFloat(),
-                    dockHeightPx = size.height,
-                    requestedBaseHeightPx = baseIndicatorHeightPx,
-                    horizontalInsetPx = horizontalInsetPx,
-                    requestedCenterX = indicatorCenterX.value,
-                    progress = progress,
-                    velocityStretch = stretch
-                )
-
-                val topLeft = geometry.topLeft
-                val capsuleSize = geometry.size
-                val capsuleCorner = geometry.cornerRadius
-
-                if (progress <= 0.001f) {
-                    drawRoundRect(
-                        color = Color.Black.copy(alpha = 0.46f),
-                        topLeft = topLeft,
-                        size = capsuleSize,
-                        cornerRadius = capsuleCorner
-                    )
-                    val inset = 0.375.dp.toPx()
-                    val innerHeight = (geometry.heightPx - inset * 2f).coerceAtLeast(0f)
-                    drawRoundRect(
-                        color = Color.White.copy(alpha = 0.12f),
-                        topLeft = Offset(topLeft.x + inset, topLeft.y + inset),
-                        size = androidx.compose.ui.geometry.Size(
-                            (geometry.widthPx - inset * 2f).coerceAtLeast(0f),
-                            innerHeight
-                        ),
-                        cornerRadius = CornerRadius(innerHeight / 2f, innerHeight / 2f),
-                        style = Stroke(0.75.dp.toPx())
-                    )
-                } else {
-                    // Android 13+: sample the cached Activity backdrop through AGSL.
-                    // The bitmap is captured asynchronously; animation frames never invoke PixelCopy.
-                    if (Build.VERSION.SDK_INT >= 33 &&
-                        backdropShader != null &&
-                        runtimeLensShader != null
-                    ) {
-                        runtimeLensShader.setInputShader("uBackdrop", backdropShader)
-                        runtimeLensShader.setFloatUniform(
-                            "uLensCenter",
-                            geometry.centerX,
-                            geometry.centerY
-                        )
-                        runtimeLensShader.setFloatUniform(
-                            "uHalfSize",
-                            geometry.widthPx / 2f,
-                            geometry.heightPx / 2f
-                        )
-                        runtimeLensShader.setFloatUniform("uProgress", progress)
-                        runtimeLensShader.setFloatUniform("uRefraction", 3.2f)
-                        runtimeLensShader.setFloatUniform("uChromatic", 1.25f)
-                        lensPaint.shader = runtimeLensShader
-                        drawIntoCanvas { canvas ->
-                            canvas.nativeCanvas.drawRoundRect(
-                                RectF(
-                                    topLeft.x,
-                                    topLeft.y,
-                                    topLeft.x + geometry.widthPx,
-                                    topLeft.y + geometry.heightPx
-                                ),
-                                geometry.heightPx / 2f,
-                                geometry.heightPx / 2f,
-                                lensPaint
-                            )
-                        }
-                        lensPaint.shader = null
+            val activeLensPath=remember{Path()}
+            Canvas(Modifier.fillMaxSize()){
+                val progress=dropletProgressState.value
+                val velocity=velocityMotionState.value
+                val deform=LiquidMotionPhysics.deformation(velocity)
+                val g=calculateLiquidDockGeometry(size.width,rowWidthPx.toFloat(),size.height,baseIndicatorHeightPx,horizontalInsetPx,indicatorCenterX.value,progress,velocity)
+                val topLeft=g.topLeft
+                if(progress<=0.001f){
+                    drawRoundRect(Color.Black.copy(alpha=0.46f),topLeft,g.size,g.cornerRadius)
+                    val inset=0.375.dp.toPx();val h=(g.heightPx-inset*2f).coerceAtLeast(0f)
+                    drawRoundRect(Color.White.copy(alpha=0.12f),Offset(topLeft.x+inset,topLeft.y+inset),
+                        androidx.compose.ui.geometry.Size((g.widthPx-inset*2f).coerceAtLeast(0f),h),
+                        CornerRadius(h/2f,h/2f),style=Stroke(0.75.dp.toPx()))
+                }else{
+                    LiquidDockShape.updatePath(activeLensPath,g.centerX,g.centerY,g.widthPx,g.heightPx,deform.direction,deform.trailingBias*progress)
+                    if(Build.VERSION.SDK_INT>=33&&backdropShader!=null&&runtimeLensShader!=null){
+                        runtimeLensShader.setInputShader("uBackdrop",backdropShader)
+                        runtimeLensShader.setFloatUniform("uLensCenter",g.centerX,g.centerY)
+                        runtimeLensShader.setFloatUniform("uHalfSize",g.widthPx/2f,g.heightPx/2f)
+                        runtimeLensShader.setFloatUniform("uBackdropOffset",backdropOffset.x,backdropOffset.y)
+                        runtimeLensShader.setFloatUniform("uProgress",progress)
+                        runtimeLensShader.setFloatUniform("uDirection",deform.direction)
+                        runtimeLensShader.setFloatUniform("uTrailing",deform.trailingBias*progress)
+                        runtimeLensShader.setFloatUniform("uRefraction",with(density){(1.8.dp+3.6.dp*deform.speed).toPx()})
+                        runtimeLensShader.setFloatUniform("uChromatic",with(density){(0.55.dp+1.1.dp*deform.speed).toPx()})
+                        runtimeLensShader.setFloatUniform("uMagnification",0.075f+0.085f*deform.speed)
+                        lensPaint.shader=runtimeLensShader
+                        drawIntoCanvas{it.nativeCanvas.drawPath(activeLensPath.asAndroidPath(),lensPaint)}
+                        lensPaint.shader=null
                     }
-
-                    // A restrained translucent layer preserves legibility over the sampled backdrop.
-                    drawRoundRect(
-                        color = Color.White.copy(alpha = 0.045f * progress),
-                        topLeft = topLeft,
-                        size = capsuleSize,
-                        cornerRadius = capsuleCorner
-                    )
-                    drawRoundRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.13f * progress),
-                                Color.White.copy(alpha = 0.035f * progress),
-                                Color(0xFF9BB9E8).copy(alpha = 0.045f * progress),
-                                Color.Black.copy(alpha = 0.10f * progress)
-                            ),
-                            start = Offset(topLeft.x, topLeft.y),
-                            end = Offset(
-                                topLeft.x + geometry.widthPx * 0.72f,
-                                topLeft.y + geometry.heightPx
-                            )
-                        ),
-                        topLeft = topLeft,
-                        size = capsuleSize,
-                        cornerRadius = capsuleCorner
-                    )
-
-                    // A restrained outer white edge gives the lens physical thickness.
-                    drawRoundRect(
-                        color = Color.White.copy(alpha = 0.22f * progress),
-                        topLeft = topLeft,
-                        size = capsuleSize,
-                        cornerRadius = capsuleCorner,
-                        style = Stroke(0.8.dp.toPx())
-                    )
-
-                    // Split chromatic rim: cool light above, warm light below.
-                    val chromaticBrush = Brush.sweepGradient(
-                        colorStops = arrayOf(
-                            0.00f to Color(0xFFFF2A85).copy(alpha = 0.75f * progress),
-                            0.18f to Color(0xFFFFAB00).copy(alpha = 0.85f * progress),
-                            0.38f to Color(0xFFFF80AB).copy(alpha = 0.30f * progress),
-                            0.55f to Color.White.copy(alpha = 0.90f * progress),
-                            0.75f to Color(0xFF00E5FF).copy(alpha = 0.85f * progress),
-                            0.90f to Color(0xFF7C4DFF).copy(alpha = 0.55f * progress),
-                            1.00f to Color(0xFFFF2A85).copy(alpha = 0.75f * progress)
-                        ),
-                        center = Offset(geometry.centerX, geometry.centerY)
-                    )
-                    drawRoundRect(
-                        brush = chromaticBrush,
-                        topLeft = topLeft,
-                        size = capsuleSize,
-                        cornerRadius = capsuleCorner,
-                        style = Stroke(2.2.dp.toPx())
-                    )
-
-                    // Inner bevel, inset from the RGB rim to avoid a harsh neon outline.
-                    val bevelInset = 1.5.dp.toPx()
-                    val bevelWidth = (geometry.widthPx - bevelInset * 2f).coerceAtLeast(0f)
-                    val bevelHeight = (geometry.heightPx - bevelInset * 2f).coerceAtLeast(0f)
-                    drawRoundRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.48f * progress),
-                                Color.White.copy(alpha = 0.12f * progress),
-                                Color.White.copy(alpha = 0.025f * progress)
-                            ),
-                            start = Offset(topLeft.x, topLeft.y),
-                            end = Offset(
-                                topLeft.x + geometry.widthPx,
-                                topLeft.y + geometry.heightPx
-                            )
-                        ),
-                        topLeft = Offset(topLeft.x + bevelInset, topLeft.y + bevelInset),
-                        size = androidx.compose.ui.geometry.Size(bevelWidth, bevelHeight),
-                        cornerRadius = CornerRadius(bevelHeight / 2f, bevelHeight / 2f),
-                        style = Stroke(1.dp.toPx())
-                    )
-
-                    // Upper specular crescent and a much quieter lower reflection.
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.70f * progress),
-                        startAngle = 200f,
-                        sweepAngle = 140f,
-                        useCenter = false,
-                        topLeft = Offset(topLeft.x + bevelInset, topLeft.y + bevelInset),
-                        size = androidx.compose.ui.geometry.Size(bevelWidth, bevelHeight),
-                        style = Stroke(1.dp.toPx())
-                    )
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.16f * progress),
-                        startAngle = 25f,
-                        sweepAngle = 130f,
-                        useCenter = false,
-                        topLeft = Offset(topLeft.x + bevelInset, topLeft.y + bevelInset),
-                        size = androidx.compose.ui.geometry.Size(bevelWidth, bevelHeight),
-                        style = Stroke(0.7.dp.toPx())
-                    )
+                    drawPath(activeLensPath,Color.White.copy(alpha=0.035f*progress))
+                    drawPath(activeLensPath,Brush.linearGradient(listOf(
+                        Color.White.copy(alpha=0.16f*progress),Color.White.copy(alpha=0.035f*progress),
+                        Color(0xFF9BB9E8).copy(alpha=0.055f*progress),Color.Black.copy(alpha=0.12f*progress)),
+                        start=Offset(topLeft.x,topLeft.y),end=Offset(topLeft.x+g.widthPx*0.78f,topLeft.y+g.heightPx)))
+                    drawPath(activeLensPath,Color.White.copy(alpha=0.20f*progress),style=Stroke(0.85.dp.toPx()))
+                    val rim=Brush.sweepGradient(colorStops=arrayOf(
+                        0f to Color(0xFFFF2A85).copy(alpha=0.60f*progress),
+                        0.18f to Color(0xFFFFAB00).copy(alpha=0.68f*progress),
+                        0.38f to Color(0xFFFF80AB).copy(alpha=0.24f*progress),
+                        0.55f to Color.White.copy(alpha=0.72f*progress),
+                        0.75f to Color(0xFF00E5FF).copy(alpha=0.68f*progress),
+                        0.90f to Color(0xFF7C4DFF).copy(alpha=0.44f*progress),
+                        1f to Color(0xFFFF2A85).copy(alpha=0.60f*progress)),center=Offset(g.centerX,g.centerY))
+                    drawPath(activeLensPath,rim,style=Stroke(1.8.dp.toPx()))
+                    drawArc(Color.White.copy(alpha=0.58f*progress),205f,130f,false,
+                        Offset(topLeft.x+1.5.dp.toPx(),topLeft.y+1.5.dp.toPx()),
+                        androidx.compose.ui.geometry.Size((g.widthPx-3.dp.toPx()).coerceAtLeast(0f),(g.heightPx-3.dp.toPx()).coerceAtLeast(0f)),
+                        style=Stroke(1.dp.toPx()))
+                    drawPath(activeLensPath,Color.White.copy(alpha=0.12f*progress),style=Stroke(0.6.dp.toPx()))
                 }
             }
 
@@ -1221,7 +1058,7 @@ fun MedVaultBottomBar(
                                         horizontalInsetPx = horizontalInsetPx,
                                         requestedCenterX = indicatorCenterX.value,
                                         progress = dropletProgressState.value,
-                                        velocityStretch = velocityStretchState.value
+                                        velocityX = velocityMotionState.value
                                     )
                                     val tabCenter = horizontalInsetPx +
                                         geometry.slotWidthPx * (index + 0.5f)
@@ -1263,7 +1100,7 @@ fun MedVaultBottomBar(
                                     horizontalInsetPx = horizontalInsetPx,
                                     requestedCenterX = indicatorCenterX.value,
                                     progress = dropletProgressState.value,
-                                    velocityStretch = velocityStretchState.value
+                                    velocityStretch = velocityMotionState.value
                                 )
                                 val tabCenter = horizontalInsetPx +
                                     geometry.slotWidthPx * (index + 0.5f)

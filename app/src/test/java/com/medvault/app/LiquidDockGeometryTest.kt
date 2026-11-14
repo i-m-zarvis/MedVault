@@ -1,58 +1,15 @@
 package com.medvault.app
-
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-
-class LiquidDockGeometryTest {
-    private fun frame(center: Float, progress: Float = 0f, compact: Boolean = false) =
-        LiquidDockGeometryEngine.calculate(
-            dockWidthPx = 360f,
-            contentWidthPx = 320f,
-            dockHeightPx = if (compact) 50f else 62f,
-            requestedCenterX = center,
-            progress = progress,
-            velocityStretch = 0f,
-            horizontalInsetPx = 5f,
-            restingHeightPx = if (compact) 42f else 52f
-        )
-
-    @Test fun idleCapsuleHasStadiumAspectRatio() {
-        val value = frame(180f)
-        assertTrue(value.widthPx > value.heightPx * 1.58f - 0.01f)
-    }
-
-    @Test fun idleIndicatorStaysWithinVerticalDockBounds() {
-        val value = frame(180f)
-        assertTrue(value.heightPx <= 62f)
-        assertEquals(31f, value.centerY, 0.001f)
-    }
-
-    @Test fun activeLensExpandsBeyondRestingDimensions() {
-        val idle = frame(180f)
-        val active = frame(180f, progress = 1f)
-        assertTrue(active.widthPx > idle.widthPx)
-        assertTrue(active.heightPx > idle.heightPx)
-    }
-
-    @Test fun homeLensIsClampedToLeftOuterWall() {
-        val value = frame(-100f, progress = 1f)
-        assertTrue(value.centerX - value.widthPx / 2f >= 5f - 0.001f)
-    }
-
-    @Test fun offlineLensIsClampedToRightOuterWall() {
-        val value = frame(1000f, progress = 1f)
-        assertTrue(value.centerX + value.widthPx / 2f <= 355f + 0.001f)
-    }
-
-    @Test fun compactModeUsesCompactHeight() {
-        val value = frame(180f, compact = true)
-        assertEquals(42f, value.heightPx, 0.001f)
-        assertEquals(25f, value.centerY, 0.001f)
-    }
-
-    @Test fun liveIndexTracksLensCenter() {
-        assertEquals(0, frame(45f, progress = 1f).liveActiveIndex)
-        assertEquals(3, frame(315f, progress = 1f).liveActiveIndex)
-    }
+class LiquidDockGeometryTest{
+ private fun f(x:Float,p:Float=0f,v:Float=0f,c:Boolean=false)=LiquidDockGeometryEngine.calculate(360f,320f,if(c)50f else 62f,x,p,v,5f,if(c)42f else 52f)
+ @Test fun idleCapsuleIsStadium(){val g=f(180f);assertTrue(g.widthPx>g.heightPx*1.58f-0.01f)}
+ @Test fun idleInsideDock(){val g=f(180f);assertTrue(g.heightPx<=62f);assertEquals(31f,g.centerY,0.001f)}
+ @Test fun activeLensRounderThanRest(){val a=f(180f);val b=f(180f,1f);assertTrue(b.heightPx>a.heightPx);assertTrue(b.widthPx/b.heightPx<a.widthPx/a.heightPx)}
+ @Test fun fastDragStretchesAndCompresses(){val a=f(180f,1f);val b=f(180f,1f,1f);assertTrue(b.widthPx>a.widthPx);assertTrue(b.heightPx<a.heightPx)}
+ @Test fun homeClamped(){val g=f(-100f,1f,1f);assertTrue(g.centerX-g.widthPx/2f>=5f-0.001f)}
+ @Test fun offlineClamped(){val g=f(1000f,1f,1f);assertTrue(g.centerX+g.widthPx/2f<=355f+0.001f)}
+ @Test fun compactHeight(){val g=f(180f,0f,0f,true);assertEquals(42f,g.heightPx,0.001f);assertEquals(25f,g.centerY,0.001f)}
+ @Test fun liveTabTracksCenter(){assertEquals(0,f(45f,1f).liveActiveIndex);assertEquals(3,f(315f,1f).liveActiveIndex)}
 }

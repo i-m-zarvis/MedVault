@@ -1,48 +1,19 @@
 package com.medvault.app
-
-/**
- * AGSL lens shader. Input coordinates are in dock-local physical pixels and
- * the input bitmap is a PixelCopy of the same dock rectangle.
- */
-internal object LiquidDockShaders {
-    val REFRACTIVE_LENS = """
-        uniform shader uBackdrop;
-        uniform float2 uLensCenter;
-        uniform float2 uHalfSize;
-        uniform float uProgress;
-        uniform float uRefraction;
-        uniform float uChromatic;
-
-        float roundedRectDistance(float2 p, float2 halfSize, float radius) {
-            float2 q = abs(p) - (halfSize - radius);
-            return length(max(q, 0.0)) +
-                   min(max(q.x, q.y), 0.0) - radius;
-        }
-
-        half4 main(float2 position) {
-            float2 local = position - uLensCenter;
-            float radius = min(uHalfSize.x, uHalfSize.y);
-            float distance = roundedRectDistance(local, uHalfSize, radius);
-            float edge = 1.0 - smoothstep(-2.0, 2.0, distance);
-            float inside = 1.0 - smoothstep(-1.0, 1.0, distance);
-            float2 safeLocal = local / max(uHalfSize, float2(1.0, 1.0));
-            float radial = dot(safeLocal, safeLocal);
-            float2 normal = normalize(local + float2(0.0001, 0.0001));
-
-            // Convex lens magnification plus a restrained outward refraction.
-            float magnification = 0.075 * uProgress * (1.0 - smoothstep(0.35, 1.2, radial));
-            float2 samplePosition = position
-                - local * magnification
-                + normal * (uRefraction * edge * uProgress);
-
-            float2 dispersion = normal * (uChromatic * edge * uProgress);
-            half4 base = uBackdrop.eval(samplePosition);
-            half red = uBackdrop.eval(samplePosition + dispersion).r;
-            half blue = uBackdrop.eval(samplePosition - dispersion).b;
-
-            half3 refracted = half3(red, base.g, blue);
-            half alpha = inside * base.a;
-            return half4(mix(base.rgb, refracted, uProgress), alpha);
-        }
-    """.trimIndent()
+internal object LiquidDockShaders{
+ val REFRACTIVE_LENS=""" 
+ uniform shader uBackdrop;uniform float2 uLensCenter;uniform float2 uHalfSize;uniform float2 uBackdropOffset;
+ uniform float uProgress;uniform float uDirection;uniform float uTrailing;uniform float uRefraction;uniform float uChromatic;uniform float uMagnification;
+ half4 main(float2 position){
+  float2 local=position-uLensCenter;float2 h=max(uHalfSize,float2(1.0,1.0));float2 n=local/h;float r=dot(n,n);
+  float centre=1.0-smoothstep(0.12,1.05,r);float edge=smoothstep(0.28,1.0,r);
+  float2 normal=normalize(float2(local.x/(h.x*h.x),local.y/(h.y*h.y))+float2(0.0001,0.0001));
+  float bias=1.0+(-uDirection*n.x)*uTrailing;float mag=uMagnification*uProgress*centre*bias;
+  float2 samplePos=uBackdropOffset+position-local*mag+normal*(uRefraction*edge*uProgress);
+  float2 dispersion=normal*(uChromatic*edge*uProgress);half4 base=uBackdrop.eval(samplePos);
+  half red=uBackdrop.eval(samplePos+dispersion).r;half blue=uBackdrop.eval(samplePos-dispersion).b;
+  half3 refracted=half3(red,base.g,blue);float fresnel=pow(clamp(edge,0.0,1.0),1.7);
+  half3 tint=half3(0.035,0.055,0.085)*half(fresnel*0.18);half3 result=mix(base.rgb,refracted,half(0.72*uProgress))+tint;
+  return half4(result,base.a);
+ }
+ """.trimIndent()
 }
