@@ -1924,7 +1924,7 @@ private fun SettingsScreen(
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
             Text("Settings", fontSize = 25.sp, fontWeight = FontWeight.Bold)
         }
-        Card(Modifier.fillMaxWidth().clickable(onClick = onTelegramSettings), colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
+        Card(Modifier.fillMaxWidth().medVaultClickable(onClick = onTelegramSettings), colors = CardDefaults.cardColors(containerColor = AppPanel), shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Send, null, tint = AppAccent, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(14.dp))
@@ -2441,7 +2441,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                 Text("SUBJECTS", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                     items(visibleTopics, key = { it.topicId }) { item ->
-                        Card(Modifier.clickable {
+                        Card(Modifier.medVaultClickable {
                             openTopic(item)
                         }, colors = CardDefaults.cardColors(containerColor = AppPanel)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2474,7 +2474,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
                     items(results, key = { it.second.stableId }) { (subjectName, lecture) ->
                         Card(
-                            Modifier.fillMaxWidth().clickable { onPlayLecture(lecture) },
+                            Modifier.fillMaxWidth().medVaultClickable { onPlayLecture(lecture) },
                             colors = CardDefaults.cardColors(containerColor = Color(0xB51A263B)),
                             shape = RoundedCornerShape(17.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
@@ -2627,7 +2627,7 @@ private fun TelegramLibraryScreen(onBack: () -> Unit, onConnect: () -> Unit, onP
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                     Column(
-                        Modifier.weight(1f).clickable { onPlayLecture(lecture) }
+                        Modifier.weight(1f).medVaultClickable { onPlayLecture(lecture) }
                     ) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -2968,7 +2968,7 @@ private fun VideosDashboard(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .animateContentSize()
-                                        .clickable { onOpenSubject(subject) },
+                                        .medVaultClickable { onOpenSubject(subject) },
                                     shape = RoundedCornerShape(18.dp),
                                     colors = CardDefaults.cardColors(containerColor = Color.White),
                                     elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -3200,7 +3200,7 @@ private fun DashboardTile(
         Modifier
             .fillMaxWidth()
             .padding(bottom = 9.dp)
-            .clickable { onClick() },
+            .medVaultClickable { onClick() },
         colors = CardDefaults.cardColors(
             containerColor = AppPanel
         ),
@@ -3299,7 +3299,7 @@ private fun HistoryScreen(
                     Card(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onOpen(record) },
+                            .medVaultClickable { onOpen(record) },
                         colors = CardDefaults.cardColors(
                             containerColor = AppPanel
                         )
@@ -3943,7 +3943,7 @@ private fun VideoScreen(
                                         Modifier.fillMaxWidth().height(34.dp)
                                             .clip(RoundedCornerShape(9.dp))
                                             .background(if (selected) Color(0x22FFFFFF) else Color.Transparent)
-                                            .clickable {
+                                            .medVaultClickable {
                                                 speed = rate
                                                 player.setPlaybackSpeed(rate)
                                                 settingsExpanded = false
@@ -4108,7 +4108,7 @@ private fun VideoScreen(
                                         Modifier.fillMaxWidth().height(34.dp)
                                             .clip(RoundedCornerShape(9.dp))
                                             .background(if (selected) Color(0x22FFFFFF) else Color.Transparent)
-                                            .clickable {
+                                            .medVaultClickable {
                                                 speed = rate
                                                 player.setPlaybackSpeed(rate)
                                                 settingsExpanded = false
@@ -4439,7 +4439,7 @@ private fun PlayerGlassIconAction(
                 shape
             )
             .border(1.dp, Color(0x55FFFFFF), shape)
-            .clickable(onClick = onClick),
+            .medVaultClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(20.dp))

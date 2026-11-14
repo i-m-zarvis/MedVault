@@ -28,7 +28,7 @@ fun LiquidBookmarkButton(contentId: String, title: String, contentType: String, 
         Modifier.size(36.dp)
             .background(Color.White.copy(alpha = if (saved) 0.17f else 0.075f), CircleShape)
             .border(1.dp, Color.White.copy(alpha = if (saved) 0.24f else 0.12f), CircleShape)
-            .clickable {
+            .medVaultClickable {
                 saved = !saved
                 if (saved) {
                     val parts = contentId.split(":")

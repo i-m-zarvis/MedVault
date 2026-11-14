@@ -229,7 +229,7 @@ fun MedVaultHomeScreen(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(MedVaultEdition.M, MedVaultEdition.P, MedVaultEdition.U).forEach { edition ->
                                 val selected = activeEdition == edition
-                                Surface(Modifier.weight(1f).liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp).clickable { onEditionChange(edition) }, color = Color.Transparent, shape = RoundedCornerShape(18.dp), border = null) {
+                                Surface(Modifier.weight(1f).liquidPanel(if (selected) HomeBlue else HomeMuted, 18.dp).medVaultClickable { onEditionChange(edition) }, color = Color.Transparent, shape = RoundedCornerShape(18.dp), border = null) {
                                     Column(Modifier.padding(vertical = 13.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                         Text("EDITION", color = if (selected) HomeBlue else HomeMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                                         Text(edition.name, color = if (selected) HomeInk else HomeMuted, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -247,7 +247,7 @@ fun MedVaultHomeScreen(
                         Text("Continue watching", color = HomeInk, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
                     }
                     if (resume != null) {
-                        Surface(Modifier.fillMaxWidth().liquidGlassSurface(HomeBlue, 26.dp).clickable { onResumeLecture(resume) }, color = Color.Transparent, shape = RoundedCornerShape(26.dp), border = null) {
+                        Surface(Modifier.fillMaxWidth().liquidGlassSurface(HomeBlue, 26.dp).medVaultClickable { onResumeLecture(resume) }, color = Color.Transparent, shape = RoundedCornerShape(26.dp), border = null) {
                             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("RESUME LEARNING", color = HomeBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
@@ -271,7 +271,7 @@ fun MedVaultHomeScreen(
                             }
                         }
                     } else {
-                        Surface(Modifier.fillMaxWidth().liquidPanel(HomeBlue, 24.dp).clickable(onClick = onVideos), color = Color.Transparent, shape = RoundedCornerShape(24.dp), border = null) {
+                        Surface(Modifier.fillMaxWidth().liquidPanel(HomeBlue, 24.dp).medVaultClickable(onClick = onVideos), color = Color.Transparent, shape = RoundedCornerShape(24.dp), border = null) {
                             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Icon(Icons.Default.PlayCircleOutline, null, tint = HomeBlue, modifier = Modifier.size(34.dp))
                                 Column(Modifier.weight(1f)) { Text("Your next lecture starts here", color = HomeInk, fontWeight = FontWeight.SemiBold); Text("Open your library and start learning.", color = HomeMuted, fontSize = 12.sp) }
@@ -316,7 +316,7 @@ fun MedVaultHomeScreen(
                         Surface(Modifier.fillMaxWidth().liquidPanel(HomeBlue, 20.dp), color = Color.Transparent, shape = RoundedCornerShape(20.dp), border = null) {
                             Column {
                                 recent.forEachIndexed { index, record ->
-                                    Row(Modifier.fillMaxWidth().clickable { onResumeLecture(record) }.padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Row(Modifier.fillMaxWidth().medVaultClickable { onResumeLecture(record) }.padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Surface(color = HomeBlue.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp)) { Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, null, tint = HomeBlue) } }
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Text(record.name, color = HomeInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -375,7 +375,7 @@ private fun HomeLiveFeedSection(
             items.forEach { article ->
                 Card(
                     modifier = Modifier.fillMaxWidth().liquidPanel(LiquidTeal, 18.dp)
-                        .clickable { onArticle(article.url) },
+                        .medVaultClickable { onArticle(article.url) },
                     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                     shape = RoundedCornerShape(18.dp)
                 ) {
@@ -746,7 +746,7 @@ fun MedVaultOfflineScreen(
                     Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayCircle, null, tint = ShellBlue)
                         Spacer(Modifier.width(10.dp))
-                        Text(lecture.name, Modifier.weight(1f).clickable {
+                        Text(lecture.name, Modifier.weight(1f).medVaultClickable {
                             if (selectionMode) toggleSelection(key) else onPlayOffline(lecture)
                         }.padding(vertical = 7.dp), color = ShellInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         if (selectionMode) {
@@ -766,7 +766,7 @@ fun MedVaultOfflineScreen(
                     Row(Modifier.fillMaxWidth().padding(start = 13.dp, end = 5.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PictureAsPdf, null, tint = Color(0xFFE45E5E))
                         Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f).clickable {
+                        Column(Modifier.weight(1f).medVaultClickable {
                             if (selectionMode) toggleSelection(key) else onOpenPdf(file, file.nameWithoutExtension)
                         }.padding(vertical = 7.dp)) {
                             Text(file.nameWithoutExtension, color = ShellInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -855,7 +855,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 }
             }
         }
-        Card(Modifier.fillMaxWidth().liquidPanel(ShellBlue, 22.dp).clickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
+        Card(Modifier.fillMaxWidth().liquidPanel(ShellBlue, 22.dp).medVaultClickable(onClick = onConnectAccount), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBox, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
@@ -866,7 +866,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().liquidPanel(ShellBlue, 22.dp).clickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
+        Card(Modifier.fillMaxWidth().liquidPanel(ShellBlue, 22.dp).medVaultClickable(onClick = onStudySources), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.FolderOpen, null, tint = ShellBlue, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
@@ -877,7 +877,7 @@ fun MedVaultSettingsScreen(onBack: () -> Unit, onStudySources: () -> Unit, onCon
                 Icon(Icons.Default.ChevronRight, null, tint = ShellMuted)
             }
         }
-        Card(Modifier.fillMaxWidth().liquidPanel(LiquidViolet, 22.dp).clickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
+        Card(Modifier.fillMaxWidth().liquidPanel(LiquidViolet, 22.dp).medVaultClickable { showAbout = !showAbout }, colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(22.dp), border = null) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = ShellBlue, modifier = Modifier.size(25.dp))

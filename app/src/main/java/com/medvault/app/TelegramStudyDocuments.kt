@@ -198,7 +198,7 @@ fun TelegramStudySourcesSettingsScreen(onBack: () -> Unit, onConnectAccount: () 
                         shape = RoundedCornerShape(18.dp),
                         border = null,
                         modifier = Modifier.fillMaxWidth().liquidPanel(if (target == role) StudyAccent else StudyMuted, 18.dp)
-                            .clickable { target = role }
+                            .medVaultClickable { target = role }
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(label(role), fontWeight = FontWeight.SemiBold)
@@ -438,7 +438,7 @@ fun TelegramDocumentLibraryScreen(
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
                 items(topics, key = { it.topicId }) { topic ->
                     Card(
-                        Modifier.fillMaxWidth().clickable {
+                        Modifier.fillMaxWidth().medVaultClickable {
                             selectedTopic = topic
                             documentSearch = ""
                             documents = emptyList()
