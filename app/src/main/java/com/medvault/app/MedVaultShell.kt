@@ -561,6 +561,7 @@ fun MedVaultBottomBar(
     )
     val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
     val accents = listOf(HomeBlue, LiquidViolet, LiquidTeal, Color(0xFFF4C34F), HomeBlue)
+    val hapticView = LocalView.current
 
     // Lightweight outlined dock inspired by the reference: no heavy selected capsule.
     Box(
@@ -609,7 +610,12 @@ fun MedVaultBottomBar(
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null,
-                                onClick = actions[index]
+                                onClick = {
+                                    if (!isSelected) {
+                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
+                                    }
+                                    actions[index]()
+                                }
                             )
                             .padding(top = 5.dp, bottom = 2.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
