@@ -1,5 +1,23 @@
 package com.medvault.app
 
+import androidx.compose.ui.graphics.BlendMode
+
+import androidx.compose.ui.layout.onSizeChanged
+
+import androidx.compose.ui.unit.IntSize
+
+import androidx.compose.ui.input.pointer.positionChange
+
+import androidx.compose.ui.input.pointer.awaitFirstDown
+
+import androidx.compose.ui.input.pointer.awaitEachGesture
+
+import androidx.compose.ui.graphics.asComposeRenderEffect
+
+import android.graphics.RuntimeShader
+
+import android.graphics.RenderEffect as AndroidRenderEffect
+
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.view.Gravity
@@ -573,32 +591,83 @@ fun MedVaultBottomBar(
         Triple("profile", "Profile", Icons.Default.Person)
     )
     val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
-    val accents = listOf(HomeBlue, LiquidViolet, LiquidTeal, Color(0xFFF4C34F), HomeBlue)
-    val hapticView = LocalView.current
-    val dragScope = rememberCoroutineScope()
-    val latestActions by rememberUpdatedState(actions)
-    val latestSelected by rememberUpdatedState(selected)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    var isDragging by remember { mutableStateOf(false) }
-    var dragTargetIndex by remember { mutableIntStateOf(selectedIndex) }
-    var dragIndicatorPosition by remember { mutableFloatStateOf(selectedIndex.toFloat()) }
-    var releaseVelocity by remember { mutableFloatStateOf(0f) }
-    val indicatorPosition = remember { Animatable(selectedIndex.toFloat()) }
+    val hapticView = LocalView.current
+    val latestActions by rememberUpdatedState(actions)
+    val latestSelectedIndex by rememberUpdatedState(selectedIndex)
 
-    LaunchedEffect(selectedIndex, isDragging, releaseVelocity) {
-        if (!isDragging) {
-            indicatorPosition.animateTo(
-                targetValue = selectedIndex.toFloat(),
-                animationSpec = spring(dampingRatio = 0.88f, stiffness = 430f),
-                initialVelocity = releaseVelocity
-            )
-            releaseVelocity = 0f
+    var dockSize by remember { mutableStateOf(IntSize.Zero) }
+    var isPressed by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+    var previewIndex by remember { mutableIntStateOf(selectedIndex) }
+    var dragVelocity by remember { mutableFloatStateOf(0f) }
+    val lensCenter = remember { Animatable(0f) }
+    val dragScope = rememberCoroutineScope()
+
+    val barHeight = if (compact) 54.dp else 72.dp
+    val outerHeight = if (compact) 66.dp else 90.dp
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val cellWidthPx = dockSize.width / items.size.toFloat()
+    val minCenter = cellWidthPx * 0.5f
+    val maxCenter = dockSize.width - minCenter
+    val idleCenter = if (dockSize.width > 0) cellWidthPx * (selectedIndex + 0.5f) else 0f
+    val activeCenter = if (isPressed || isDragging) lensCenter.value else idleCenter
+    val activeIndex = if (isDragging) previewIndex else selectedIndex
+    val velocityAmount = (kotlin.math.abs(dragVelocity) / 6500f).coerceIn(0f, 1f)
+    val targetScaleX = if (isPressed || isDragging) 1.18f + velocityAmount * 0.14f else 1f
+    val targetScaleY = if (isPressed || isDragging) 1.26f - velocityAmount * 0.12f else 1f
+    val lensScaleX by animateFloatAsState(
+        targetValue = targetScaleX,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
+        label = "dockDropletScaleX"
+    )
+    val lensScaleY by animateFloatAsState(
+        targetValue = targetScaleY,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
+        label = "dockDropletScaleY"
+    )
+    val lensProgress by animateFloatAsState(
+        targetValue = if (isPressed || isDragging) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
+        label = "dockDropletProgress"
+    )
+
+    LaunchedEffect(dockSize, selectedIndex) {
+        if (dockSize.width > 0 && !isDragging && !isPressed) {
+            lensCenter.snapTo(idleCenter)
         }
     }
 
-    val activeIndex = if (isDragging) dragTargetIndex else selectedIndex
-    val barHeight = if (compact) 54.dp else 72.dp
-    val outerHeight = if (compact) 66.dp else 90.dp
+    val shaderSource = remember {
+        """
+        uniform shader content;
+        uniform float2 lensCenter;
+        uniform float2 lensRadius;
+        uniform float lensProgress;
+        half4 main(float2 coord) {
+            float2 p = (coord - lensCenter) / max(lensRadius, float2(1.0, 1.0));
+            float r = length(p);
+            if (r < 1.0 && lensProgress > 0.001) {
+                float core = 1.0 - smoothstep(0.0, 1.0, r);
+                float magnification = 1.0 + 0.20 * lensProgress * core;
+                float2 warped = lensCenter + (coord - lensCenter) / magnification;
+                float edge = smoothstep(0.55, 1.0, r) * lensProgress;
+                float2 direction = normalize(p + float2(0.0001, 0.0001));
+                warped -= direction * edge * 2.2;
+                return content.eval(warped);
+            }
+            return content.eval(coord);
+        }
+        """.trimIndent()
+    }
+    val runtimeShader = if (Build.VERSION.SDK_INT >= 33) {
+        remember(shaderSource) { RuntimeShader(shaderSource) }
+    } else null
+    val androidShaderEffect = remember(runtimeShader) {
+        if (Build.VERSION.SDK_INT >= 33 && runtimeShader != null) {
+            AndroidRenderEffect.createRuntimeShaderEffect(runtimeShader, "content")
+        } else null
+    }
 
     Box(
         modifier = Modifier
@@ -608,214 +677,239 @@ fun MedVaultBottomBar(
             .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 9.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth().liquidGlassSurface(LiquidPalette.Primary, 34.dp),
-            color = Color.Transparent,
-            shape = RoundedCornerShape(34.dp),
-            border = null,
-            shadowElevation = 8.dp
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().height(barHeight)
         ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(barHeight)) {
-                val contentWidth = maxWidth - 14.dp
-                val cellWidth = contentWidth / items.size
-                val lensPosition = if (isDragging) dragIndicatorPosition else indicatorPosition.value
-                // A broad, horizontal lens reads as a refractive layer rather than a
-                // separate circular bubble. Its centre remains directly under the finger.
-                val lensWidth = cellWidth * 1.34f
-                val lensX = 7.dp + cellWidth * lensPosition - (lensWidth - cellWidth) / 2f
-                Box(
-                    modifier = Modifier
-                        .offset(x = lensX)
-                        .padding(horizontal = 1.dp, vertical = if (compact) 5.dp else 6.dp)
-                        .width(lensWidth - 2.dp)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.22f),
-                                    Color(0xFFB9D9FF).copy(alpha = 0.105f),
-                                    accents[activeIndex].copy(alpha = 0.075f),
-                                    Color.White.copy(alpha = 0.035f)
-                                )
-                            )
+            val lensWidth = maxWidth / items.size
+            val lensHeight = barHeight - 8.dp
+            val lensCenterDp = with(density) { activeCenter.toDp() }
+            val lensOffsetX = lensCenterDp - lensWidth / 2f
+
+            // The pill backdrop clips independently; the droplet is a sibling layer
+            // so its pressed-state bulge can extend beyond the pill without clipping.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(36.dp))
+                    .liquidGlassSurface(LiquidPalette.Primary, 36.dp)
+            )
+
+            Box(
+                modifier = Modifier
+                    .offset(x = lensOffsetX, y = 4.dp)
+                    .width(lensWidth)
+                    .height(lensHeight)
+                    .graphicsLayer {
+                        scaleX = lensScaleX
+                        scaleY = lensScaleY
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
+                    }
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (lensProgress < 0.01f) Color.Black.copy(alpha = 0.45f)
+                        else Color.Black.copy(alpha = 0.45f * (1f - lensProgress) + 0.03f * lensProgress)
+                    )
+                    .border(
+                        0.75.dp,
+                        Color.White.copy(alpha = if (lensProgress < 0.01f) 0.12f else 0.12f * (1f - lensProgress)),
+                        RoundedCornerShape(50)
+                    )
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val stroke = 3.5.dp.toPx()
+                    val inset = stroke / 2f
+                    val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                    val arcTopLeft = Offset(inset, inset)
+                    if (lensProgress > 0.01f) {
+                        drawArc(
+                            color = Color(0xFF00E5FF).copy(alpha = 0.90f * lensProgress),
+                            startAngle = 188f,
+                            sweepAngle = 92f,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                            blendMode = BlendMode.Screen
                         )
-                        .border(
-                            androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Brush.verticalGradient(
-                                    listOf(Color.White.copy(alpha = 0.52f), Color.White.copy(alpha = 0.075f))
-                                )
-                            ),
-                            RoundedCornerShape(50)
+                        drawArc(
+                            color = Color(0xFFFF2A85).copy(alpha = 0.78f * lensProgress),
+                            startAngle = 285f,
+                            sweepAngle = 150f,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(stroke * 0.78f, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                            blendMode = BlendMode.Screen
                         )
-                ) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        val capsule = CornerRadius(size.height / 2f)
-                        // Fine cool/warm edge fringes simulate restrained chromatic dispersion.
-                        drawRoundRect(
-                            color = Color(0xFF8EDCFF).copy(alpha = 0.16f),
-                            topLeft = Offset(0.7.dp.toPx(), 0f),
-                            size = androidx.compose.ui.geometry.Size(size.width - 1.4.dp.toPx(), size.height),
-                            cornerRadius = capsule,
-                            style = Stroke(width = 1.1.dp.toPx())
+                        drawArc(
+                            color = Color(0xFFFFAB00).copy(alpha = 0.84f * lensProgress),
+                            startAngle = 55f,
+                            sweepAngle = 100f,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                            blendMode = BlendMode.Screen
                         )
-                        drawRoundRect(
-                            color = Color(0xFFD5B7FF).copy(alpha = 0.10f),
-                            topLeft = Offset(1.5.dp.toPx(), 1.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(size.width - 3.dp.toPx(), size.height - 2.dp.toPx()),
-                            cornerRadius = CornerRadius((size.height - 2.dp.toPx()) / 2f),
-                            style = Stroke(width = 0.7.dp.toPx())
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.78f * lensProgress),
+                            startAngle = 205f,
+                            sweepAngle = 125f,
+                            useCenter = false,
+                            topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
+                            style = Stroke(1.15.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
                         )
-                        drawRoundRect(
-                            brush = Brush.verticalGradient(
-                                listOf(Color.White.copy(alpha = 0.18f), Color.Transparent, Color.Transparent)
-                            ),
-                            topLeft = Offset(size.width * 0.12f, 1.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.30f),
-                            cornerRadius = CornerRadius(size.height / 2f)
-                        )
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                listOf(Color.White.copy(alpha = 0.16f), Color.Transparent)
-                            ),
-                            radius = size.height * 0.58f,
-                            center = Offset(size.width * 0.20f, size.height * 0.12f)
-                        )
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                listOf(accents[activeIndex].copy(alpha = 0.12f), Color.Transparent)
-                            ),
-                            radius = size.height * 0.62f,
-                            center = Offset(size.width * 0.82f, size.height * 0.88f)
+                        drawArc(
+                            color = Color(0xFF8BEAFF).copy(alpha = 0.34f * lensProgress),
+                            startAngle = 28f,
+                            sweepAngle = 120f,
+                            useCenter = false,
+                            topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
+                            style = Stroke(2.2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                            blendMode = BlendMode.Plus
                         )
                     }
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 7.dp, vertical = 4.dp)
-                        .pointerInput(items.size, selectedIndex) {
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 0.dp)
+                    .onSizeChanged { dockSize = it }
+                    .then(
+                        if (androidShaderEffect != null && runtimeShader != null && Build.VERSION.SDK_INT >= 33) {
+                            val centerX = activeCenter
+                            val centerY = dockSize.height / 2f
+                            val radiusX = with(density) { (lensWidth * lensScaleX / 2f).toPx() }
+                            val radiusY = with(density) { (lensHeight * lensScaleY / 2f).toPx() }
+                            runtimeShader.setFloatUniform("lensCenter", centerX, centerY)
+                            runtimeShader.setFloatUniform("lensRadius", radiusX, radiusY)
+                            runtimeShader.setFloatUniform("lensProgress", lensProgress)
+                            Modifier.graphicsLayer {
+                                renderEffect = androidShaderEffect.asComposeRenderEffect()
+                            }
+                        } else Modifier
+                    )
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
                             val tracker = VelocityTracker()
-                            var lastIndex = selectedIndex
-                            var startIndex = selectedIndex
-                            val cellWidthPx = (size.width / items.size.toFloat()).coerceAtLeast(1f)
-                            fun indexAt(x: Float): Int =
-                                (x / size.width.toFloat().coerceAtLeast(1f) * items.size)
-                                    .toInt().coerceIn(items.indices)
-                            fun lensAt(x: Float): Float =
-                                (x / size.width.toFloat().coerceAtLeast(1f) * items.size - 0.5f)
-                                    .coerceIn(0f, items.lastIndex.toFloat())
+                            tracker.resetTracking()
+                            tracker.addPosition(down.uptimeMillis, down.position)
+                            val startX = down.position.x
+                            var lastX = startX
+                            var moved = false
+                            isPressed = true
+                            isDragging = false
+                            dragVelocity = 0f
+                            lensCenter.snapTo(startX.coerceIn(minCenter, maxCenter))
+                            previewIndex = ((startX / size.width.toFloat().coerceAtLeast(1f)) * items.size)
+                                .toInt().coerceIn(items.indices)
 
-                            detectHorizontalDragGestures(
-                                onDragStart = { start ->
-                                    startIndex = items.indexOfFirst { it.first == latestSelected }.coerceAtLeast(0)
-                                    lastIndex = startIndex
-                                    dragTargetIndex = startIndex
-                                    dragIndicatorPosition = indicatorPosition.value
-                                    releaseVelocity = 0f
-                                    tracker.resetTracking()
-                                    tracker.addPosition(android.os.SystemClock.uptimeMillis(), start)
-                                    isDragging = true
-                                },
-                                onHorizontalDrag = { change, _ ->
-                                    change.consume()
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.pressed) {
+                                    val x = change.position.x
                                     tracker.addPosition(change.uptimeMillis, change.position)
-                                    dragIndicatorPosition = lensAt(change.position.x)
-                                    val next = indexAt(change.position.x)
-                                    if (next != lastIndex) {
-                                        lastIndex = next
-                                        dragTargetIndex = next
-                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.DETENT)
+                                    val dx = x - startX
+                                    if (!moved && kotlin.math.abs(dx) > viewConfiguration.touchSlop) {
+                                        moved = true
+                                        isDragging = true
                                     }
-                                },
-                                onDragEnd = {
-                                    releaseVelocity = (tracker.calculateVelocity().x / cellWidthPx).coerceIn(-7f, 7f)
-                                    dragScope.launch {
-                                        indicatorPosition.snapTo(dragIndicatorPosition)
-                                        isDragging = false
-                                        if (lastIndex != startIndex) latestActions[lastIndex]()
-                                    }
-                                },
-                                onDragCancel = {
-                                    dragTargetIndex = startIndex
-                                    dragScope.launch {
-                                        indicatorPosition.snapTo(startIndex.toFloat())
-                                        isDragging = false
-                                    }
-                                }
-                            )
-                        },
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items.forEachIndexed { index, item ->
-                        val distance = kotlin.math.abs(lensPosition - index.toFloat())
-                        val proximity = (1f - distance / 1.48f).coerceIn(0f, 1f)
-                        val isSelected = activeIndex == index
-                        val accent = accents[index]
-                        val interactionSource = remember { MutableInteractionSource() }
-                        val isPressed by interactionSource.collectIsPressedAsState()
-                        val pressScale by animateFloatAsState(
-                            targetValue = if (isPressed) 0.94f else 1f,
-                            animationSpec = spring(dampingRatio = 0.72f, stiffness = 680f),
-                            label = "dockPress"
-                        )
-                        val iconScale = 1f + proximity * 0.34f
-                        val labelScale = 1f + proximity * 0.10f
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .graphicsLayer {
-                                    scaleX = pressScale
-                                    scaleY = pressScale
-                                }
-                                .clickable(
-                                    interactionSource = interactionSource,
-                                    indication = null
-                                ) {
-                                    if (!isDragging) {
-                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
-                                        actions[index]()
-                                    }
-                                }
-                                .padding(top = if (compact) 3.dp else 5.dp, bottom = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                item.third,
-                                contentDescription = item.second,
-                                tint = if (proximity > 0.42f || isSelected) accent else HomeMuted.copy(alpha = 0.82f),
-                                modifier = Modifier.size(23.dp).graphicsLayer {
-                                    scaleX = iconScale
-                                    scaleY = iconScale
-                                    translationY = -proximity * 1.5.dp.toPx()
-                                }
-                            )
-                            AnimatedVisibility(
-                                visible = !compact,
-                                enter = fadeIn(tween(110)) + expandVertically(tween(130)),
-                                exit = fadeOut(tween(80)) + shrinkVertically(tween(100))
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        item.second,
-                                        color = if (proximity > 0.42f || isSelected) Color.White.copy(alpha = 0.96f) else HomeMuted,
-                                        fontSize = 9.sp,
-                                        fontWeight = if (proximity > 0.42f || isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                        maxLines = 1,
-                                        modifier = Modifier.graphicsLayer {
-                                            scaleX = labelScale
-                                            scaleY = labelScale
+                                    if (moved) {
+                                        change.consume()
+                                        val boundedX = when {
+                                            x < minCenter -> minCenter + (x - minCenter) * 0.22f
+                                            x > maxCenter -> maxCenter + (x - maxCenter) * 0.22f
+                                            else -> x
                                         }
-                                    )
-
+                                        lensCenter.snapTo(boundedX)
+                                        val next = ((x / size.width.toFloat().coerceAtLeast(1f)) * items.size)
+                                            .toInt().coerceIn(items.indices)
+                                        if (next != previewIndex) {
+                                            previewIndex = next
+                                            MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.DETENT)
+                                        }
+                                        dragVelocity = tracker.calculateVelocity().x
+                                    }
+                                    lastX = x
+                                } else {
+                                    break
                                 }
                             }
+
+                            val velocity = tracker.calculateVelocity().x
+                            val commitIndex = if (moved) {
+                                ((lensCenter.value / size.width.toFloat().coerceAtLeast(1f)) * items.size)
+                                    .toInt().coerceIn(items.indices)
+                            } else {
+                                ((startX / size.width.toFloat().coerceAtLeast(1f)) * items.size)
+                                    .toInt().coerceIn(items.indices)
+                            }
+                            if (!moved) {
+                                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
+                            }
+                            isPressed = false
+                            isDragging = false
+                            dragVelocity = velocity
+                            previewIndex = commitIndex
+                            latestActions[commitIndex]()
+                            val targetX = size.width / items.size.toFloat() * (commitIndex + 0.5f)
+                            lensCenter.animateTo(
+                                targetX,
+                                animationSpec = spring(dampingRatio = 0.76f, stiffness = 380f),
+                                initialVelocity = velocity.coerceIn(-5000f, 5000f) * 0.035f
+                            )
+                            previewIndex = latestSelectedIndex
+                            dragVelocity = 0f
+                            lastX = 0f
+                        }
+                    },
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEachIndexed { index, item ->
+                    val tabCenter = cellWidthPx * (index + 0.5f)
+                    val distance = kotlin.math.abs(activeCenter - tabCenter)
+                    val normalizedDistance = (distance / (cellWidthPx * 1.35f)).coerceIn(0f, 1f)
+                    val proximity = 1f - normalizedDistance
+                    val scale = 1f + 0.20f * proximity
+                    val alpha = 0.45f + 0.55f * proximity
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                                alpha = alpha
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            item.third,
+                            contentDescription = item.second,
+                            tint = Color.White.copy(alpha = alpha),
+                            modifier = Modifier.size(23.dp)
+                        )
+                        AnimatedVisibility(
+                            visible = !compact,
+                            enter = fadeIn(tween(110)) + expandVertically(tween(130)),
+                            exit = fadeOut(tween(80)) + shrinkVertically(tween(100))
+                        ) {
+                            Text(
+                                item.second,
+                                color = Color.White.copy(alpha = alpha),
+                                fontSize = 9.sp,
+                                fontWeight = if (proximity > 0.78f) FontWeight.SemiBold else FontWeight.Medium,
+                                maxLines = 1,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
                         }
                     }
                 }
