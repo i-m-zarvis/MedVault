@@ -619,23 +619,24 @@ fun MedVaultBottomBar(
                 val contentWidth = maxWidth - 14.dp
                 val cellWidth = contentWidth / items.size
                 val lensPosition = if (isDragging) dragIndicatorPosition else indicatorPosition.value
-                val lensX = 7.dp + cellWidth * lensPosition
-
-                // The moving lens is a continuous surface, not a stepped tab highlight.
+                // A broad, horizontal lens reads as a refractive layer rather than a
+                // separate circular bubble. Its centre remains directly under the finger.
+                val lensWidth = cellWidth * 1.34f
+                val lensX = 7.dp + cellWidth * lensPosition - (lensWidth - cellWidth) / 2f
                 Box(
                     modifier = Modifier
                         .offset(x = lensX)
-                        .padding(horizontal = 1.dp, vertical = if (compact) 3.dp else 4.dp)
-                        .width(cellWidth - 2.dp)
+                        .padding(horizontal = 1.dp, vertical = if (compact) 5.dp else 6.dp)
+                        .width(lensWidth - 2.dp)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(27.dp))
+                        .clip(RoundedCornerShape(50))
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.25f),
-                                    Color(0xFFB9D9FF).copy(alpha = 0.13f),
-                                    accents[activeIndex].copy(alpha = 0.105f),
-                                    Color.White.copy(alpha = 0.045f)
+                                    Color.White.copy(alpha = 0.22f),
+                                    Color(0xFFB9D9FF).copy(alpha = 0.105f),
+                                    accents[activeIndex].copy(alpha = 0.075f),
+                                    Color.White.copy(alpha = 0.035f)
                                 )
                             )
                         )
@@ -643,39 +644,53 @@ fun MedVaultBottomBar(
                             androidx.compose.foundation.BorderStroke(
                                 1.dp,
                                 Brush.verticalGradient(
-                                    listOf(Color.White.copy(alpha = 0.58f), Color.White.copy(alpha = 0.10f))
+                                    listOf(Color.White.copy(alpha = 0.52f), Color.White.copy(alpha = 0.075f))
                                 )
                             ),
-                            RoundedCornerShape(27.dp)
+                            RoundedCornerShape(50)
                         )
                 ) {
                     Canvas(Modifier.fillMaxSize()) {
-                        // Specular streaks and inner refraction give the lens a glass edge.
+                        val capsule = CornerRadius(size.height / 2f)
+                        // Fine cool/warm edge fringes simulate restrained chromatic dispersion.
                         drawRoundRect(
-                            brush = Brush.horizontalGradient(
-                                listOf(Color.Transparent, Color.White.copy(alpha = 0.16f), Color.Transparent)
-                            ),
-                            topLeft = Offset(size.width * 0.12f, 1.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(size.width * 0.76f, 2.dp.toPx()),
-                            cornerRadius = CornerRadius(50f)
+                            color = Color(0xFF8EDCFF).copy(alpha = 0.16f),
+                            topLeft = Offset(0.7.dp.toPx(), 0f),
+                            size = androidx.compose.ui.geometry.Size(size.width - 1.4.dp.toPx(), size.height),
+                            cornerRadius = capsule,
+                            style = Stroke(width = 1.1.dp.toPx())
                         )
                         drawRoundRect(
-                            color = Color.White.copy(alpha = 0.10f),
-                            topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(size.width - 2.dp.toPx(), size.height - 2.dp.toPx()),
-                            cornerRadius = CornerRadius(26.dp.toPx()),
-                            style = Stroke(width = 0.65.dp.toPx())
+                            color = Color(0xFFD5B7FF).copy(alpha = 0.10f),
+                            topLeft = Offset(1.5.dp.toPx(), 1.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 3.dp.toPx(), size.height - 2.dp.toPx()),
+                            cornerRadius = CornerRadius((size.height - 2.dp.toPx()) / 2f),
+                            style = Stroke(width = 0.7.dp.toPx())
+                        )
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                listOf(Color.White.copy(alpha = 0.18f), Color.Transparent, Color.Transparent)
+                            ),
+                            topLeft = Offset(size.width * 0.12f, 1.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.30f),
+                            cornerRadius = CornerRadius(size.height / 2f)
                         )
                         drawCircle(
                             brush = Brush.radialGradient(
-                                listOf(Color.White.copy(alpha = 0.13f), Color.Transparent)
+                                listOf(Color.White.copy(alpha = 0.16f), Color.Transparent)
                             ),
-                            radius = size.height * 0.72f,
-                            center = Offset(size.width * 0.22f, size.height * 0.12f)
+                            radius = size.height * 0.58f,
+                            center = Offset(size.width * 0.20f, size.height * 0.12f)
+                        )
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                listOf(accents[activeIndex].copy(alpha = 0.12f), Color.Transparent)
+                            ),
+                            radius = size.height * 0.62f,
+                            center = Offset(size.width * 0.82f, size.height * 0.88f)
                         )
                     }
                 }
-
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -736,7 +751,7 @@ fun MedVaultBottomBar(
                 ) {
                     items.forEachIndexed { index, item ->
                         val distance = kotlin.math.abs(lensPosition - index.toFloat())
-                        val proximity = (1f - distance / 1.18f).coerceIn(0f, 1f)
+                        val proximity = (1f - distance / 1.48f).coerceIn(0f, 1f)
                         val isSelected = activeIndex == index
                         val accent = accents[index]
                         val interactionSource = remember { MutableInteractionSource() }
@@ -746,8 +761,8 @@ fun MedVaultBottomBar(
                             animationSpec = spring(dampingRatio = 0.72f, stiffness = 680f),
                             label = "dockPress"
                         )
-                        val iconScale = 1f + proximity * 0.30f
-                        val labelScale = 1f + proximity * 0.12f
+                        val iconScale = 1f + proximity * 0.34f
+                        val labelScale = 1f + proximity * 0.10f
 
                         Column(
                             modifier = Modifier
@@ -773,7 +788,7 @@ fun MedVaultBottomBar(
                             Icon(
                                 item.third,
                                 contentDescription = item.second,
-                                tint = if (proximity > 0.55f || isSelected) accent else HomeMuted.copy(alpha = 0.82f),
+                                tint = if (proximity > 0.42f || isSelected) accent else HomeMuted.copy(alpha = 0.82f),
                                 modifier = Modifier.size(23.dp).graphicsLayer {
                                     scaleX = iconScale
                                     scaleY = iconScale
@@ -789,22 +804,16 @@ fun MedVaultBottomBar(
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         item.second,
-                                        color = if (proximity > 0.55f || isSelected) accent else HomeMuted,
+                                        color = if (proximity > 0.42f || isSelected) Color.White.copy(alpha = 0.96f) else HomeMuted,
                                         fontSize = 9.sp,
-                                        fontWeight = if (proximity > 0.55f || isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        fontWeight = if (proximity > 0.42f || isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                         maxLines = 1,
                                         modifier = Modifier.graphicsLayer {
                                             scaleX = labelScale
                                             scaleY = labelScale
                                         }
                                     )
-                                    Spacer(Modifier.height(3.dp))
-                                    Box(
-                                        Modifier.size(3.5.dp).background(
-                                            if (isSelected) accent else Color.Transparent,
-                                            RoundedCornerShape(50)
-                                        )
-                                    )
+
                                 }
                             }
                         }
