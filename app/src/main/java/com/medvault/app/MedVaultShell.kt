@@ -614,14 +614,14 @@ fun MedVaultBottomBar(
     val localMaxCenter = dockSize.width - localMinCenter
     val idleCenter = if (dockSize.width > 0) cellWidthPx * (selectedIndex + 0.5f) else 0f
     val activeCenter = if (isPressed || isDragging) dragCenterPx else lensCenter.value
-    val motionProgress = (kotlin.math.abs(lensCenter.velocity) / 1800f).coerceIn(0f, 0.75f)
-    val effectiveDropletProgress = maxOf(dropletProgress, motionProgress)
-    val activeIndex = if (isDragging) previewIndex else selectedIndex
     val dropletProgress by animateFloatAsState(
         targetValue = if (isPressed || isDragging) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
         label = "dockDropletProgress"
     )
+    val motionProgress = (kotlin.math.abs(lensCenter.velocity) / 1800f).coerceIn(0f, 0.75f)
+    val effectiveDropletProgress = maxOf(dropletProgress, motionProgress)
+    val activeIndex = if (isDragging) previewIndex else selectedIndex
     val velocityAmount = (kotlin.math.abs(dragVelocity) / 6500f).coerceIn(0f, 1f)
     val lensScaleX by animateFloatAsState(
         targetValue = if (dropletProgress > 0f) 1.25f + velocityAmount * 0.07f else 1f,
