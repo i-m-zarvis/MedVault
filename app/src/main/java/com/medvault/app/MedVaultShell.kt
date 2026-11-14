@@ -609,6 +609,7 @@ fun MedVaultBottomBar(
     val outerHeight = if (compact) 62.dp else 74.dp
     val density = androidx.compose.ui.platform.LocalDensity.current
     val cellWidthPx = dockSize.width / items.size.toFloat()
+    val maxDragOverrunPx = with(density) { 4.dp.toPx() }
     val localMinCenter = cellWidthPx * 0.5f
     val localMaxCenter = dockSize.width - localMinCenter
     val idleCenter = if (dockSize.width > 0) cellWidthPx * (selectedIndex + 0.5f) else 0f
@@ -822,8 +823,8 @@ fun MedVaultBottomBar(
                                     if (moved) {
                                         change.consume()
                                         val boundedX = when {
-                                            x < localMinCenter -> localMinCenter + (x - localMinCenter) * 0.22f
-                                            x > localMaxCenter -> localMaxCenter + (x - localMaxCenter) * 0.22f
+                                            x < localMinCenter -> localMinCenter - (localMinCenter - x).coerceAtMost(maxDragOverrunPx)
+                                            x > localMaxCenter -> localMaxCenter + (x - localMaxCenter).coerceAtMost(maxDragOverrunPx)
                                             else -> x
                                         }
                                         dragCenterPx = boundedX
