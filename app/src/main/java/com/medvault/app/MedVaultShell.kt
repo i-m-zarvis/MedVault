@@ -11,7 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -567,11 +568,13 @@ fun MedVaultBottomBar(
     val latestActions by rememberUpdatedState(actions)
     val latestSelected by rememberUpdatedState(selected)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    val indicatorIndex by animateFloatAsState(
+    val settledIndicatorIndex by animateFloatAsState(
         targetValue = selectedIndex.toFloat(),
-        animationSpec = spring(dampingRatio = 0.92f, stiffness = 680f),
+        animationSpec = spring(dampingRatio = 0.96f, stiffness = 650f),
         label = "dock_indicator_position"
     )
+    var isDragging by remember { mutableStateOf(false) }
+    var dragIndicatorIndex by remember { mutableFloatStateOf(selectedIndex.toFloat()) }
 
     Box(
         modifier = Modifier
@@ -596,7 +599,7 @@ fun MedVaultBottomBar(
                 // externally selected destination after each live drag update.
                 Box(
                     modifier = Modifier
-                        .offset(x = 7.dp + cellWidth * indicatorIndex)
+                        .offset(x = 7.dp + cellWidth * (if (isDragging) dragIndicatorIndex else settledIndicatorIndex))
                         .padding(horizontal = 2.dp, vertical = 5.dp)
                         .width(cellWidth - 4.dp)
                         .fillMaxHeight()
@@ -622,29 +625,48 @@ fun MedVaultBottomBar(
                         .fillMaxSize()
                         .padding(horizontal = 7.dp, vertical = 5.dp)
                         .pointerInput(Unit) {
-                            var lastIndex = items.indexOfFirst { it.first == latestSelected }
-                                .coerceAtLeast(0)
-                            detectDragGestures(
+                            var lastIndex = 0
+                            var originalIndex = 0
+                            fun indexAt(x: Float): Int {
+                                val width = size.width.toFloat().coerceAtLeast(1f)
+                                return (x / width * items.size).toInt().coerceIn(items.indices)
+                            }
+                            fun indicatorAt(x: Float): Float {
+                                val width = size.width.toFloat().coerceAtLeast(1f)
+                                return (x / width * items.size - 0.5f)
+                                    .coerceIn(0f, items.lastIndex.toFloat())
+                            }
+                            detectHorizontalDragGestures(
                                 onDragStart = { start ->
-                                    val width = size.width.toFloat().coerceAtLeast(1f)
-                                    lastIndex = ((start.x / width) * items.size)
-                                        .toInt().coerceIn(items.indices)
-                                    // Begin tracking from the tab under the finger.
-                                    if (items[lastIndex].first != latestSelected) {
+                                    originalIndex = items.indexOfFirst {
+                                        it.first == latestSelected
+                                    }.coerceAtLeast(0)
+                                    lastIndex = indexAt(start.x)
+                                    dragIndicatorIndex = indicatorAt(start.x)
+                                    isDragging = true
+                                    if (lastIndex != originalIndex) {
                                         MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
                                         latestActions[lastIndex]()
                                     }
                                 },
-                                onDrag = { change, _ ->
+                                onHorizontalDrag = { change, _ ->
                                     change.consume()
-                                    val width = size.width.toFloat().coerceAtLeast(1f)
-                                    val nextIndex = ((change.position.x / width) * items.size)
-                                        .toInt().coerceIn(items.indices)
+                                    dragIndicatorIndex = indicatorAt(change.position.x)
+                                    val nextIndex = indexAt(change.position.x)
                                     if (nextIndex != lastIndex) {
                                         lastIndex = nextIndex
                                         MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
                                         latestActions[nextIndex]()
                                     }
+                                },
+                                onDragEnd = {
+                                    isDragging = false
+                                },
+                                onDragCancel = {
+                                    if (lastIndex != originalIndex) {
+                                        latestActions[originalIndex]()
+                                    }
+                                    isDragging = false
                                 }
                             )
                         },
