@@ -589,7 +589,7 @@ fun MedVaultBottomBar(
         if (!isDragging) {
             indicatorPosition.animateTo(
                 targetValue = selectedIndex.toFloat(),
-                animationSpec = spring(dampingRatio = 0.96f, stiffness = 520f),
+                animationSpec = spring(dampingRatio = 0.88f, stiffness = 430f),
                 initialVelocity = releaseVelocity
             )
             releaseVelocity = 0f
@@ -613,33 +613,68 @@ fun MedVaultBottomBar(
             color = Color.Transparent,
             shape = RoundedCornerShape(34.dp),
             border = null,
-            shadowElevation = 4.dp
+            shadowElevation = 8.dp
         ) {
-            BoxWithConstraints(
-                modifier = Modifier.fillMaxWidth().height(barHeight)
-            ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(barHeight)) {
                 val contentWidth = maxWidth - 14.dp
                 val cellWidth = contentWidth / items.size
-                val visibleIndicatorPosition = if (isDragging) dragIndicatorPosition else indicatorPosition.value
-                val indicatorX = 7.dp + cellWidth * visibleIndicatorPosition
+                val lensPosition = if (isDragging) dragIndicatorPosition else indicatorPosition.value
+                val lensX = 7.dp + cellWidth * lensPosition
+
+                // The moving lens is a continuous surface, not a stepped tab highlight.
                 Box(
                     modifier = Modifier
-                        .offset(x = indicatorX)
-                        .padding(horizontal = 2.dp, vertical = 4.dp)
-                        .width(cellWidth - 4.dp)
+                        .offset(x = lensX)
+                        .padding(horizontal = 1.dp, vertical = if (compact) 3.dp else 4.dp)
+                        .width(cellWidth - 2.dp)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(25.dp))
+                        .clip(RoundedCornerShape(27.dp))
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.095f),
-                                    accents[activeIndex].copy(alpha = 0.065f),
-                                    Color.White.copy(alpha = 0.02f)
+                                    Color.White.copy(alpha = 0.25f),
+                                    Color(0xFFB9D9FF).copy(alpha = 0.13f),
+                                    accents[activeIndex].copy(alpha = 0.105f),
+                                    Color.White.copy(alpha = 0.045f)
                                 )
                             )
                         )
-                        .border(0.7.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(25.dp))
-                )
+                        .border(
+                            androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Brush.verticalGradient(
+                                    listOf(Color.White.copy(alpha = 0.58f), Color.White.copy(alpha = 0.10f))
+                                )
+                            ),
+                            RoundedCornerShape(27.dp)
+                        )
+                ) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        // Specular streaks and inner refraction give the lens a glass edge.
+                        drawRoundRect(
+                            brush = Brush.horizontalGradient(
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.16f), Color.Transparent)
+                            ),
+                            topLeft = Offset(size.width * 0.12f, 1.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width * 0.76f, 2.dp.toPx()),
+                            cornerRadius = CornerRadius(50f)
+                        )
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.10f),
+                            topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 2.dp.toPx(), size.height - 2.dp.toPx()),
+                            cornerRadius = CornerRadius(26.dp.toPx()),
+                            style = Stroke(width = 0.65.dp.toPx())
+                        )
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                listOf(Color.White.copy(alpha = 0.13f), Color.Transparent)
+                            ),
+                            radius = size.height * 0.72f,
+                            center = Offset(size.width * 0.22f, size.height * 0.12f)
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier
@@ -649,11 +684,11 @@ fun MedVaultBottomBar(
                             val tracker = VelocityTracker()
                             var lastIndex = selectedIndex
                             var startIndex = selectedIndex
-                            var cellWidthPx = (size.width / items.size.toFloat()).coerceAtLeast(1f)
+                            val cellWidthPx = (size.width / items.size.toFloat()).coerceAtLeast(1f)
                             fun indexAt(x: Float): Int =
                                 (x / size.width.toFloat().coerceAtLeast(1f) * items.size)
                                     .toInt().coerceIn(items.indices)
-                            fun indicatorAt(x: Float): Float =
+                            fun lensAt(x: Float): Float =
                                 (x / size.width.toFloat().coerceAtLeast(1f) * items.size - 0.5f)
                                     .coerceIn(0f, items.lastIndex.toFloat())
 
@@ -665,14 +700,14 @@ fun MedVaultBottomBar(
                                     dragIndicatorPosition = indicatorPosition.value
                                     releaseVelocity = 0f
                                     tracker.resetTracking()
-                                    tracker.addPosition(0L, start)
+                                    tracker.addPosition(android.os.SystemClock.uptimeMillis(), start)
                                     isDragging = true
                                 },
                                 onHorizontalDrag = { change, _ ->
                                     change.consume()
                                     tracker.addPosition(change.uptimeMillis, change.position)
+                                    dragIndicatorPosition = lensAt(change.position.x)
                                     val next = indexAt(change.position.x)
-                                    dragIndicatorPosition = indicatorAt(change.position.x)
                                     if (next != lastIndex) {
                                         lastIndex = next
                                         dragTargetIndex = next
@@ -680,7 +715,7 @@ fun MedVaultBottomBar(
                                     }
                                 },
                                 onDragEnd = {
-                                    releaseVelocity = (tracker.calculateVelocity().x / cellWidthPx).coerceIn(-8f, 8f)
+                                    releaseVelocity = (tracker.calculateVelocity().x / cellWidthPx).coerceIn(-7f, 7f)
                                     dragScope.launch {
                                         indicatorPosition.snapTo(dragIndicatorPosition)
                                         isDragging = false
@@ -700,36 +735,37 @@ fun MedVaultBottomBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     items.forEachIndexed { index, item ->
+                        val distance = kotlin.math.abs(lensPosition - index.toFloat())
+                        val proximity = (1f - distance / 1.18f).coerceIn(0f, 1f)
                         val isSelected = activeIndex == index
                         val accent = accents[index]
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
                         val pressScale by animateFloatAsState(
-                            targetValue = if (isPressed) 0.97f else 1f,
-                            animationSpec = LiquidMotion.Touch,
+                            targetValue = if (isPressed) 0.94f else 1f,
+                            animationSpec = spring(dampingRatio = 0.72f, stiffness = 680f),
                             label = "dockPress"
                         )
-                        val iconScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.045f else 1f,
-                            animationSpec = LiquidMotion.Navigation,
-                            label = "dockSelection"
-                        )
+                        val iconScale = 1f + proximity * 0.30f
+                        val labelScale = 1f + proximity * 0.12f
+
                         Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
-                                .clip(RoundedCornerShape(22.dp))
+                                .graphicsLayer {
+                                    scaleX = pressScale
+                                    scaleY = pressScale
+                                }
                                 .clickable(
                                     interactionSource = interactionSource,
-                                    indication = null,
-                                    onClick = {
-                                        if (!isSelected) {
-                                            MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
-                                            latestActions[index]()
-                                        }
+                                    indication = null
+                                ) {
+                                    if (!isDragging) {
+                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
+                                        actions[index]()
                                     }
-                                )
+                                }
                                 .padding(top = if (compact) 3.dp else 5.dp, bottom = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
@@ -737,10 +773,11 @@ fun MedVaultBottomBar(
                             Icon(
                                 item.third,
                                 contentDescription = item.second,
-                                tint = if (isSelected) accent else HomeMuted.copy(alpha = 0.82f),
-                                modifier = Modifier.size(22.dp).graphicsLayer {
+                                tint = if (proximity > 0.55f || isSelected) accent else HomeMuted.copy(alpha = 0.82f),
+                                modifier = Modifier.size(23.dp).graphicsLayer {
                                     scaleX = iconScale
                                     scaleY = iconScale
+                                    translationY = -proximity * 1.5.dp.toPx()
                                 }
                             )
                             AnimatedVisibility(
@@ -752,14 +789,18 @@ fun MedVaultBottomBar(
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         item.second,
-                                        color = if (isSelected) accent else HomeMuted,
+                                        color = if (proximity > 0.55f || isSelected) accent else HomeMuted,
                                         fontSize = 9.sp,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                        maxLines = 1
+                                        fontWeight = if (proximity > 0.55f || isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        maxLines = 1,
+                                        modifier = Modifier.graphicsLayer {
+                                            scaleX = labelScale
+                                            scaleY = labelScale
+                                        }
                                     )
                                     Spacer(Modifier.height(3.dp))
                                     Box(
-                                        Modifier.size(4.dp).background(
+                                        Modifier.size(3.5.dp).background(
                                             if (isSelected) accent else Color.Transparent,
                                             RoundedCornerShape(50)
                                         )
@@ -773,7 +814,6 @@ fun MedVaultBottomBar(
         }
     }
 }
-
 @Composable
 fun MedVaultOfflineScreen(
     downloadedLectures: List<DownloadedLecture>,
