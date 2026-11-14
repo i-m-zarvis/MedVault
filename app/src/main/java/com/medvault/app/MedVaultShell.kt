@@ -878,11 +878,16 @@ fun MedVaultBottomBar(
             // Lens drawing reads animated snapshot values inside the draw scope,
             // keeping frame-by-frame animation work out of the parent composition.
             val activeLensPath=remember{Path()}
-            Canvas(Modifier.fillMaxSize()){
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .requiredHeight(dockHeight * 1.15f)
+                    .align(Alignment.Center)
+            ){
                 val progress=dropletProgressState.value
                 val velocity=velocityMotionState.value
                 val deform=LiquidMotionPhysics.deformation(velocity)
-                val g=calculateLiquidDockGeometry(size.width,rowWidthPx.toFloat(),size.height,baseIndicatorHeightPx,horizontalInsetPx,indicatorCenterX.value,progress,velocity)
+                val g=calculateLiquidDockGeometry(size.width,rowWidthPx.toFloat(),dockHeightPx,baseIndicatorHeightPx,horizontalInsetPx,indicatorCenterX.value,progress,velocity)
                 val topLeft=g.topLeft
                 if(progress<=0.001f){
                     drawRoundRect(Color.Black.copy(alpha=0.46f),topLeft,g.size,g.cornerRadius)
