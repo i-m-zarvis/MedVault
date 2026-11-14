@@ -575,11 +575,13 @@ fun MedVaultBottomBar(
     val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
     val accents = listOf(HomeBlue, LiquidViolet, LiquidTeal, Color(0xFFF4C34F), HomeBlue)
     val hapticView = LocalView.current
+    val dragScope = rememberCoroutineScope()
     val latestActions by rememberUpdatedState(actions)
     val latestSelected by rememberUpdatedState(selected)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
     var isDragging by remember { mutableStateOf(false) }
     var dragTargetIndex by remember { mutableIntStateOf(selectedIndex) }
+    var dragIndicatorPosition by remember { mutableFloatStateOf(selectedIndex.toFloat()) }
     var releaseVelocity by remember { mutableFloatStateOf(0f) }
     val indicatorPosition = remember { Animatable(selectedIndex.toFloat()) }
 
@@ -618,7 +620,8 @@ fun MedVaultBottomBar(
             ) {
                 val contentWidth = maxWidth - 14.dp
                 val cellWidth = contentWidth / items.size
-                val indicatorX = 7.dp + cellWidth * indicatorPosition.value
+                val visibleIndicatorPosition = if (isDragging) dragIndicatorPosition else indicatorPosition.value
+                val indicatorX = 7.dp + cellWidth * visibleIndicatorPosition
                 Box(
                     modifier = Modifier
                         .offset(x = indicatorX)
@@ -659,6 +662,7 @@ fun MedVaultBottomBar(
                                     startIndex = items.indexOfFirst { it.first == latestSelected }.coerceAtLeast(0)
                                     lastIndex = startIndex
                                     dragTargetIndex = startIndex
+                                    dragIndicatorPosition = indicatorPosition.value
                                     releaseVelocity = 0f
                                     tracker.resetTracking()
                                     tracker.addPosition(0L, start)
@@ -668,7 +672,7 @@ fun MedVaultBottomBar(
                                     change.consume()
                                     tracker.addPosition(change.uptimeMillis, change.position)
                                     val next = indexAt(change.position.x)
-                                    indicatorPosition.snapTo(indicatorAt(change.position.x))
+                                    dragIndicatorPosition = indicatorAt(change.position.x)
                                     if (next != lastIndex) {
                                         lastIndex = next
                                         dragTargetIndex = next
@@ -677,12 +681,18 @@ fun MedVaultBottomBar(
                                 },
                                 onDragEnd = {
                                     releaseVelocity = (tracker.calculateVelocity().x / cellWidthPx).coerceIn(-8f, 8f)
-                                    isDragging = false
-                                    if (lastIndex != startIndex) latestActions[lastIndex]()
+                                    dragScope.launch {
+                                        indicatorPosition.snapTo(dragIndicatorPosition)
+                                        isDragging = false
+                                        if (lastIndex != startIndex) latestActions[lastIndex]()
+                                    }
                                 },
                                 onDragCancel = {
                                     dragTargetIndex = startIndex
-                                    isDragging = false
+                                    dragScope.launch {
+                                        indicatorPosition.snapTo(startIndex.toFloat())
+                                        isDragging = false
+                                    }
                                 }
                             )
                         },
