@@ -45,7 +45,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import android.graphics.BitmapFactory
@@ -3834,7 +3833,7 @@ private fun VideoScreen(
                                 stronger = true
                             ) {
                                 if (player.isPlaying) player.pause() else player.play()
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                             }
                             PlayerGlassCircleButton(
                                 icon = Icons.Default.Forward10,
@@ -3844,7 +3843,7 @@ private fun VideoScreen(
                             ) {
                                 val target = player.currentPosition + 10_000L
                                 player.seekTo(if (duration > 0L) target.coerceAtMost(duration) else target)
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                 controlsVisible = true
                             }
                         }
@@ -3893,7 +3892,7 @@ private fun VideoScreen(
                                         player.seekTo(it.coerceIn(0L, duration.coerceAtLeast(0L)))
                                         position = it
                                         isSeeking = false
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                     },
                                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
                                 )
@@ -3910,7 +3909,7 @@ private fun VideoScreen(
                             Box {
                                 PlayerGlassAction(label = "${speed}×", onClick = {
                                     settingsExpanded = !settingsExpanded
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                 })
                             }
                             GlassPlayerButton(Icons.Default.FullscreenExit, "Exit fullscreen", onFullscreen)
@@ -3947,7 +3946,7 @@ private fun VideoScreen(
                                                 speed = rate
                                                 player.setPlaybackSpeed(rate)
                                                 settingsExpanded = false
-                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                             }
                                             .padding(horizontal = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -4065,7 +4064,7 @@ private fun VideoScreen(
                                         player.seekTo(it.coerceIn(0L, duration.coerceAtLeast(0L)))
                                         position = it
                                         isSeeking = false
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                     },
                                     modifier = Modifier.weight(1f).padding(horizontal = 5.dp)
                                 )
@@ -4078,7 +4077,7 @@ private fun VideoScreen(
                             ) {
                                 PlayerGlassAction("${speed}×") {
                                     settingsExpanded = !settingsExpanded
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                 }
                                 PlayerGlassIconAction(Icons.Default.PictureInPictureAlt, "Picture in picture", onPip)
                                 PlayerGlassIconAction(Icons.Default.Fullscreen, "Enter fullscreen", onFullscreen)
@@ -4112,7 +4111,7 @@ private fun VideoScreen(
                                                 speed = rate
                                                 player.setPlaybackSpeed(rate)
                                                 settingsExpanded = false
-                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                             }
                                             .padding(horizontal = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -4317,7 +4316,7 @@ private fun PlayerGlassCircleButton(
         animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
         label = "glassButtonScale"
     )
-    val haptics = LocalHapticFeedback.current
+    val hapticView = LocalView.current
     val fill = if (stronger) {
         Brush.verticalGradient(listOf(Color(0x7AFFFFFF), Color(0x50313B4B), Color(0xA51A2233)))
     } else {
@@ -4336,7 +4335,7 @@ private fun PlayerGlassCircleButton(
                 interactionSource = interaction,
                 indication = null
             ) {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                 onClick()
             },
         contentAlignment = Alignment.Center
@@ -4404,7 +4403,7 @@ private fun PlayerGlassAction(
         animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
         label = "glassPillScale"
     )
-    val haptics = LocalHapticFeedback.current
+    val hapticView = LocalView.current
     Row(
         Modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
@@ -4412,7 +4411,7 @@ private fun PlayerGlassAction(
             .background(Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x421B2433), Color(0x88151D2B))))
             .border(1.dp, Brush.verticalGradient(listOf(Color(0x88FFFFFF), Color(0x33FFFFFF))), shape)
             .clickable(interactionSource = interaction, indication = null) {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                 onClick()
             }
             .height(34.dp)
@@ -4459,10 +4458,10 @@ private fun GlassPlayerButton(
         animationSpec = spring(dampingRatio = 0.52f, stiffness = 720f),
         label = "glassIconScale"
     )
-    val haptics = LocalHapticFeedback.current
+    val hapticView = LocalView.current
     IconButton(
         onClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
             onClick()
         },
         interactionSource = interaction,
