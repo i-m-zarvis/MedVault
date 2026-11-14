@@ -64,6 +64,9 @@ import androidx.compose.ui.unit.Velocity
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.receiveAsFlow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -513,6 +516,16 @@ private fun HomeEditorialCard(
  * If the system disables cross-window blur, the existing glass surface remains
  * readable and functional without blur.
  */
+private sealed interface DockMotionCommand {
+    data class DragTo(val centerX: Float) : DockMotionCommand
+    data class Release(
+        val releaseCenterX: Float,
+        val dragged: Boolean,
+        val targetCenterX: Float
+    ) : DockMotionCommand
+    data class Cancel(val targetCenterX: Float) : DockMotionCommand
+}
+
 private data class LiquidDockGeometry(
     val slotWidthPx: Float,
     val widthPx: Float,
@@ -679,7 +692,6 @@ fun MedVaultBottomBar(
     val latestSelectedIndex by rememberUpdatedState(selectedIndex)
 
     val hapticView = LocalView.current
-    val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
     val dockHeight = if (compact) 50.dp else 62.dp
@@ -702,6 +714,57 @@ fun MedVaultBottomBar(
 
     // The sole horizontal position source for rendering, tab optics and touch.
     val indicatorCenterX = remember { Animatable(0f) }
+
+    // Pointer input emits conflated commands; one actor owns every Animatable mutation.
+    // This avoids restricted-suspension violations and prevents one coroutine per drag frame.
+    val motionCommands = remember { Channel<DockMotionCommand>(Channel.CONFLATED) }
+    val latestRowWidthPx by rememberUpdatedState(rowWidthPx)
+    val latestHorizontalInsetPx by rememberUpdatedState(horizontalInsetPx)
+
+    LaunchedEffect(motionCommands, indicatorCenterX) {
+        motionCommands.receiveAsFlow().collectLatest { command ->
+            when (command) {
+                is DockMotionCommand.DragTo -> {
+                    indicatorCenterX.snapTo(command.centerX)
+                }
+                is DockMotionCommand.Release -> {
+                    try {
+                        if (command.dragged) {
+                            indicatorCenterX.snapTo(command.releaseCenterX)
+                        }
+                        indicatorCenterX.animateTo(
+                            command.targetCenterX,
+                            animationSpec = spring(
+                                dampingRatio = 0.86f,
+                                stiffness = 420f
+                            )
+                        )
+                    } finally {
+                        isIndicatorAnimating = false
+                        velocityStretchInput = 0f
+                    }
+                }
+                is DockMotionCommand.Cancel -> {
+                    try {
+                        indicatorCenterX.animateTo(
+                            command.targetCenterX,
+                            animationSpec = spring(
+                                dampingRatio = 0.90f,
+                                stiffness = 420f
+                            )
+                        )
+                    } finally {
+                        isIndicatorAnimating = false
+                        velocityStretchInput = 0f
+                    }
+                }
+            }
+        }
+    }
+
+    DisposableEffect(motionCommands) {
+        onDispose { motionCommands.close() }
+    }
 
     // Keep animation State objects, and read their values only in draw/layer scopes.
     val dropletTarget = when {
@@ -952,10 +1015,10 @@ fun MedVaultBottomBar(
                             tracker.resetTracking()
                             tracker.addPosition(down.uptimeMillis, down.position)
 
-                            // PointerInput(Unit) stays installed; read fresh layout values per gesture.
-                            val gestureRowWidth = rowWidthPx.toFloat()
+                            // Read current layout values despite pointerInput(Unit) remaining installed.
+                            val gestureRowWidth = latestRowWidthPx.toFloat()
                             val gestureSlotWidth = gestureRowWidth / items.size.toFloat()
-                            val gestureInset = horizontalInsetPx
+                            val gestureInset = latestHorizontalInsetPx
                             fun gestureTabCenter(index: Int): Float =
                                 gestureInset + gestureSlotWidth * (index + 0.5f)
                             fun gestureNearestTab(x: Float): Int =
@@ -994,8 +1057,10 @@ fun MedVaultBottomBar(
 
                                     if (crossedSlop) {
                                         change.consume()
-                                        // Direct snap in the pointer coroutine: no per-frame child jobs.
-                                        indicatorCenterX.snapTo(fingerX + gestureInset)
+                                        // Non-suspending conflated send; the motion actor performs snapTo.
+                                        motionCommands.trySend(
+                                            DockMotionCommand.DragTo(fingerX + gestureInset)
+                                        )
                                         velocityStretchInput = tracker.calculateVelocity().x
                                     }
                                 }
@@ -1022,40 +1087,22 @@ fun MedVaultBottomBar(
                                 isIndicatorAnimating = true
                                 latestActions[targetTabIndex]()
 
-                                scope.launch {
-                                    try {
-                                        indicatorCenterX.animateTo(
-                                            targetX,
-                                            animationSpec = spring(
-                                                dampingRatio = 0.86f,
-                                                stiffness = 420f
-                                            )
-                                        )
-                                    } finally {
-                                        isIndicatorAnimating = false
-                                        velocityStretchInput = 0f
-                                    }
-                                }
+                                motionCommands.trySend(
+                                    DockMotionCommand.Release(
+                                        releaseCenterX = releasePosition,
+                                        dragged = crossedSlop,
+                                        targetCenterX = targetX
+                                    )
+                                )
                             } else {
                                 // Cancel returns to the last committed/optimistic tab.
                                 val cancelTarget = gestureTabCenter(
                                     optimisticSelectedIndex.coerceIn(items.indices)
                                 )
                                 isIndicatorAnimating = true
-                                scope.launch {
-                                    try {
-                                        indicatorCenterX.animateTo(
-                                            cancelTarget,
-                                            animationSpec = spring(
-                                                dampingRatio = 0.90f,
-                                                stiffness = 420f
-                                            )
-                                        )
-                                    } finally {
-                                        isIndicatorAnimating = false
-                                        velocityStretchInput = 0f
-                                    }
-                                }
+                                motionCommands.trySend(
+                                    DockMotionCommand.Cancel(cancelTarget)
+                                )
                             }
                         }
                     },
