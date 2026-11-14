@@ -70,6 +70,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -520,7 +521,8 @@ fun MedVaultBottomBarHost(
     onVideos: () -> Unit,
     onQBank: () -> Unit,
     onOffline: () -> Unit,
-    onProfile: () -> Unit
+    onProfile: () -> Unit,
+    onSearch: () -> Unit = onVideos
 ) {
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -570,11 +572,27 @@ fun MedVaultBottomBarHost(
                 Modifier.fillMaxWidth().height(dockHeight + 24.dp + bottomInset),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, compact)
+                MedVaultBottomBar(
+                    selected = selected,
+                    onHome = onHome,
+                    onVideos = onVideos,
+                    onQBank = onQBank,
+                    onOffline = onOffline,
+                    onSearch = onSearch,
+                    compact = compact
+                )
             }
         }
     } else {
-        MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, compact)
+        MedVaultBottomBar(
+            selected = selected,
+            onHome = onHome,
+            onVideos = onVideos,
+            onQBank = onQBank,
+            onOffline = onOffline,
+            onSearch = onSearch,
+            compact = compact
+        )
     }
 }
 
@@ -585,6 +603,7 @@ fun MedVaultBottomBar(
     onVideos: () -> Unit,
     onQBank: () -> Unit,
     onOffline: () -> Unit,
+    onSearch: () -> Unit,
     compact: Boolean = false
 ) {
     val items = listOf(
@@ -596,6 +615,7 @@ fun MedVaultBottomBar(
     val actions = listOf(onHome, onVideos, onQBank, onOffline)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
     val latestActions by rememberUpdatedState(actions)
+    val latestSearch by rememberUpdatedState(onSearch)
     val hapticView = LocalView.current
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -604,6 +624,13 @@ fun MedVaultBottomBar(
     val dockInnerPadding = 5.dp
     val horizontalInsetPx = with(density) { dockInnerPadding.toPx() }
     val dockShape = RoundedCornerShape(50)
+    val searchInteraction = remember { MutableInteractionSource() }
+    val searchPressed by searchInteraction.collectIsPressedAsState()
+    val searchScale by animateFloatAsState(
+        targetValue = if (searchPressed) 0.93f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 650f),
+        label = "dockSearchPressScale"
+    )
 
     var dockWidthPx by remember { mutableIntStateOf(0) }
     var rowWidthPx by remember { mutableIntStateOf(0) }
@@ -614,11 +641,13 @@ fun MedVaultBottomBar(
     var optimisticSelectedIndex by remember { mutableIntStateOf(selectedIndex) }
     var velocityStretchInput by remember { mutableFloatStateOf(0f) }
 
-    // The only horizontal position state used by drawing, magnification and gestures.
+    // One horizontal position source for the liquid indicator, tab lens and gesture tracking.
     val indicatorCenterX = remember { Animatable(0f) }
     val tabSlotWidthPx = rowWidthPx / items.size.toFloat()
     fun tabCenterX(index: Int): Float =
         horizontalInsetPx + tabSlotWidthPx * (index + 0.5f)
+    fun nearestTabIndex(positionX: Float): Int =
+        items.indices.minByOrNull { kotlin.math.abs(positionX - tabCenterX(it)) } ?: 0
 
     val dropletTarget = when {
         isPressed || isDragging -> 1f
@@ -661,17 +690,23 @@ fun MedVaultBottomBar(
         }
     }
 
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(start = 12.dp, end = 12.dp, bottom = 24.dp)
-            .height(dockHeight)
-            .onSizeChanged { dockWidthPx = it.width },
-        contentAlignment = Alignment.Center
+            .height(dockHeight),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // The outer overlay remains unclipped so only the vertical lens bulge can escape.
-        Box(Modifier.fillMaxSize()) {
+        // Main four-tab capsule. The indicator overlay is deliberately not clipped;
+        // only the glass surface itself is clipped to the stadium outline.
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .onSizeChanged { dockWidthPx = it.width }
+        ) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -701,8 +736,8 @@ fun MedVaultBottomBar(
                     (if (compact) 38.dp else 46.dp).toPx()
                 }
                 val basePillWidth = maxOf(
-                    tabSlotWidth * 1.18f,
-                    basePillHeight * 1.62f
+                    tabSlotWidth * 1.12f,
+                    basePillHeight * 1.58f
                 )
                 val currentHeight = basePillHeight * (1f + 0.36f * progress)
                 val currentWidth = basePillWidth *
@@ -838,11 +873,9 @@ fun MedVaultBottomBar(
                             }
 
                             if (releasedNormally) {
-                                val targetTabIndex = (
-                                    releaseX / size.width.toFloat().coerceAtLeast(1f) * items.size
-                                ).toInt().coerceIn(items.indices)
-                                val targetX = horizontalInsetPx +
-                                    size.width / items.size.toFloat() * (targetTabIndex + 0.5f)
+                                val releasePosition = releaseX + horizontalInsetPx
+                                val targetTabIndex = nearestTabIndex(releasePosition)
+                                val targetX = tabCenterX(targetTabIndex)
 
                                 MedVaultHaptics.perform(
                                     hapticView,
@@ -854,7 +887,6 @@ fun MedVaultBottomBar(
 
                                 val finalDragSnap = pendingDragSnap
                                 pendingDragSnap = null
-                                val releasePosition = releaseX + horizontalInsetPx
                                 scope.launch {
                                     try {
                                         finalDragSnap?.join()
@@ -883,9 +915,6 @@ fun MedVaultBottomBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEachIndexed { index, item ->
-                    val tabCenter = horizontalInsetPx +
-                        tabSlotWidthPx * (index + 0.5f)
-
                     Column(
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -903,8 +932,8 @@ fun MedVaultBottomBar(
                                         (if (compact) 38.dp else 46.dp).toPx()
                                     }
                                     val basePillWidth = maxOf(
-                                        tabSlotWidth * 1.18f,
-                                        basePillHeight * 1.62f
+                                        tabSlotWidth * 1.12f,
+                                        basePillHeight * 1.58f
                                     )
                                     val currentWidth = basePillWidth *
                                         (1f + (0.28f + smoothedVelocityStretch) * dropletProgress)
@@ -921,10 +950,11 @@ fun MedVaultBottomBar(
                                     ).coerceIn(0f, 1f)
                                     val smoothProx = proximity * proximity *
                                         (3f - 2f * proximity)
+                                    val liveActiveIndex = nearestTabIndex(drawCenterX)
                                     val scale = 1f + 0.35f * smoothProx * dropletProgress
                                     scaleX = scale
                                     scaleY = scale
-                                    alpha = 0.45f + 0.55f * smoothProx
+                                    alpha = if (index == liveActiveIndex) 1f else 0.45f
                                     translationX = (drawCenterX - centerX) *
                                         0.14f * smoothProx * dropletProgress
                                     translationY = -with(density) { 2.5.dp.toPx() } *
@@ -944,8 +974,8 @@ fun MedVaultBottomBar(
                                     (if (compact) 38.dp else 46.dp).toPx()
                                 }
                                 val basePillWidth = maxOf(
-                                    tabSlotWidth * 1.18f,
-                                    basePillHeight * 1.62f
+                                    tabSlotWidth * 1.12f,
+                                    basePillHeight * 1.58f
                                 )
                                 val currentWidth = basePillWidth *
                                     (1f + (0.28f + smoothedVelocityStretch) * dropletProgress)
@@ -962,10 +992,11 @@ fun MedVaultBottomBar(
                                 ).coerceIn(0f, 1f)
                                 val smoothProx = proximity * proximity *
                                     (3f - 2f * proximity)
+                                val liveActiveIndex = nearestTabIndex(drawCenterX)
                                 val scale = 1f + 0.14f * smoothProx * dropletProgress
                                 scaleX = scale
                                 scaleY = scale
-                                alpha = 0.45f + 0.55f * smoothProx
+                                alpha = if (index == liveActiveIndex) 1f else 0.45f
                                 translationX = (drawCenterX - centerX) *
                                     0.14f * smoothProx * dropletProgress
                                 translationY = -with(density) { 2.5.dp.toPx() } *
@@ -975,6 +1006,48 @@ fun MedVaultBottomBar(
                     }
                 }
             }
+        }
+
+        // Independent circular glass search control, aligned to the capsule's height.
+        Box(
+            modifier = Modifier
+                .size(dockHeight)
+                .graphicsLayer {
+                    scaleX = searchScale
+                    scaleY = searchScale
+                }
+                .shadow(16.dp, CircleShape, clip = false)
+                .clip(CircleShape)
+                .background(Color(0xFF141418).copy(alpha = 0.68f), CircleShape)
+                .border(
+                    androidx.compose.foundation.BorderStroke(
+                        1.25.dp,
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.08f)
+                            ),
+                            start = Offset.Zero,
+                            end = Offset(with(density) { dockHeight.toPx() }, with(density) { dockHeight.toPx() })
+                        )
+                    ),
+                    CircleShape
+                )
+                .clickable(
+                    interactionSource = searchInteraction,
+                    indication = null
+                ) {
+                    MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
+                    latestSearch()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = "Search lectures",
+                tint = Color.White,
+                modifier = Modifier.size(if (compact) 20.dp else 22.dp)
+            )
         }
     }
 }
