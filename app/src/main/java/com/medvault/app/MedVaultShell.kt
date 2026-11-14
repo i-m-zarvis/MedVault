@@ -880,7 +880,7 @@ fun MedVaultBottomBar(
                         (left + coordinates.size.width).coerceAtMost(owner.window.decorView.width),
                         (top + coordinates.size.height).coerceAtMost(owner.window.decorView.height)
                     )
-                    if (rect.width() > 0 && rect.height() > 0) {
+                    if (rect.width() > 0 && rect.height() > 0 && backdropRect != rect) {
                         backdropRect = rect
                         backdropCapture?.capture(rect)
                     }
@@ -895,7 +895,7 @@ fun MedVaultBottomBar(
                     .fillMaxSize()
                     .shadow(16.dp, dockShape, clip = false)
                     .clip(dockShape)
-                    .background(Color(0xFF141418).copy(alpha = 0.68f))
+                    .background(Color(0xFF141418).copy(alpha = 0.54f))
                     .border(
                         androidx.compose.foundation.BorderStroke(
                             1.25.dp,
