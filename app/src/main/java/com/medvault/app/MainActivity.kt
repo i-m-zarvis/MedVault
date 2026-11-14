@@ -36,6 +36,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
@@ -1814,6 +1819,30 @@ private fun MedVaultRoot(
     onDeleteOffline: (DownloadedLecture) -> Unit
 ) {
     val telegramLibraryState = remember { TelegramLibraryScreenState() }
+    var dockCompact by remember { mutableStateOf(false) }
+    var dockScrollAccumulator by remember { mutableFloatStateOf(0f) }
+    val dockScrollThreshold = with(LocalDensity.current) { 28.dp.toPx() }
+    val dockScrollConnection = remember(dockScrollThreshold) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                val dy = consumed.y
+                if (dy == 0f) return Offset.Zero
+                dockScrollAccumulator += dy
+                if (dockScrollAccumulator <= -dockScrollThreshold) {
+                    dockCompact = true
+                    dockScrollAccumulator = 0f
+                } else if (dockScrollAccumulator >= dockScrollThreshold) {
+                    dockCompact = false
+                    dockScrollAccumulator = 0f
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(screen) {
+        dockCompact = false
+        dockScrollAccumulator = 0f
+    }
     val qbankLibraryState = remember { TelegramDocumentLibraryState() }
     val mainTabs = setOf("home", "videos", "qbank", "offline", "settings")
     BackHandler(enabled = screen !in setOf("home", "videos") && !pipMode) {
@@ -1827,7 +1856,7 @@ private fun MedVaultRoot(
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0B1428), Color(0xFF080B12), Color(0xFF100B1B))))) {
         AnimatedContent(
             targetState = screen,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(dockScrollConnection),
             transitionSpec = {
                 if (initialState == "player" || targetState == "player") EnterTransition.None togetherWith ExitTransition.None
                 else (fadeIn(animationSpec = LiquidMotion.FadeIn) +
@@ -1896,7 +1925,7 @@ private fun MedVaultRoot(
         // WindowInsets.isImeVisible is shared here so every searchable screen gets
         // the same behaviour without per-field keyboard workarounds.
         if (screen in mainTabs && !pipMode && !showBrandSplash && !WindowInsets.isImeVisible) {
-            MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, onHome = onHome, onVideos = onOpenTelegramLibrary,
+            MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, compact = dockCompact, onHome = onHome, onVideos = onOpenTelegramLibrary,
                 onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
         }
     }

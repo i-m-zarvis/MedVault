@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -27,7 +28,14 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -488,6 +496,7 @@ private fun HomeEditorialCard(
 @Composable
 fun MedVaultBottomBarHost(
     selected: String,
+    compact: Boolean = false,
     onHome: () -> Unit,
     onVideos: () -> Unit,
     onQBank: () -> Unit,
@@ -532,17 +541,17 @@ fun MedVaultBottomBarHost(
                         width = WindowManager.LayoutParams.MATCH_PARENT
                         // Constrain the Android window itself; WRAP_CONTENT can expand the
                         // non-fitting Dialog to the full activity decor and intercept all touches.
-                        height = (90f * context.resources.displayMetrics.density).toInt()
+                        height = ((if (compact) 66f else 90f) * context.resources.displayMetrics.density).toInt()
                         dimAmount = if (blurEnabled) 0.10f else 0f
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().height(90.dp).padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
-                MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile)
+            Box(Modifier.fillMaxWidth().height(if (compact) 66.dp else 90.dp).padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
+                MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile, compact)
             }
         }
     } else {
-        MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile)
+        MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile, compact)
     }
 }
 
@@ -553,7 +562,8 @@ fun MedVaultBottomBar(
     onVideos: () -> Unit,
     onQBank: () -> Unit,
     onOffline: () -> Unit,
-    onProfile: () -> Unit
+    onProfile: () -> Unit,
+    compact: Boolean = false
 ) {
     val items = listOf(
         Triple("home", "Home", Icons.Default.Home),
@@ -568,17 +578,30 @@ fun MedVaultBottomBar(
     val latestActions by rememberUpdatedState(actions)
     val latestSelected by rememberUpdatedState(selected)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    val settledIndicatorIndex by animateFloatAsState(
-        targetValue = selectedIndex.toFloat(),
-        animationSpec = spring(dampingRatio = 0.96f, stiffness = 650f),
-        label = "dock_indicator_position"
-    )
     var isDragging by remember { mutableStateOf(false) }
-    var dragIndicatorIndex by remember { mutableFloatStateOf(selectedIndex.toFloat()) }
+    var dragTargetIndex by remember { mutableIntStateOf(selectedIndex) }
+    var releaseVelocity by remember { mutableFloatStateOf(0f) }
+    val indicatorPosition = remember { Animatable(selectedIndex.toFloat()) }
+
+    LaunchedEffect(selectedIndex, isDragging, releaseVelocity) {
+        if (!isDragging) {
+            indicatorPosition.animateTo(
+                targetValue = selectedIndex.toFloat(),
+                animationSpec = spring(dampingRatio = 0.96f, stiffness = 520f),
+                initialVelocity = releaseVelocity
+            )
+            releaseVelocity = 0f
+        }
+    }
+
+    val activeIndex = if (isDragging) dragTargetIndex else selectedIndex
+    val barHeight = if (compact) 54.dp else 72.dp
+    val outerHeight = if (compact) 66.dp else 90.dp
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .height(outerHeight)
             .background(Color.Transparent)
             .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 9.dp),
         contentAlignment = Alignment.Center
@@ -591,81 +614,74 @@ fun MedVaultBottomBar(
             shadowElevation = 4.dp
         ) {
             BoxWithConstraints(
-                modifier = Modifier.fillMaxWidth().height(72.dp)
+                modifier = Modifier.fillMaxWidth().height(barHeight)
             ) {
                 val contentWidth = maxWidth - 14.dp
                 val cellWidth = contentWidth / items.size
-                // The indicator is drawn behind the tabs and glides to the
-                // externally selected destination after each live drag update.
+                val indicatorX = 7.dp + cellWidth * indicatorPosition.value
                 Box(
                     modifier = Modifier
-                        .offset(x = 7.dp + cellWidth * (if (isDragging) dragIndicatorIndex else settledIndicatorIndex))
-                        .padding(horizontal = 2.dp, vertical = 5.dp)
+                        .offset(x = indicatorX)
+                        .padding(horizontal = 2.dp, vertical = 4.dp)
                         .width(cellWidth - 4.dp)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(25.dp))
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.105f),
-                                    accents[selectedIndex].copy(alpha = 0.075f),
-                                    Color.White.copy(alpha = 0.025f)
+                                    Color.White.copy(alpha = 0.095f),
+                                    accents[activeIndex].copy(alpha = 0.065f),
+                                    Color.White.copy(alpha = 0.02f)
                                 )
                             )
                         )
-                        .border(
-                            0.7.dp,
-                            Color.White.copy(alpha = 0.10f),
-                            RoundedCornerShape(25.dp)
-                        )
+                        .border(0.7.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(25.dp))
                 )
 
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 7.dp, vertical = 5.dp)
-                        .pointerInput(Unit) {
-                            var lastIndex = 0
-                            var originalIndex = 0
-                            fun indexAt(x: Float): Int {
-                                val width = size.width.toFloat().coerceAtLeast(1f)
-                                return (x / width * items.size).toInt().coerceIn(items.indices)
-                            }
-                            fun indicatorAt(x: Float): Float {
-                                val width = size.width.toFloat().coerceAtLeast(1f)
-                                return (x / width * items.size - 0.5f)
+                        .padding(horizontal = 7.dp, vertical = 4.dp)
+                        .pointerInput(items.size, selectedIndex) {
+                            val tracker = VelocityTracker()
+                            var lastIndex = selectedIndex
+                            var startIndex = selectedIndex
+                            var cellWidthPx = (size.width / items.size.toFloat()).coerceAtLeast(1f)
+                            fun indexAt(x: Float): Int =
+                                (x / size.width.toFloat().coerceAtLeast(1f) * items.size)
+                                    .toInt().coerceIn(items.indices)
+                            fun indicatorAt(x: Float): Float =
+                                (x / size.width.toFloat().coerceAtLeast(1f) * items.size - 0.5f)
                                     .coerceIn(0f, items.lastIndex.toFloat())
-                            }
+
                             detectHorizontalDragGestures(
                                 onDragStart = { start ->
-                                    originalIndex = items.indexOfFirst {
-                                        it.first == latestSelected
-                                    }.coerceAtLeast(0)
-                                    lastIndex = indexAt(start.x)
-                                    dragIndicatorIndex = indicatorAt(start.x)
+                                    startIndex = items.indexOfFirst { it.first == latestSelected }.coerceAtLeast(0)
+                                    lastIndex = startIndex
+                                    dragTargetIndex = startIndex
+                                    releaseVelocity = 0f
+                                    tracker.resetTracking()
+                                    tracker.addPosition(0L, start)
                                     isDragging = true
-                                    if (lastIndex != originalIndex) {
-                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
-                                        latestActions[lastIndex]()
-                                    }
                                 },
                                 onHorizontalDrag = { change, _ ->
                                     change.consume()
-                                    dragIndicatorIndex = indicatorAt(change.position.x)
-                                    val nextIndex = indexAt(change.position.x)
-                                    if (nextIndex != lastIndex) {
-                                        lastIndex = nextIndex
-                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
-                                        latestActions[nextIndex]()
+                                    tracker.addPosition(change.uptimeMillis, change.position)
+                                    val next = indexAt(change.position.x)
+                                    indicatorPosition.snapTo(indicatorAt(change.position.x))
+                                    if (next != lastIndex) {
+                                        lastIndex = next
+                                        dragTargetIndex = next
+                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.DETENT)
                                     }
                                 },
                                 onDragEnd = {
+                                    releaseVelocity = (tracker.calculateVelocity().x / cellWidthPx).coerceIn(-8f, 8f)
                                     isDragging = false
+                                    if (lastIndex != startIndex) latestActions[lastIndex]()
                                 },
                                 onDragCancel = {
-                                    if (lastIndex != originalIndex) {
-                                        latestActions[originalIndex]()
-                                    }
+                                    dragTargetIndex = startIndex
                                     isDragging = false
                                 }
                             )
@@ -674,17 +690,17 @@ fun MedVaultBottomBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     items.forEachIndexed { index, item ->
-                        val isSelected = selected == item.first
+                        val isSelected = activeIndex == index
                         val accent = accents[index]
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
                         val pressScale by animateFloatAsState(
-                            targetValue = if (isPressed) 0.96f else 1f,
+                            targetValue = if (isPressed) 0.97f else 1f,
                             animationSpec = LiquidMotion.Touch,
                             label = "dockPress"
                         )
                         val iconScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.07f else 1f,
+                            targetValue = if (isSelected) 1.045f else 1f,
                             animationSpec = LiquidMotion.Navigation,
                             label = "dockSelection"
                         )
@@ -692,10 +708,7 @@ fun MedVaultBottomBar(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .graphicsLayer {
-                                    scaleX = pressScale
-                                    scaleY = pressScale
-                                }
+                                .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
                                 .clip(RoundedCornerShape(22.dp))
                                 .clickable(
                                     interactionSource = interactionSource,
@@ -703,11 +716,11 @@ fun MedVaultBottomBar(
                                     onClick = {
                                         if (!isSelected) {
                                             MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
+                                            latestActions[index]()
                                         }
-                                        actions[index]()
                                     }
                                 )
-                                .padding(top = 5.dp, bottom = 2.dp),
+                                .padding(top = if (compact) 3.dp else 5.dp, bottom = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -715,27 +728,34 @@ fun MedVaultBottomBar(
                                 item.third,
                                 contentDescription = item.second,
                                 tint = if (isSelected) accent else HomeMuted.copy(alpha = 0.82f),
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .graphicsLayer {
-                                        scaleX = iconScale
-                                        scaleY = iconScale
-                                    }
+                                modifier = Modifier.size(22.dp).graphicsLayer {
+                                    scaleX = iconScale
+                                    scaleY = iconScale
+                                }
                             )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                item.second,
-                                color = if (isSelected) accent else HomeMuted,
-                                fontSize = 9.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                maxLines = 1
-                            )
-                            Spacer(Modifier.height(3.dp))
-                            Box(
-                                Modifier
-                                    .size(4.dp)
-                                    .background(if (isSelected) accent else Color.Transparent, RoundedCornerShape(50))
-                            )
+                            AnimatedVisibility(
+                                visible = !compact,
+                                enter = fadeIn(tween(110)) + expandVertically(tween(130)),
+                                exit = fadeOut(tween(80)) + shrinkVertically(tween(100))
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        item.second,
+                                        color = if (isSelected) accent else HomeMuted,
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        maxLines = 1
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                    Box(
+                                        Modifier.size(4.dp).background(
+                                            if (isSelected) accent else Color.Transparent,
+                                            RoundedCornerShape(50)
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
