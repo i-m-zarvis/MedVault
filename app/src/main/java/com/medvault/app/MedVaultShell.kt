@@ -837,8 +837,6 @@ fun MedVaultBottomBar(
                                     }
                                 }
                             } finally {
-                                dragSnapJob?.cancel()
-                                dragSnapJob = null
                                 isPressed = false
                                 isDragging = false
                             }
@@ -857,8 +855,16 @@ fun MedVaultBottomBar(
                                 val releaseVelocity = tracker.calculateVelocity().x
                                 velocityStretchInput = releaseVelocity
                                 isIndicatorAnimating = true
+                                val finalDragSnap = dragSnapJob
+                                dragSnapJob = null
                                 scope.launch {
                                     try {
+                                        // Let the last finger-follow update finish, then settle from the
+                                        // exact release position rather than an older queued frame.
+                                        finalDragSnap?.join()
+                                        if (crossedSlop) {
+                                            indicatorCenterX.snapTo(releaseX + innerPaddingPx)
+                                        }
                                         indicatorCenterX.animateTo(
                                             targetX,
                                             animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
@@ -869,6 +875,8 @@ fun MedVaultBottomBar(
                                     }
                                 }
                             } else {
+                                dragSnapJob?.cancel()
+                                dragSnapJob = null
                                 velocityStretchInput = 0f
                             }
                         }
