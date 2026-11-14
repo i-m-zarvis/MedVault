@@ -717,20 +717,26 @@ fun MedVaultBottomBar(
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
                     }
                     .clip(RoundedCornerShape(50))
-                    .background(
-                        androidx.compose.ui.graphics.lerp(
-                            Color.Black.copy(alpha = 0.45f),
-                            Color.White.copy(alpha = 0.05f),
-                            dropletProgress
-                        )
-                    )
-                    .border(
-                        0.75.dp,
-                        Color.White.copy(alpha = 0.12f * (1f - dropletProgress)),
-                        RoundedCornerShape(50)
-                    )
             ) {
                 Canvas(Modifier.fillMaxSize()) {
+                    val fillCorner = CornerRadius(size.height / 2f, size.height / 2f)
+                    drawRoundRect(
+                        color = androidx.compose.ui.graphics.lerp(
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.White.copy(alpha = 0.05f),
+                            effectiveDropletProgress
+                        ),
+                        topLeft = Offset.Zero,
+                        size = size,
+                        cornerRadius = fillCorner
+                    )
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.12f * (1f - effectiveDropletProgress)),
+                        topLeft = Offset(0.375.dp.toPx(), 0.375.dp.toPx()),
+                        size = androidx.compose.ui.geometry.Size(size.width - 0.75.dp.toPx(), size.height - 0.75.dp.toPx()),
+                        cornerRadius = CornerRadius((size.height - 0.75.dp.toPx()) / 2f, (size.height - 0.75.dp.toPx()) / 2f),
+                        style = Stroke(0.75.dp.toPx())
+                    )
                     if (effectiveDropletProgress > 0.01f) {
                         val progress = effectiveDropletProgress
                         val stroke = 1.5.dp.toPx()
