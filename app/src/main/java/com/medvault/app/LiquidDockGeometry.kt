@@ -6,13 +6,13 @@ internal object LiquidDockGeometryEngine {
  fun calculate(dockWidthPx:Float,contentWidthPx:Float,dockHeightPx:Float,requestedCenterX:Float,progress:Float,velocityX:Float,horizontalInsetPx:Float,restingHeightPx:Float):DockGeometryFrame{
   val slot=(contentWidthPx/4f).coerceAtLeast(1f);val p=progress.coerceIn(0f,1f);val d=LiquidMotionPhysics.deformation(velocityX)
   val idleH=restingHeightPx.coerceAtMost(dockHeightPx);val idleW=(slot*0.84f).coerceAtLeast(idleH*1.58f)
-  val lensH=(dockHeightPx*0.78f).coerceAtMost(dockHeightPx*0.82f);val lensW=slot*1.28f
+  val lensH=dockHeightPx*1.15f;val lensW=slot*1.15f
   val baseH=idleH+(lensH-idleH)*p;val baseW=idleW+(lensW-idleW)*p
   val wantedW=baseW*(1f+d.horizontalStretch*p);val height=baseH*(1f-d.verticalCompression*p)
   val width=min(wantedW,(dockWidthPx-horizontalInsetPx*2f).coerceAtLeast(1f))
   val minX=horizontalInsetPx+width/2f;val maxX=(dockWidthPx-horizontalInsetPx-width/2f).coerceAtLeast(minX)
   val center=requestedCenterX.coerceIn(minX,maxX)
   val active=(0..3).minByOrNull{abs(center-(horizontalInsetPx+slot*(it+0.5f)))}?:0
-  return DockGeometryFrame(slot,width,height,center,dockHeightPx/2f,active)
+  return DockGeometryFrame(slot,width,height,center,dockHeightPx*1.15f/2f,active)
  }
 }
