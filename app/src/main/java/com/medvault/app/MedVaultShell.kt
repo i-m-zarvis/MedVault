@@ -570,11 +570,11 @@ fun MedVaultBottomBarHost(
                 Modifier.fillMaxWidth().height(dockHeight + 24.dp + bottomInset),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile, compact)
+                MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, compact)
             }
         }
     } else {
-        MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile, compact)
+        MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, compact)
     }
 }
 
@@ -585,17 +585,15 @@ fun MedVaultBottomBar(
     onVideos: () -> Unit,
     onQBank: () -> Unit,
     onOffline: () -> Unit,
-    onProfile: () -> Unit,
     compact: Boolean = false
 ) {
     val items = listOf(
         Triple("home", "Home", Icons.Default.Home),
         Triple("videos", "Lectures", Icons.Default.PlayCircle),
         Triple("qbank", "QBank", Icons.Default.MenuBook),
-        Triple("offline", "Offline", Icons.Default.Download),
-        Triple("profile", "Profile", Icons.Default.Person)
+        Triple("offline", "Offline", Icons.Default.Download)
     )
-    val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
+    val actions = listOf(onHome, onVideos, onQBank, onOffline)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
     val latestActions by rememberUpdatedState(actions)
     val hapticView = LocalView.current
