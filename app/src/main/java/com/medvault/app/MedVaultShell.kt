@@ -524,7 +524,7 @@ fun MedVaultBottomBarHost(
 ) {
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val dockHeight = if (compact) 54.dp else 66.dp
+    val dockHeight = if (compact) 50.dp else 62.dp
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val windowHeightPx = with(density) { (dockHeight + 24.dp + bottomInset).roundToPx() }
 
@@ -602,9 +602,9 @@ fun MedVaultBottomBar(
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
-    val dockHeight = if (compact) 54.dp else 66.dp
+    val dockHeight = if (compact) 50.dp else 62.dp
     val dockInnerPadding = 5.dp
-    val innerPaddingPx = with(density) { dockInnerPadding.toPx() }
+    val horizontalInsetPx = with(density) { dockInnerPadding.toPx() }
     val dockShape = RoundedCornerShape(50)
 
     var dockWidthPx by remember { mutableIntStateOf(0) }
@@ -615,17 +615,16 @@ fun MedVaultBottomBar(
     var isIndicatorAnimating by remember { mutableStateOf(false) }
     var optimisticSelectedIndex by remember { mutableIntStateOf(selectedIndex) }
     var velocityStretchInput by remember { mutableFloatStateOf(0f) }
-    var dragSnapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-    // The sole source of truth for the indicator's horizontal position.
+    // The only horizontal position state used by drawing, magnification and gestures.
     val indicatorCenterX = remember { Animatable(0f) }
     val tabSlotWidthPx = rowWidthPx / items.size.toFloat()
     fun tabCenterX(index: Int): Float =
-        innerPaddingPx + tabSlotWidthPx * (index + 0.5f)
+        horizontalInsetPx + tabSlotWidthPx * (index + 0.5f)
 
     val dropletTarget = when {
         isPressed || isDragging -> 1f
-        isIndicatorAnimating -> 0.65f
+        isIndicatorAnimating || indicatorCenterX.isRunning -> 0.65f
         else -> 0f
     }
     val dropletProgress by animateFloatAsState(
@@ -638,27 +637,28 @@ fun MedVaultBottomBar(
         label = "dockDropletProgress"
     )
     val smoothedVelocityStretch by animateFloatAsState(
-        targetValue = ((kotlin.math.abs(velocityStretchInput) / 9000f) * 0.18f).coerceIn(0f, 0.18f),
+        targetValue = (kotlin.math.abs(velocityStretchInput) / 9000f * 0.18f).coerceIn(0f, 0.18f),
         animationSpec = spring(dampingRatio = 0.95f, stiffness = 600f),
         label = "dockVelocityStretch"
     )
 
-    LaunchedEffect(dockWidthPx, rowWidthPx, selectedIndex) {
+    LaunchedEffect(selectedIndex, dockWidthPx, rowWidthPx) {
         if (dockWidthPx > 0 && rowWidthPx > 0) {
             val target = tabCenterX(selectedIndex)
             if (!centerInitialized) {
                 indicatorCenterX.snapTo(target)
                 centerInitialized = true
-            } else if (!isDragging && kotlin.math.abs(indicatorCenterX.targetValue - target) >= 1f) {
-                isIndicatorAnimating = true
-                try {
-                    indicatorCenterX.animateTo(
-                        target,
-                        animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
-                    )
-                } finally {
-                    isIndicatorAnimating = false
-                }
+                optimisticSelectedIndex = selectedIndex
+            } else if (
+                !isDragging &&
+                !isIndicatorAnimating &&
+                kotlin.math.abs(indicatorCenterX.targetValue - target) >= 1f
+            ) {
+                indicatorCenterX.animateTo(
+                    target,
+                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
+                )
+                optimisticSelectedIndex = selectedIndex
             }
         }
     }
@@ -672,51 +672,53 @@ fun MedVaultBottomBar(
             .onSizeChanged { dockWidthPx = it.width },
         contentAlignment = Alignment.Center
     ) {
-        // Do not clip this container: the active lens is allowed to bulge vertically.
+        // The outer overlay remains unclipped so only the vertical lens bulge can escape.
         Box(Modifier.fillMaxSize()) {
-            Canvas(
+            Box(
                 Modifier
                     .fillMaxSize()
                     .shadow(16.dp, dockShape, clip = false)
-            ) {
-                val radius = size.height / 2f
-                drawRoundRect(
-                    color = Color(0xFF141418).copy(alpha = 0.68f),
-                    cornerRadius = CornerRadius(radius, radius)
-                )
-                drawRoundRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.40f),
-                            Color.White.copy(alpha = 0.08f)
+                    .clip(dockShape)
+                    .background(Color(0xFF141418).copy(alpha = 0.68f))
+                    .border(
+                        androidx.compose.foundation.BorderStroke(
+                            1.25.dp,
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.08f)
+                                ),
+                                start = Offset.Zero,
+                                end = Offset(dockWidthPx.toFloat(), with(density) { dockHeight.toPx() })
+                            )
                         ),
-                        start = Offset.Zero,
-                        end = Offset(size.width, size.height)
-                    ),
-                    cornerRadius = CornerRadius(radius, radius),
-                    style = Stroke(1.25.dp.toPx())
-                )
-            }
+                        dockShape
+                    )
+            )
 
             Canvas(Modifier.fillMaxSize()) {
                 val progress = dropletProgress
-                val slotWidth = rowWidthPx / items.size.toFloat()
-                val basePillWidth = slotWidth + 6.dp.toPx()
-                val basePillHeight = size.height - 10.dp.toPx()
-                val widthMultiplier = 1f + ((1.18f + smoothedVelocityStretch) - 1f) * progress
-                val heightMultiplier = 1f + 0.25f * progress
-                val currentWidth = basePillWidth * widthMultiplier
-                val currentHeight = basePillHeight * heightMultiplier
-                val minCenterX = innerPaddingPx + currentWidth / 2f
-                val maxCenterX = size.width - innerPaddingPx - currentWidth / 2f
+                val tabSlotWidth = rowWidthPx / items.size.toFloat()
+                val basePillHeight = with(density) {
+                    (if (compact) 38.dp else 46.dp).toPx()
+                }
+                val basePillWidth = maxOf(
+                    tabSlotWidth * 1.18f,
+                    basePillHeight * 1.62f
+                )
+                val currentHeight = basePillHeight * (1f + 0.36f * progress)
+                val currentWidth = basePillWidth *
+                    (1f + (0.28f + smoothedVelocityStretch) * progress)
+                val minCenterX = horizontalInsetPx + currentWidth / 2f
+                val maxCenterX = size.width - horizontalInsetPx - currentWidth / 2f
                 val drawCenterX = indicatorCenterX.value.coerceIn(minCenterX, maxCenterX)
                 val drawCenterY = size.height / 2f
-                val pillTopLeft = Offset(
+                val topLeft = Offset(
                     drawCenterX - currentWidth / 2f,
                     drawCenterY - currentHeight / 2f
                 )
                 val pillSize = androidx.compose.ui.geometry.Size(currentWidth, currentHeight)
-                val corner = CornerRadius(currentHeight / 2f, currentHeight / 2f)
+                val capsuleCorner = CornerRadius(currentHeight / 2f, currentHeight / 2f)
 
                 drawRoundRect(
                     color = androidx.compose.ui.graphics.lerp(
@@ -724,23 +726,22 @@ fun MedVaultBottomBar(
                         Color.White.copy(alpha = 0.05f),
                         progress
                     ),
-                    topLeft = pillTopLeft,
+                    topLeft = topLeft,
                     size = pillSize,
-                    cornerRadius = corner
+                    cornerRadius = capsuleCorner
                 )
 
-                if (progress <= 0.01f) {
+                if (progress <= 0.001f) {
+                    val inset = 0.375.dp.toPx()
+                    val idleHeight = currentHeight - inset * 2f
                     drawRoundRect(
                         color = Color.White.copy(alpha = 0.12f),
-                        topLeft = Offset(pillTopLeft.x + 0.375.dp.toPx(), pillTopLeft.y + 0.375.dp.toPx()),
+                        topLeft = Offset(topLeft.x + inset, topLeft.y + inset),
                         size = androidx.compose.ui.geometry.Size(
-                            currentWidth - 0.75.dp.toPx(),
-                            currentHeight - 0.75.dp.toPx()
+                            currentWidth - inset * 2f,
+                            currentHeight - inset * 2f
                         ),
-                        cornerRadius = CornerRadius(
-                            (currentHeight - 0.75.dp.toPx()) / 2f,
-                            (currentHeight - 0.75.dp.toPx()) / 2f
-                        ),
+                        cornerRadius = CornerRadius(idleHeight / 2f, idleHeight / 2f),
                         style = Stroke(0.75.dp.toPx())
                     )
                 } else {
@@ -758,27 +759,24 @@ fun MedVaultBottomBar(
                     )
                     drawRoundRect(
                         brush = chromaticBrush,
-                        topLeft = pillTopLeft,
+                        topLeft = topLeft,
                         size = pillSize,
-                        cornerRadius = corner,
+                        cornerRadius = capsuleCorner,
                         style = Stroke(2.2.dp.toPx())
                     )
 
                     val crescentInset = 1.5.dp.toPx()
-                    val crescentSize = androidx.compose.ui.geometry.Size(
-                        (currentWidth - crescentInset * 2f).coerceAtLeast(0f),
-                        (currentHeight - crescentInset * 2f).coerceAtLeast(0f)
-                    )
+                    val crescentHeight = (currentHeight - crescentInset * 2f).coerceAtLeast(0f)
                     drawArc(
                         color = Color.White.copy(alpha = 0.70f * progress),
                         startAngle = 200f,
                         sweepAngle = 140f,
                         useCenter = false,
-                        topLeft = Offset(
-                            pillTopLeft.x + crescentInset,
-                            pillTopLeft.y + crescentInset
+                        topLeft = Offset(topLeft.x + crescentInset, topLeft.y + crescentInset),
+                        size = androidx.compose.ui.geometry.Size(
+                            (currentWidth - crescentInset * 2f).coerceAtLeast(0f),
+                            crescentHeight
                         ),
-                        size = crescentSize,
                         style = Stroke(1.dp.toPx())
                     )
                 }
@@ -795,10 +793,12 @@ fun MedVaultBottomBar(
                             val tracker = VelocityTracker()
                             tracker.resetTracking()
                             tracker.addPosition(down.uptimeMillis, down.position)
+
                             val startX = down.position.x
                             var releaseX = startX
                             var crossedSlop = false
                             var releasedNormally = false
+                            var pendingDragSnap: kotlinx.coroutines.Job? = null
 
                             isPressed = true
                             isDragging = false
@@ -817,23 +817,21 @@ fun MedVaultBottomBar(
                                     }
 
                                     val fingerX = change.position.x
-                                    if (!crossedSlop && kotlin.math.abs(fingerX - startX) > viewConfiguration.touchSlop) {
+                                    if (!crossedSlop &&
+                                        kotlin.math.abs(fingerX - startX) > viewConfiguration.touchSlop
+                                    ) {
                                         crossedSlop = true
                                         isDragging = true
-                                        // The indicator follows the finger only after touch slop is crossed.
-                                        dragSnapJob?.cancel()
-                                        dragSnapJob = scope.launch {
-                                            indicatorCenterX.snapTo(fingerX + innerPaddingPx)
-                                        }
                                     }
+
                                     if (crossedSlop) {
                                         change.consume()
-                                        dragSnapJob?.cancel()
-                                        dragSnapJob = scope.launch {
-                                            indicatorCenterX.snapTo(fingerX + innerPaddingPx)
+                                        pendingDragSnap?.cancel()
+                                        val position = fingerX + horizontalInsetPx
+                                        pendingDragSnap = scope.launch {
+                                            indicatorCenterX.snapTo(position)
                                         }
-                                        val currentVelocity = tracker.calculateVelocity().x
-                                        velocityStretchInput = currentVelocity
+                                        velocityStretchInput = tracker.calculateVelocity().x
                                     }
                                 }
                             } finally {
@@ -842,32 +840,35 @@ fun MedVaultBottomBar(
                             }
 
                             if (releasedNormally) {
-                                val targetTabIndex = ((releaseX / size.width.toFloat().coerceAtLeast(1f)) * items.size)
-                                    .toInt().coerceIn(items.indices)
-                                if (!crossedSlop) {
-                                    MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
-                                } else {
-                                    MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.DETENT)
-                                }
+                                val targetTabIndex = (
+                                    releaseX / size.width.toFloat().coerceAtLeast(1f) * items.size
+                                ).toInt().coerceIn(items.indices)
+                                val targetX = horizontalInsetPx +
+                                    size.width / items.size.toFloat() * (targetTabIndex + 0.5f)
+
+                                MedVaultHaptics.perform(
+                                    hapticView,
+                                    if (crossedSlop) MedVaultHaptics.Kind.DETENT else MedVaultHaptics.Kind.LIGHT
+                                )
                                 optimisticSelectedIndex = targetTabIndex
-                                latestActions[targetTabIndex]()
-                                val targetX = innerPaddingPx + (size.width / items.size.toFloat()) * (targetTabIndex + 0.5f)
-                                val releaseVelocity = tracker.calculateVelocity().x
-                                velocityStretchInput = releaseVelocity
                                 isIndicatorAnimating = true
-                                val finalDragSnap = dragSnapJob
-                                dragSnapJob = null
+                                latestActions[targetTabIndex]()
+
+                                val finalDragSnap = pendingDragSnap
+                                pendingDragSnap = null
+                                val releasePosition = releaseX + horizontalInsetPx
                                 scope.launch {
                                     try {
-                                        // Let the last finger-follow update finish, then settle from the
-                                        // exact release position rather than an older queued frame.
                                         finalDragSnap?.join()
                                         if (crossedSlop) {
-                                            indicatorCenterX.snapTo(releaseX + innerPaddingPx)
+                                            indicatorCenterX.snapTo(releasePosition)
                                         }
                                         indicatorCenterX.animateTo(
                                             targetX,
-                                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
+                                            animationSpec = spring(
+                                                dampingRatio = 0.86f,
+                                                stiffness = 420f
+                                            )
                                         )
                                     } finally {
                                         isIndicatorAnimating = false
@@ -875,8 +876,7 @@ fun MedVaultBottomBar(
                                     }
                                 }
                             } else {
-                                dragSnapJob?.cancel()
-                                dragSnapJob = null
+                                pendingDragSnap?.cancel()
                                 velocityStretchInput = 0f
                             }
                         }
@@ -885,65 +885,95 @@ fun MedVaultBottomBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEachIndexed { index, item ->
+                    val tabCenter = horizontalInsetPx +
+                        tabSlotWidthPx * (index + 0.5f)
+
                     Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Icon(
                             item.third,
                             contentDescription = item.second,
-                            tint = Color.White.copy(alpha = if (index == optimisticSelectedIndex) 1f else 0.68f),
+                            tint = Color.White,
                             modifier = Modifier
-                                .size(if (compact) 19.dp else 20.dp)
+                                .size(20.dp)
                                 .graphicsLayer {
-                                    val slot = rowWidthPx / items.size.toFloat()
-                                    val tabCenter = innerPaddingPx + slot * (index + 0.5f)
-                                    val baseWidth = slot + 6.dp.toPx()
-                                    val width = baseWidth * (1f + ((1.18f + smoothedVelocityStretch) - 1f) * dropletProgress)
-                                    val minCenter = innerPaddingPx + width / 2f
-                                    val maxCenter = dockWidthPx - innerPaddingPx - width / 2f
-                                    val liveCenter = indicatorCenterX.value.coerceIn(minCenter, maxCenter)
-                                    val dist = kotlin.math.abs(liveCenter - tabCenter)
-                                    val prox = (1f - (dist / (slot * 0.95f).coerceAtLeast(1f))).coerceIn(0f, 1f)
-                                    val smoothProx = prox * prox * (3f - 2f * prox)
-                                    val zoom = 1f + 0.35f * smoothProx * dropletProgress
-                                    scaleX = zoom
-                                    scaleY = zoom
-                                    translationX = (liveCenter - tabCenter) * 0.14f * smoothProx * dropletProgress
-                                    translationY = -with(density) { 2.5.dp.toPx() } * smoothProx * dropletProgress
+                                    val tabSlotWidth = rowWidthPx / items.size.toFloat()
+                                    val basePillHeight = with(density) {
+                                        (if (compact) 38.dp else 46.dp).toPx()
+                                    }
+                                    val basePillWidth = maxOf(
+                                        tabSlotWidth * 1.18f,
+                                        basePillHeight * 1.62f
+                                    )
+                                    val currentWidth = basePillWidth *
+                                        (1f + (0.28f + smoothedVelocityStretch) * dropletProgress)
+                                    val minCenter = horizontalInsetPx + currentWidth / 2f
+                                    val maxCenter = dockWidthPx - horizontalInsetPx - currentWidth / 2f
+                                    val drawCenterX = indicatorCenterX.value.coerceIn(minCenter, maxCenter)
+                                    val centerX = horizontalInsetPx +
+                                        tabSlotWidth * (index + 0.5f)
+                                    val proximity = (
+                                        1f - (
+                                            kotlin.math.abs(drawCenterX - centerX) /
+                                                (tabSlotWidth * 0.95f).coerceAtLeast(1f)
+                                        )
+                                    ).coerceIn(0f, 1f)
+                                    val smoothProx = proximity * proximity *
+                                        (3f - 2f * proximity)
+                                    val scale = 1f + 0.35f * smoothProx * dropletProgress
+                                    scaleX = scale
+                                    scaleY = scale
+                                    alpha = 0.45f + 0.55f * smoothProx
+                                    translationX = (drawCenterX - centerX) *
+                                        0.14f * smoothProx * dropletProgress
+                                    translationY = -with(density) { 2.5.dp.toPx() } *
+                                        smoothProx * dropletProgress
                                 }
                         )
-                        if (!compact) {
-                            Text(
-                                item.second,
-                                color = Color.White.copy(alpha = if (index == optimisticSelectedIndex) 1f else 0.68f),
-                                fontSize = 10.sp,
-                                fontWeight = if (index == optimisticSelectedIndex) FontWeight.SemiBold else FontWeight.Medium,
-                                maxLines = 1,
-                                modifier = Modifier
-                                    .padding(top = 2.dp)
-                                    .graphicsLayer {
-                                        val slot = rowWidthPx / items.size.toFloat()
-                                        val tabCenter = innerPaddingPx + slot * (index + 0.5f)
-                                        val baseWidth = slot + 6.dp.toPx()
-                                        val width = baseWidth * (1f + ((1.18f + smoothedVelocityStretch) - 1f) * dropletProgress)
-                                        val minCenter = innerPaddingPx + width / 2f
-                                        val maxCenter = dockWidthPx - innerPaddingPx - width / 2f
-                                        val liveCenter = indicatorCenterX.value.coerceIn(minCenter, maxCenter)
-                                        val dist = kotlin.math.abs(liveCenter - tabCenter)
-                                        val prox = (1f - (dist / (slot * 0.95f).coerceAtLeast(1f))).coerceIn(0f, 1f)
-                                        val smoothProx = prox * prox * (3f - 2f * prox)
-                                        val zoom = 1f + 0.14f * smoothProx * dropletProgress
-                                        scaleX = zoom
-                                        scaleY = zoom
-                                        translationX = (liveCenter - tabCenter) * 0.14f * smoothProx * dropletProgress
-                                        translationY = -with(density) { 2.5.dp.toPx() } * smoothProx * dropletProgress
-                                    }
-                            )
-                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            item.second,
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            modifier = Modifier.graphicsLayer {
+                                val tabSlotWidth = rowWidthPx / items.size.toFloat()
+                                val basePillHeight = with(density) {
+                                    (if (compact) 38.dp else 46.dp).toPx()
+                                }
+                                val basePillWidth = maxOf(
+                                    tabSlotWidth * 1.18f,
+                                    basePillHeight * 1.62f
+                                )
+                                val currentWidth = basePillWidth *
+                                    (1f + (0.28f + smoothedVelocityStretch) * dropletProgress)
+                                val minCenter = horizontalInsetPx + currentWidth / 2f
+                                val maxCenter = dockWidthPx - horizontalInsetPx - currentWidth / 2f
+                                val drawCenterX = indicatorCenterX.value.coerceIn(minCenter, maxCenter)
+                                val centerX = horizontalInsetPx +
+                                    tabSlotWidth * (index + 0.5f)
+                                val proximity = (
+                                    1f - (
+                                        kotlin.math.abs(drawCenterX - centerX) /
+                                            (tabSlotWidth * 0.95f).coerceAtLeast(1f)
+                                    )
+                                ).coerceIn(0f, 1f)
+                                val smoothProx = proximity * proximity *
+                                    (3f - 2f * proximity)
+                                val scale = 1f + 0.14f * smoothProx * dropletProgress
+                                scaleX = scale
+                                scaleY = scale
+                                alpha = 0.45f + 0.55f * smoothProx
+                                translationX = (drawCenterX - centerX) *
+                                    0.14f * smoothProx * dropletProgress
+                                translationY = -with(density) { 2.5.dp.toPx() } *
+                                    smoothProx * dropletProgress
+                            }
+                        )
                     }
                 }
             }
