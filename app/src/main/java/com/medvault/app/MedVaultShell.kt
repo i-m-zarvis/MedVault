@@ -601,6 +601,7 @@ fun MedVaultBottomBar(
     var isDragging by remember { mutableStateOf(false) }
     var previewIndex by remember { mutableIntStateOf(selectedIndex) }
     var dragVelocity by remember { mutableFloatStateOf(0f) }
+    var dragCenterPx by remember { mutableFloatStateOf(0f) }
     val lensCenter = remember { Animatable(0f) }
     val dragScope = rememberCoroutineScope()
 
@@ -611,7 +612,7 @@ fun MedVaultBottomBar(
     val minCenter = cellWidthPx * 0.5f
     val maxCenter = dockSize.width - minCenter
     val idleCenter = if (dockSize.width > 0) cellWidthPx * (selectedIndex + 0.5f) else 0f
-    val activeCenter = if (isPressed || isDragging) lensCenter.value else idleCenter
+    val activeCenter = if (isPressed || isDragging) dragCenterPx else idleCenter
     val activeIndex = if (isDragging) previewIndex else selectedIndex
     val velocityAmount = (kotlin.math.abs(dragVelocity) / 6500f).coerceIn(0f, 1f)
     val targetScaleX = if (isPressed || isDragging) 1.18f + velocityAmount * 0.14f else 1f
@@ -807,7 +808,8 @@ fun MedVaultBottomBar(
                             isPressed = true
                             isDragging = false
                             dragVelocity = 0f
-                            lensCenter.snapTo(startX.coerceIn(localMinCenter, localMaxCenter))
+                            dragCenterPx = startX.coerceIn(localMinCenter, localMaxCenter)
+                            dragScope.launch { lensCenter.snapTo(dragCenterPx) }
                             previewIndex = ((startX / size.width.toFloat().coerceAtLeast(1f)) * items.size)
                                 .toInt().coerceIn(items.indices)
 
@@ -829,7 +831,7 @@ fun MedVaultBottomBar(
                                             x > localMaxCenter -> localMaxCenter + (x - localMaxCenter) * 0.22f
                                             else -> x
                                         }
-                                        lensCenter.snapTo(boundedX)
+                                        dragCenterPx = boundedX
                                         val next = ((x / size.width.toFloat().coerceAtLeast(1f)) * items.size)
                                             .toInt().coerceIn(items.indices)
                                         if (next != previewIndex) {
@@ -845,7 +847,7 @@ fun MedVaultBottomBar(
 
                             val velocity = tracker.calculateVelocity().x
                             val commitIndex = if (moved) {
-                                ((lensCenter.value / size.width.toFloat().coerceAtLeast(1f)) * items.size)
+                                ((dragCenterPx / size.width.toFloat().coerceAtLeast(1f)) * items.size)
                                     .toInt().coerceIn(items.indices)
                             } else {
                                 ((startX / size.width.toFloat().coerceAtLeast(1f)) * items.size)
@@ -860,13 +862,15 @@ fun MedVaultBottomBar(
                             previewIndex = commitIndex
                             latestActions[commitIndex]()
                             val targetX = size.width / items.size.toFloat() * (commitIndex + 0.5f)
-                            lensCenter.animateTo(
-                                targetX,
-                                animationSpec = spring(dampingRatio = 0.76f, stiffness = 380f),
-                                initialVelocity = velocity.coerceIn(-5000f, 5000f) * 0.035f
-                            )
-                            previewIndex = latestSelectedIndex
-                            dragVelocity = 0f
+                            dragScope.launch {
+                                lensCenter.animateTo(
+                                    targetX,
+                                    animationSpec = spring(dampingRatio = 0.76f, stiffness = 380f),
+                                    initialVelocity = velocity.coerceIn(-5000f, 5000f) * 0.035f
+                                )
+                                previewIndex = latestSelectedIndex
+                                dragVelocity = 0f
+                            }
                         }
                     },
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -878,7 +882,7 @@ fun MedVaultBottomBar(
                     val normalizedDistance = (distance / (cellWidthPx * 1.35f)).coerceIn(0f, 1f)
                     val proximity = 1f - normalizedDistance
                     val scale = 1f + 0.20f * proximity
-                    val alpha = 0.45f + 0.55f * proximity
+                    val tabAlpha = 0.45f + 0.55f * proximity
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -886,7 +890,7 @@ fun MedVaultBottomBar(
                             .graphicsLayer {
                                 scaleX = scale
                                 scaleY = scale
-                                alpha = alpha
+                                alpha = tabAlpha
                             },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -894,7 +898,7 @@ fun MedVaultBottomBar(
                         Icon(
                             item.third,
                             contentDescription = item.second,
-                            tint = Color.White.copy(alpha = alpha),
+                            tint = Color.White.copy(alpha = tabAlpha),
                             modifier = Modifier.size(23.dp)
                         )
                         AnimatedVisibility(
@@ -904,7 +908,7 @@ fun MedVaultBottomBar(
                         ) {
                             Text(
                                 item.second,
-                                color = Color.White.copy(alpha = alpha),
+                                color = Color.White.copy(alpha = tabAlpha),
                                 fontSize = 9.sp,
                                 fontWeight = if (proximity > 0.78f) FontWeight.SemiBold else FontWeight.Medium,
                                 maxLines = 1,
