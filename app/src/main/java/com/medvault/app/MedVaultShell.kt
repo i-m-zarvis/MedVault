@@ -8,9 +8,9 @@ import androidx.compose.ui.unit.IntSize
 
 import androidx.compose.ui.input.pointer.positionChange
 
-import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitFirstDown
 
-import androidx.compose.ui.input.pointer.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitEachGesture
 
 import androidx.compose.ui.graphics.asComposeRenderEffect
 
@@ -800,12 +800,14 @@ fun MedVaultBottomBar(
                             tracker.resetTracking()
                             tracker.addPosition(down.uptimeMillis, down.position)
                             val startX = down.position.x
-                            var lastX = startX
+                            val localCellWidth = size.width / items.size.toFloat()
+                            val localMinCenter = localCellWidth * 0.5f
+                            val localMaxCenter = size.width - localMinCenter
                             var moved = false
                             isPressed = true
                             isDragging = false
                             dragVelocity = 0f
-                            lensCenter.snapTo(startX.coerceIn(minCenter, maxCenter))
+                            lensCenter.snapTo(startX.coerceIn(localMinCenter, localMaxCenter))
                             previewIndex = ((startX / size.width.toFloat().coerceAtLeast(1f)) * items.size)
                                 .toInt().coerceIn(items.indices)
 
@@ -823,8 +825,8 @@ fun MedVaultBottomBar(
                                     if (moved) {
                                         change.consume()
                                         val boundedX = when {
-                                            x < minCenter -> minCenter + (x - minCenter) * 0.22f
-                                            x > maxCenter -> maxCenter + (x - maxCenter) * 0.22f
+                                            x < localMinCenter -> localMinCenter + (x - localMinCenter) * 0.22f
+                                            x > localMaxCenter -> localMaxCenter + (x - localMaxCenter) * 0.22f
                                             else -> x
                                         }
                                         lensCenter.snapTo(boundedX)
@@ -836,7 +838,6 @@ fun MedVaultBottomBar(
                                         }
                                         dragVelocity = tracker.calculateVelocity().x
                                     }
-                                    lastX = x
                                 } else {
                                     break
                                 }
@@ -866,7 +867,6 @@ fun MedVaultBottomBar(
                             )
                             previewIndex = latestSelectedIndex
                             dragVelocity = 0f
-                            lastX = 0f
                         }
                     },
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
