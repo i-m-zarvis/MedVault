@@ -559,12 +559,12 @@ fun MedVaultBottomBarHost(
                         width = WindowManager.LayoutParams.MATCH_PARENT
                         // Constrain the Android window itself; WRAP_CONTENT can expand the
                         // non-fitting Dialog to the full activity decor and intercept all touches.
-                        height = ((if (compact) 66f else 90f) * context.resources.displayMetrics.density).toInt()
+                        height = ((if (compact) 62f else 74f) * context.resources.displayMetrics.density).toInt()
                         dimAmount = if (blurEnabled) 0.10f else 0f
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().height(if (compact) 66.dp else 90.dp).padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(if (compact) 62.dp else 74.dp).padding(bottom = 4.dp), contentAlignment = Alignment.Center) {
                 MedVaultBottomBar(selected, onHome, onVideos, onQBank, onOffline, onProfile, compact)
             }
         }
@@ -605,37 +605,36 @@ fun MedVaultBottomBar(
     val lensCenter = remember { Animatable(0f) }
     val dragScope = rememberCoroutineScope()
 
-    val barHeight = if (compact) 54.dp else 72.dp
-    val outerHeight = if (compact) 66.dp else 90.dp
+    val barHeight = if (compact) 48.dp else 56.dp
+    val outerHeight = if (compact) 62.dp else 74.dp
     val density = androidx.compose.ui.platform.LocalDensity.current
     val cellWidthPx = dockSize.width / items.size.toFloat()
-    val minCenter = cellWidthPx * 0.5f
-    val maxCenter = dockSize.width - minCenter
+    val localMinCenter = cellWidthPx * 0.5f
+    val localMaxCenter = dockSize.width - localMinCenter
     val idleCenter = if (dockSize.width > 0) cellWidthPx * (selectedIndex + 0.5f) else 0f
     val activeCenter = if (isPressed || isDragging) dragCenterPx else idleCenter
     val activeIndex = if (isDragging) previewIndex else selectedIndex
+    val dropletProgress by animateFloatAsState(
+        targetValue = if (isPressed || isDragging) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
+        label = "dockDropletProgress"
+    )
     val velocityAmount = (kotlin.math.abs(dragVelocity) / 6500f).coerceIn(0f, 1f)
-    val targetScaleX = if (isPressed || isDragging) 1.18f + velocityAmount * 0.14f else 1f
-    val targetScaleY = if (isPressed || isDragging) 1.26f - velocityAmount * 0.12f else 1f
     val lensScaleX by animateFloatAsState(
-        targetValue = targetScaleX,
+        targetValue = if (dropletProgress > 0f) 1.25f + velocityAmount * 0.07f else 1f,
         animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
         label = "dockDropletScaleX"
     )
     val lensScaleY by animateFloatAsState(
-        targetValue = targetScaleY,
+        targetValue = if (dropletProgress > 0f) 1.22f - velocityAmount * 0.08f else 1f,
         animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
         label = "dockDropletScaleY"
-    )
-    val lensProgress by animateFloatAsState(
-        targetValue = if (isPressed || isDragging) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
-        label = "dockDropletProgress"
     )
 
     LaunchedEffect(dockSize, selectedIndex) {
         if (dockSize.width > 0 && !isDragging && !isPressed) {
             lensCenter.snapTo(idleCenter)
+            dragCenterPx = idleCenter
         }
     }
 
@@ -646,15 +645,16 @@ fun MedVaultBottomBar(
         uniform float2 lensRadius;
         uniform float lensProgress;
         half4 main(float2 coord) {
-            float2 p = (coord - lensCenter) / max(lensRadius, float2(1.0, 1.0));
+            float2 safeRadius = max(lensRadius, float2(1.0, 1.0));
+            float2 p = (coord - lensCenter) / safeRadius;
             float r = length(p);
             if (r < 1.0 && lensProgress > 0.001) {
                 float core = 1.0 - smoothstep(0.0, 1.0, r);
                 float magnification = 1.0 + 0.20 * lensProgress * core;
-                float2 warped = lensCenter + (coord - lensCenter) / magnification;
-                float edge = smoothstep(0.55, 1.0, r) * lensProgress;
+                float edge = smoothstep(0.58, 1.0, r) * lensProgress;
                 float2 direction = normalize(p + float2(0.0001, 0.0001));
-                warped -= direction * edge * 2.2;
+                float2 warped = lensCenter + (coord - lensCenter) / magnification;
+                warped -= direction * edge * 2.8;
                 return content.eval(warped);
             }
             return content.eval(coord);
@@ -675,19 +675,24 @@ fun MedVaultBottomBar(
             .fillMaxWidth()
             .height(outerHeight)
             .background(Color.Transparent)
-            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 9.dp),
+            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         BoxWithConstraints(
             modifier = Modifier.fillMaxWidth().height(barHeight)
         ) {
-            val lensWidth = maxWidth / items.size
-            val lensHeight = barHeight - 8.dp
-            val lensCenterDp = with(density) { activeCenter.toDp() }
-            val lensOffsetX = lensCenterDp - lensWidth / 2f
+            val tabSlotWidth = maxWidth / items.size
+            val idleIndicatorWidth = (tabSlotWidth + 6.dp).coerceAtMost(maxWidth / items.size * 1.18f)
+            val activeIndicatorWidth = tabSlotWidth * 1.45f
+            val indicatorWidth = idleIndicatorWidth + (activeIndicatorWidth - idleIndicatorWidth) * dropletProgress
+            val idleIndicatorHeight = barHeight - 10.dp
+            val activeIndicatorHeight = barHeight + 12.dp
+            val indicatorHeight = idleIndicatorHeight + (activeIndicatorHeight - idleIndicatorHeight) * dropletProgress
+            val centerDp = with(density) { activeCenter.toDp() }
+            val leftLimit = 0.dp
+            val rightLimit = maxWidth - indicatorWidth
+            val indicatorOffset = (centerDp - indicatorWidth / 2f).coerceIn(leftLimit, rightLimit)
 
-            // The pill backdrop clips independently; the droplet is a sibling layer
-            // so its pressed-state bulge can extend beyond the pill without clipping.
             Box(
                 Modifier
                     .fillMaxSize()
@@ -697,79 +702,108 @@ fun MedVaultBottomBar(
 
             Box(
                 modifier = Modifier
-                    .offset(x = lensOffsetX, y = 4.dp)
-                    .width(lensWidth)
-                    .height(lensHeight)
+                    .offset(x = indicatorOffset, y = (barHeight - indicatorHeight) / 2f)
+                    .width(indicatorWidth)
+                    .height(indicatorHeight)
                     .graphicsLayer {
-                        scaleX = lensScaleX
-                        scaleY = lensScaleY
+                        scaleX = 1f + (lensScaleX - 1f) * dropletProgress
+                        scaleY = 1f + (lensScaleY - 1f) * dropletProgress
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
                     }
                     .clip(RoundedCornerShape(50))
                     .background(
-                        if (lensProgress < 0.01f) Color.Black.copy(alpha = 0.45f)
-                        else Color.Black.copy(alpha = 0.45f * (1f - lensProgress) + 0.03f * lensProgress)
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.45f * (1f - dropletProgress)) +
+                                    Color.White.copy(alpha = 0.05f * dropletProgress),
+                                Color.Black.copy(alpha = 0.45f * (1f - dropletProgress)) +
+                                    Color.White.copy(alpha = 0.05f * dropletProgress)
+                            )
+                        )
                     )
                     .border(
                         0.75.dp,
-                        Color.White.copy(alpha = if (lensProgress < 0.01f) 0.12f else 0.12f * (1f - lensProgress)),
+                        Color.White.copy(alpha = 0.12f * (1f - dropletProgress)),
                         RoundedCornerShape(50)
                     )
             ) {
                 Canvas(Modifier.fillMaxSize()) {
-                    val stroke = 3.5.dp.toPx()
-                    val inset = stroke / 2f
-                    val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
-                    val arcTopLeft = Offset(inset, inset)
-                    if (lensProgress > 0.01f) {
+                    if (dropletProgress > 0.01f) {
+                        val progress = dropletProgress
+                        val stroke = 1.5.dp.toPx()
+                        val inset = stroke / 2f
+                        val ovalSize = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                        val topLeft = Offset(inset, inset)
+                        val fadeMask = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0f to Color.White,
+                                0.28f to Color.White.copy(alpha = 0.12f),
+                                0.50f to Color.Transparent,
+                                0.72f to Color.White.copy(alpha = 0.12f),
+                                1f to Color.White
+                            )
+                        )
+                        // Directional dispersion: colour lives on horizontal top/bottom curves;
+                        // the end caps remain clean and optically neutral.
                         drawArc(
-                            color = Color(0xFF00E5FF).copy(alpha = 0.90f * lensProgress),
-                            startAngle = 188f,
-                            sweepAngle = 92f,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF00E5FF).copy(alpha = 0.55f * progress),
+                                    Color.Transparent,
+                                    Color(0xFFFF6D00).copy(alpha = 0.55f * progress)
+                                )
+                            ),
+                            startAngle = 190f,
+                            sweepAngle = 160f,
                             useCenter = false,
-                            topLeft = arcTopLeft,
-                            size = arcSize,
+                            topLeft = topLeft,
+                            size = ovalSize,
                             style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
                             blendMode = BlendMode.Screen
                         )
                         drawArc(
-                            color = Color(0xFFFF2A85).copy(alpha = 0.78f * lensProgress),
-                            startAngle = 285f,
-                            sweepAngle = 150f,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFFFF6D00).copy(alpha = 0.55f * progress),
+                                    Color.Transparent,
+                                    Color(0xFF00E5FF).copy(alpha = 0.55f * progress)
+                                )
+                            ),
+                            startAngle = 10f,
+                            sweepAngle = 160f,
                             useCenter = false,
-                            topLeft = arcTopLeft,
-                            size = arcSize,
-                            style = Stroke(stroke * 0.78f, cap = androidx.compose.ui.graphics.StrokeCap.Round),
-                            blendMode = BlendMode.Screen
-                        )
-                        drawArc(
-                            color = Color(0xFFFFAB00).copy(alpha = 0.84f * lensProgress),
-                            startAngle = 55f,
-                            sweepAngle = 100f,
-                            useCenter = false,
-                            topLeft = arcTopLeft,
-                            size = arcSize,
+                            topLeft = topLeft,
+                            size = ovalSize,
                             style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
                             blendMode = BlendMode.Screen
                         )
+                        // White bevel glints remain concentrated near the curved ends.
                         drawArc(
-                            color = Color.White.copy(alpha = 0.78f * lensProgress),
+                            color = Color.White.copy(alpha = 0.75f * progress),
                             startAngle = 205f,
-                            sweepAngle = 125f,
+                            sweepAngle = 58f,
                             useCenter = false,
-                            topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
-                            style = Stroke(1.15.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            topLeft = Offset(1.5.dp.toPx(), 1.5.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 3.dp.toPx(), size.height - 3.dp.toPx()),
+                            style = Stroke(1.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
                         )
                         drawArc(
-                            color = Color(0xFF8BEAFF).copy(alpha = 0.34f * lensProgress),
-                            startAngle = 28f,
+                            color = Color.White.copy(alpha = 0.75f * progress),
+                            startAngle = 27f,
+                            sweepAngle = 58f,
+                            useCenter = false,
+                            topLeft = Offset(1.5.dp.toPx(), 1.5.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 3.dp.toPx(), size.height - 3.dp.toPx()),
+                            style = Stroke(1.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        )
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.38f * progress),
+                            startAngle = 210f,
                             sweepAngle = 120f,
                             useCenter = false,
-                            topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
-                            style = Stroke(2.2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
-                            blendMode = BlendMode.Plus
+                            topLeft = Offset(3.dp.toPx(), 3.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx()),
+                            style = Stroke(0.7.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
                         )
                     }
                 }
@@ -778,17 +812,16 @@ fun MedVaultBottomBar(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 0.dp)
                     .onSizeChanged { dockSize = it }
                     .then(
                         if (androidShaderEffect != null && runtimeShader != null && Build.VERSION.SDK_INT >= 33) {
                             val centerX = activeCenter
                             val centerY = dockSize.height / 2f
-                            val radiusX = with(density) { (lensWidth * lensScaleX / 2f).toPx() }
-                            val radiusY = with(density) { (lensHeight * lensScaleY / 2f).toPx() }
+                            val radiusX = with(density) { (indicatorWidth * lensScaleX / 2f).toPx() }
+                            val radiusY = with(density) { (indicatorHeight * lensScaleY / 2f).toPx() }
                             runtimeShader.setFloatUniform("lensCenter", centerX, centerY)
                             runtimeShader.setFloatUniform("lensRadius", radiusX, radiusY)
-                            runtimeShader.setFloatUniform("lensProgress", lensProgress)
+                            runtimeShader.setFloatUniform("lensProgress", dropletProgress)
                             Modifier.graphicsLayer {
                                 renderEffect = androidShaderEffect.asComposeRenderEffect()
                             }
@@ -899,7 +932,7 @@ fun MedVaultBottomBar(
                             item.third,
                             contentDescription = item.second,
                             tint = Color.White.copy(alpha = tabAlpha),
-                            modifier = Modifier.size(23.dp)
+                            modifier = Modifier.size(if (compact) 19.dp else 20.dp)
                         )
                         AnimatedVisibility(
                             visible = !compact,
@@ -909,10 +942,10 @@ fun MedVaultBottomBar(
                             Text(
                                 item.second,
                                 color = Color.White.copy(alpha = tabAlpha),
-                                fontSize = 9.sp,
+                                fontSize = 10.sp,
                                 fontWeight = if (proximity > 0.78f) FontWeight.SemiBold else FontWeight.Medium,
                                 maxLines = 1,
-                                modifier = Modifier.padding(top = 4.dp)
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                         }
                     }
