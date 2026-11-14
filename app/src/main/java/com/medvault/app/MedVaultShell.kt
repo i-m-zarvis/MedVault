@@ -712,13 +712,10 @@ fun MedVaultBottomBar(
                     }
                     .clip(RoundedCornerShape(50))
                     .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.Black.copy(alpha = 0.45f * (1f - dropletProgress)) +
-                                    Color.White.copy(alpha = 0.05f * dropletProgress),
-                                Color.Black.copy(alpha = 0.45f * (1f - dropletProgress)) +
-                                    Color.White.copy(alpha = 0.05f * dropletProgress)
-                            )
+                        androidx.compose.ui.graphics.lerp(
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.White.copy(alpha = 0.05f),
+                            dropletProgress
                         )
                     )
                     .border(
