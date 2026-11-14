@@ -615,6 +615,7 @@ fun MedVaultBottomBar(
     var isIndicatorAnimating by remember { mutableStateOf(false) }
     var optimisticSelectedIndex by remember { mutableIntStateOf(selectedIndex) }
     var velocityStretchInput by remember { mutableFloatStateOf(0f) }
+    var dragSnapJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     // The sole source of truth for the indicator's horizontal position.
     val indicatorCenterX = remember { Animatable(0f) }
@@ -820,16 +821,24 @@ fun MedVaultBottomBar(
                                         crossedSlop = true
                                         isDragging = true
                                         // The indicator follows the finger only after touch slop is crossed.
-                                        indicatorCenterX.snapTo(fingerX + innerPaddingPx)
+                                        dragSnapJob?.cancel()
+                                        dragSnapJob = scope.launch {
+                                            indicatorCenterX.snapTo(fingerX + innerPaddingPx)
+                                        }
                                     }
                                     if (crossedSlop) {
                                         change.consume()
-                                        indicatorCenterX.snapTo(fingerX + innerPaddingPx)
+                                        dragSnapJob?.cancel()
+                                        dragSnapJob = scope.launch {
+                                            indicatorCenterX.snapTo(fingerX + innerPaddingPx)
+                                        }
                                         val currentVelocity = tracker.calculateVelocity().x
                                         velocityStretchInput = currentVelocity
                                     }
                                 }
                             } finally {
+                                dragSnapJob?.cancel()
+                                dragSnapJob = null
                                 isPressed = false
                                 isDragging = false
                             }
