@@ -513,6 +513,67 @@ private fun HomeEditorialCard(
  * If the system disables cross-window blur, the existing glass surface remains
  * readable and functional without blur.
  */
+private data class LiquidDockGeometry(
+    val slotWidthPx: Float,
+    val widthPx: Float,
+    val heightPx: Float,
+    val centerX: Float,
+    val centerY: Float
+) {
+    val topLeft: Offset
+        get() = Offset(centerX - widthPx / 2f, centerY - heightPx / 2f)
+    val cornerRadius: CornerRadius
+        get() = CornerRadius(heightPx / 2f, heightPx / 2f)
+    val size: androidx.compose.ui.geometry.Size
+        get() = androidx.compose.ui.geometry.Size(widthPx, heightPx)
+}
+
+/**
+ * One geometry function is shared by the Canvas and tab graphics layers.
+ * The indicator is sized relative to a tab slot, never to the whole dock.
+ */
+private fun calculateLiquidDockGeometry(
+    dockWidthPx: Float,
+    rowWidthPx: Float,
+    dockHeightPx: Float,
+    requestedBaseHeightPx: Float,
+    horizontalInsetPx: Float,
+    requestedCenterX: Float,
+    progress: Float,
+    velocityStretch: Float
+): LiquidDockGeometry {
+    val slotWidth = (rowWidthPx / 4f).coerceAtLeast(1f)
+
+    // Preserve the stadium aspect ratio while respecting narrow device widths.
+    val maximumBaseHeight = (slotWidth * 0.86f) / 1.58f
+    val baseHeight = requestedBaseHeightPx.coerceAtMost(maximumBaseHeight)
+    val baseWidth = minOf(
+        maxOf(baseHeight * 1.58f, slotWidth * 0.76f),
+        slotWidth * 0.86f
+    )
+
+    // Idle is a compact recessed capsule. The active lens grows, but remains
+    // inside its own tab slot so it cannot collide with its neighbours.
+    val currentHeight = baseHeight * (1f + 0.28f * progress)
+    val currentWidth = minOf(
+        baseWidth * (1f + (0.16f + velocityStretch) * progress),
+        slotWidth * 0.96f
+    )
+
+    val minCenterX = horizontalInsetPx + currentWidth / 2f
+    val maxCenterX = (dockWidthPx - horizontalInsetPx - currentWidth / 2f)
+        .coerceAtLeast(minCenterX)
+    val drawCenterX = requestedCenterX.coerceIn(minCenterX, maxCenterX)
+
+    return LiquidDockGeometry(
+        slotWidthPx = slotWidth,
+        widthPx = currentWidth,
+        heightPx = currentHeight,
+        centerX = drawCenterX,
+        centerY = dockHeightPx / 2f
+    )
+}
+
 @Composable
 fun MedVaultBottomBarHost(
     selected: String,
@@ -545,28 +606,32 @@ fun MedVaultBottomBarHost(
                     window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
                     window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
                     window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+
                     val blurEnabled = context
                         .getSystemService(WindowManager::class.java)
                         ?.isCrossWindowBlurEnabled == true
+
                     if (blurEnabled) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-                        window.setBackgroundBlurRadius(40)
-                        window.setDimAmount(0.10f)
+                        window.setBackgroundBlurRadius(48)
+                        window.setDimAmount(0.06f)
                     } else {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                         window.setBackgroundBlurRadius(0)
                         window.setDimAmount(0f)
                     }
+
                     window.attributes = window.attributes.apply {
                         gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
                         width = WindowManager.LayoutParams.MATCH_PARENT
                         height = windowHeightPx
-                        dimAmount = if (blurEnabled) 0.10f else 0f
+                        dimAmount = if (blurEnabled) 0.06f else 0f
                     }
                 }
             }
+
             Box(
                 Modifier.fillMaxWidth().height(dockHeight + 24.dp + bottomInset),
                 contentAlignment = Alignment.BottomCenter
@@ -611,11 +676,17 @@ fun MedVaultBottomBar(
     val actions = listOf(onHome, onVideos, onQBank, onOffline)
     val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
     val latestActions by rememberUpdatedState(actions)
+    val latestSelectedIndex by rememberUpdatedState(selectedIndex)
+
     val hapticView = LocalView.current
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
     val dockHeight = if (compact) 50.dp else 62.dp
+    val dockHeightPx = with(density) { dockHeight.toPx() }
+    val baseIndicatorHeightPx = with(density) {
+        (if (compact) 36.dp else 44.dp).toPx()
+    }
     val dockInnerPadding = 5.dp
     val horizontalInsetPx = with(density) { dockInnerPadding.toPx() }
     val dockShape = RoundedCornerShape(50)
@@ -629,20 +700,16 @@ fun MedVaultBottomBar(
     var optimisticSelectedIndex by remember { mutableIntStateOf(selectedIndex) }
     var velocityStretchInput by remember { mutableFloatStateOf(0f) }
 
-    // A single pixel-space position drives the indicator, tab lens and drag gesture.
+    // The sole horizontal position source for rendering, tab optics and touch.
     val indicatorCenterX = remember { Animatable(0f) }
-    val tabSlotWidthPx = rowWidthPx / items.size.toFloat()
-    fun tabCenterX(index: Int): Float =
-        horizontalInsetPx + tabSlotWidthPx * (index + 0.5f)
-    fun nearestTabIndex(positionX: Float): Int =
-        items.indices.minByOrNull { kotlin.math.abs(positionX - tabCenterX(it)) } ?: 0
 
+    // Keep animation State objects, and read their values only in draw/layer scopes.
     val dropletTarget = when {
         isPressed || isDragging -> 1f
         isIndicatorAnimating || indicatorCenterX.isRunning -> 0.65f
         else -> 0f
     }
-    val dropletProgress by animateFloatAsState(
+    val dropletProgressState = animateFloatAsState(
         targetValue = dropletTarget,
         animationSpec = if (dropletTarget == 0f) {
             spring(dampingRatio = 0.98f, stiffness = 400f)
@@ -651,31 +718,49 @@ fun MedVaultBottomBar(
         },
         label = "dockDropletProgress"
     )
-    val smoothedVelocityStretch by animateFloatAsState(
-        targetValue = (kotlin.math.abs(velocityStretchInput) / 9000f * 0.12f).coerceIn(0f, 0.12f),
+    val velocityStretchState = animateFloatAsState(
+        targetValue = (kotlin.math.abs(velocityStretchInput) / 9000f * 0.12f)
+            .coerceIn(0f, 0.12f),
         animationSpec = spring(dampingRatio = 0.95f, stiffness = 600f),
         label = "dockVelocityStretch"
     )
 
-    LaunchedEffect(selectedIndex, dockWidthPx, rowWidthPx) {
-        if (dockWidthPx > 0 && rowWidthPx > 0) {
-            val target = tabCenterX(selectedIndex)
-            if (!centerInitialized) {
-                indicatorCenterX.snapTo(target)
-                centerInitialized = true
-                optimisticSelectedIndex = selectedIndex
-            } else if (
-                !isDragging &&
-                !isIndicatorAnimating &&
-                kotlin.math.abs(indicatorCenterX.targetValue - target) >= 1f
-            ) {
-                indicatorCenterX.animateTo(
-                    target,
-                    animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
-                )
-                optimisticSelectedIndex = selectedIndex
-            }
+    fun tabCenterX(index: Int): Float {
+        val slotWidth = rowWidthPx / items.size.toFloat()
+        return horizontalInsetPx + slotWidth * (index + 0.5f)
+    }
+
+    fun nearestTabIndex(positionX: Float): Int {
+        return items.indices.minByOrNull { kotlin.math.abs(positionX - tabCenterX(it)) } ?: 0
+    }
+
+    LaunchedEffect(
+        selectedIndex,
+        dockWidthPx,
+        rowWidthPx,
+        isDragging,
+        isIndicatorAnimating
+    ) {
+        if (dockWidthPx <= 0 || rowWidthPx <= 0) return@LaunchedEffect
+
+        val externalTarget = tabCenterX(selectedIndex)
+        if (!centerInitialized) {
+            indicatorCenterX.snapTo(externalTarget)
+            centerInitialized = true
+            optimisticSelectedIndex = selectedIndex
+            return@LaunchedEffect
         }
+
+        // Parent navigation changes must never interrupt an active finger or release spring.
+        if (isDragging || isIndicatorAnimating) return@LaunchedEffect
+
+        if (kotlin.math.abs(indicatorCenterX.targetValue - externalTarget) >= 1f) {
+            indicatorCenterX.animateTo(
+                externalTarget,
+                animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
+            )
+        }
+        optimisticSelectedIndex = selectedIndex
     }
 
     Box(
@@ -687,8 +772,8 @@ fun MedVaultBottomBar(
             .onSizeChanged { dockWidthPx = it.width },
         contentAlignment = Alignment.Center
     ) {
-        // Full-width four-tab glass capsule. The surface is clipped; the lens overlay is not.
         Box(Modifier.fillMaxSize()) {
+            // Static dock material. Blur-behind is provided by the Android dialog window.
             Box(
                 Modifier
                     .fillMaxSize()
@@ -704,63 +789,92 @@ fun MedVaultBottomBar(
                                     Color.White.copy(alpha = 0.08f)
                                 ),
                                 start = Offset.Zero,
-                                end = Offset(dockWidthPx.toFloat(), with(density) { dockHeight.toPx() })
+                                end = Offset(
+                                    dockWidthPx.toFloat(),
+                                    dockHeightPx
+                                )
                             )
                         ),
                         dockShape
                     )
             )
 
+            // Lens drawing reads animated snapshot values inside the draw scope,
+            // keeping frame-by-frame animation work out of the parent composition.
             Canvas(Modifier.fillMaxSize()) {
-                val progress = dropletProgress
-                val tabSlotWidth = rowWidthPx / items.size.toFloat()
-                val basePillHeight = with(density) {
-                    (if (compact) 36.dp else 44.dp).toPx()
-                }
-                // Keep the resting capsule proportional but inside its own tab slot.
-                val desiredWidth = maxOf(basePillHeight * 1.58f, tabSlotWidth * 0.78f)
-                val basePillWidth = minOf(desiredWidth, tabSlotWidth * 0.88f)
-                val currentHeight = basePillHeight * (1f + 0.18f * progress)
-                // Expansion is capped below the slot width to prevent neighbouring-tab overlap.
-                val expandedWidth = basePillWidth *
-                    (1f + (0.10f + smoothedVelocityStretch) * progress)
-                val currentWidth = minOf(expandedWidth, tabSlotWidth * 0.96f)
-                val minCenterX = horizontalInsetPx + currentWidth / 2f
-                val maxCenterX = size.width - horizontalInsetPx - currentWidth / 2f
-                val drawCenterX = indicatorCenterX.value.coerceIn(minCenterX, maxCenterX)
-                val drawCenterY = size.height / 2f
-                val topLeft = Offset(
-                    drawCenterX - currentWidth / 2f,
-                    drawCenterY - currentHeight / 2f
+                val progress = dropletProgressState.value
+                val stretch = velocityStretchState.value
+                val geometry = calculateLiquidDockGeometry(
+                    dockWidthPx = size.width,
+                    rowWidthPx = rowWidthPx.toFloat(),
+                    dockHeightPx = size.height,
+                    requestedBaseHeightPx = baseIndicatorHeightPx,
+                    horizontalInsetPx = horizontalInsetPx,
+                    requestedCenterX = indicatorCenterX.value,
+                    progress = progress,
+                    velocityStretch = stretch
                 )
-                val pillSize = androidx.compose.ui.geometry.Size(currentWidth, currentHeight)
-                val capsuleCorner = CornerRadius(currentHeight / 2f, currentHeight / 2f)
 
-                drawRoundRect(
-                    color = androidx.compose.ui.graphics.lerp(
-                        Color.Black.copy(alpha = 0.48f),
-                        Color.White.copy(alpha = 0.05f),
-                        progress
-                    ),
-                    topLeft = topLeft,
-                    size = pillSize,
-                    cornerRadius = capsuleCorner
-                )
+                val topLeft = geometry.topLeft
+                val capsuleSize = geometry.size
+                val capsuleCorner = geometry.cornerRadius
 
                 if (progress <= 0.001f) {
+                    drawRoundRect(
+                        color = Color.Black.copy(alpha = 0.46f),
+                        topLeft = topLeft,
+                        size = capsuleSize,
+                        cornerRadius = capsuleCorner
+                    )
                     val inset = 0.375.dp.toPx()
-                    val idleHeight = currentHeight - inset * 2f
+                    val innerHeight = (geometry.heightPx - inset * 2f).coerceAtLeast(0f)
                     drawRoundRect(
                         color = Color.White.copy(alpha = 0.12f),
                         topLeft = Offset(topLeft.x + inset, topLeft.y + inset),
                         size = androidx.compose.ui.geometry.Size(
-                            currentWidth - inset * 2f,
-                            currentHeight - inset * 2f
+                            (geometry.widthPx - inset * 2f).coerceAtLeast(0f),
+                            innerHeight
                         ),
-                        cornerRadius = CornerRadius(idleHeight / 2f, idleHeight / 2f),
+                        cornerRadius = CornerRadius(innerHeight / 2f, innerHeight / 2f),
                         style = Stroke(0.75.dp.toPx())
                     )
                 } else {
+                    // Transparent lens body with a soft vertical optical gradient.
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.045f * progress),
+                        topLeft = topLeft,
+                        size = capsuleSize,
+                        cornerRadius = capsuleCorner
+                    )
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.13f * progress),
+                                Color.White.copy(alpha = 0.035f * progress),
+                                Color(0xFF9BB9E8).copy(alpha = 0.045f * progress),
+                                Color.Black.copy(alpha = 0.10f * progress)
+                            ),
+                            start = Offset(topLeft.x, topLeft.y),
+                            end = Offset(
+                                topLeft.x + geometry.widthPx * 0.72f,
+                                topLeft.y + geometry.heightPx
+                            )
+                        ),
+                        topLeft = topLeft,
+                        size = capsuleSize,
+                        cornerRadius = capsuleCorner
+                    )
+
+                    // A restrained outer white edge gives the lens physical thickness.
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.22f * progress),
+                        topLeft = topLeft,
+                        size = capsuleSize,
+                        cornerRadius = capsuleCorner,
+                        style = Stroke(0.8.dp.toPx())
+                    )
+
+                    // Split chromatic rim: cool light above, warm light below.
                     val chromaticBrush = Brush.sweepGradient(
                         colorStops = arrayOf(
                             0.00f to Color(0xFFFF2A85).copy(alpha = 0.75f * progress),
@@ -771,27 +885,57 @@ fun MedVaultBottomBar(
                             0.90f to Color(0xFF7C4DFF).copy(alpha = 0.55f * progress),
                             1.00f to Color(0xFFFF2A85).copy(alpha = 0.75f * progress)
                         ),
-                        center = Offset(drawCenterX, drawCenterY)
+                        center = Offset(geometry.centerX, geometry.centerY)
                     )
                     drawRoundRect(
                         brush = chromaticBrush,
                         topLeft = topLeft,
-                        size = pillSize,
+                        size = capsuleSize,
                         cornerRadius = capsuleCorner,
                         style = Stroke(2.2.dp.toPx())
                     )
-                    val crescentInset = 1.5.dp.toPx()
+
+                    // Inner bevel, inset from the RGB rim to avoid a harsh neon outline.
+                    val bevelInset = 1.5.dp.toPx()
+                    val bevelWidth = (geometry.widthPx - bevelInset * 2f).coerceAtLeast(0f)
+                    val bevelHeight = (geometry.heightPx - bevelInset * 2f).coerceAtLeast(0f)
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.48f * progress),
+                                Color.White.copy(alpha = 0.12f * progress),
+                                Color.White.copy(alpha = 0.025f * progress)
+                            ),
+                            start = Offset(topLeft.x, topLeft.y),
+                            end = Offset(
+                                topLeft.x + geometry.widthPx,
+                                topLeft.y + geometry.heightPx
+                            )
+                        ),
+                        topLeft = Offset(topLeft.x + bevelInset, topLeft.y + bevelInset),
+                        size = androidx.compose.ui.geometry.Size(bevelWidth, bevelHeight),
+                        cornerRadius = CornerRadius(bevelHeight / 2f, bevelHeight / 2f),
+                        style = Stroke(1.dp.toPx())
+                    )
+
+                    // Upper specular crescent and a much quieter lower reflection.
                     drawArc(
                         color = Color.White.copy(alpha = 0.70f * progress),
                         startAngle = 200f,
                         sweepAngle = 140f,
                         useCenter = false,
-                        topLeft = Offset(topLeft.x + crescentInset, topLeft.y + crescentInset),
-                        size = androidx.compose.ui.geometry.Size(
-                            (currentWidth - crescentInset * 2f).coerceAtLeast(0f),
-                            (currentHeight - crescentInset * 2f).coerceAtLeast(0f)
-                        ),
+                        topLeft = Offset(topLeft.x + bevelInset, topLeft.y + bevelInset),
+                        size = androidx.compose.ui.geometry.Size(bevelWidth, bevelHeight),
                         style = Stroke(1.dp.toPx())
+                    )
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.16f * progress),
+                        startAngle = 25f,
+                        sweepAngle = 130f,
+                        useCenter = false,
+                        topLeft = Offset(topLeft.x + bevelInset, topLeft.y + bevelInset),
+                        size = androidx.compose.ui.geometry.Size(bevelWidth, bevelHeight),
+                        style = Stroke(0.7.dp.toPx())
                     )
                 }
             }
@@ -807,11 +951,22 @@ fun MedVaultBottomBar(
                             val tracker = VelocityTracker()
                             tracker.resetTracking()
                             tracker.addPosition(down.uptimeMillis, down.position)
+
+                            // PointerInput(Unit) stays installed; read fresh layout values per gesture.
+                            val gestureRowWidth = rowWidthPx.toFloat()
+                            val gestureSlotWidth = gestureRowWidth / items.size.toFloat()
+                            val gestureInset = horizontalInsetPx
+                            fun gestureTabCenter(index: Int): Float =
+                                gestureInset + gestureSlotWidth * (index + 0.5f)
+                            fun gestureNearestTab(x: Float): Int =
+                                items.indices.minByOrNull {
+                                    kotlin.math.abs(x - gestureTabCenter(it))
+                                } ?: 0
+
                             val startX = down.position.x
                             var releaseX = startX
                             var crossedSlop = false
                             var releasedNormally = false
-                            var pendingDragSnap: kotlinx.coroutines.Job? = null
 
                             isPressed = true
                             isDragging = false
@@ -822,6 +977,7 @@ fun MedVaultBottomBar(
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     tracker.addPosition(change.uptimeMillis, change.position)
+
                                     if (!change.pressed) {
                                         releaseX = change.position.x
                                         releasedNormally = true
@@ -835,13 +991,11 @@ fun MedVaultBottomBar(
                                         crossedSlop = true
                                         isDragging = true
                                     }
+
                                     if (crossedSlop) {
                                         change.consume()
-                                        pendingDragSnap?.cancel()
-                                        val position = fingerX + horizontalInsetPx
-                                        pendingDragSnap = scope.launch {
-                                            indicatorCenterX.snapTo(position)
-                                        }
+                                        // Direct snap in the pointer coroutine: no per-frame child jobs.
+                                        indicatorCenterX.snapTo(fingerX + gestureInset)
                                         velocityStretchInput = tracker.calculateVelocity().x
                                     }
                                 }
@@ -851,26 +1005,31 @@ fun MedVaultBottomBar(
                             }
 
                             if (releasedNormally) {
-                                val releasePosition = releaseX + horizontalInsetPx
-                                val targetTabIndex = nearestTabIndex(releasePosition)
-                                val targetX = tabCenterX(targetTabIndex)
+                                val releasePosition = releaseX + gestureInset
+                                val targetTabIndex = gestureNearestTab(releasePosition)
+                                val targetX = gestureTabCenter(targetTabIndex)
+
                                 MedVaultHaptics.perform(
                                     hapticView,
-                                    if (crossedSlop) MedVaultHaptics.Kind.DETENT else MedVaultHaptics.Kind.LIGHT
+                                    if (crossedSlop) {
+                                        MedVaultHaptics.Kind.DETENT
+                                    } else {
+                                        MedVaultHaptics.Kind.LIGHT
+                                    }
                                 )
+
                                 optimisticSelectedIndex = targetTabIndex
                                 isIndicatorAnimating = true
                                 latestActions[targetTabIndex]()
 
-                                val finalDragSnap = pendingDragSnap
-                                pendingDragSnap = null
                                 scope.launch {
                                     try {
-                                        finalDragSnap?.join()
-                                        if (crossedSlop) indicatorCenterX.snapTo(releasePosition)
                                         indicatorCenterX.animateTo(
                                             targetX,
-                                            animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f)
+                                            animationSpec = spring(
+                                                dampingRatio = 0.86f,
+                                                stiffness = 420f
+                                            )
                                         )
                                     } finally {
                                         isIndicatorAnimating = false
@@ -878,8 +1037,25 @@ fun MedVaultBottomBar(
                                     }
                                 }
                             } else {
-                                pendingDragSnap?.cancel()
-                                velocityStretchInput = 0f
+                                // Cancel returns to the last committed/optimistic tab.
+                                val cancelTarget = gestureTabCenter(
+                                    optimisticSelectedIndex.coerceIn(items.indices)
+                                )
+                                isIndicatorAnimating = true
+                                scope.launch {
+                                    try {
+                                        indicatorCenterX.animateTo(
+                                            cancelTarget,
+                                            animationSpec = spring(
+                                                dampingRatio = 0.90f,
+                                                stiffness = 420f
+                                            )
+                                        )
+                                    } finally {
+                                        isIndicatorAnimating = false
+                                        velocityStretchInput = 0f
+                                    }
+                                }
                             }
                         }
                     },
@@ -896,61 +1072,80 @@ fun MedVaultBottomBar(
                             item.third,
                             contentDescription = item.second,
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp).graphicsLayer {
-                                val slot = rowWidthPx / items.size.toFloat()
-                                val baseHeight = with(density) { (if (compact) 36.dp else 44.dp).toPx() }
-                                val baseWidth = minOf(
-                                    maxOf(baseHeight * 1.58f, slot * 0.78f),
-                                    slot * 0.88f
-                                )
-                                val width = minOf(
-                                    baseWidth * (1f + (0.10f + smoothedVelocityStretch) * dropletProgress),
-                                    slot * 0.96f
-                                )
-                                val minCenter = horizontalInsetPx + width / 2f
-                                val maxCenter = dockWidthPx - horizontalInsetPx - width / 2f
-                                val drawCenterX = indicatorCenterX.value.coerceIn(minCenter, maxCenter)
-                                val centerX = horizontalInsetPx + slot * (index + 0.5f)
-                                val prox = (1f - kotlin.math.abs(drawCenterX - centerX) /
-                                    (slot * 0.95f).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                                val smoothProx = prox * prox * (3f - 2f * prox)
-                                scaleX = 1f + 0.35f * smoothProx * dropletProgress
-                                scaleY = scaleX
-                                alpha = if (index == nearestTabIndex(drawCenterX)) 1f else 0.45f
-                                translationX = (drawCenterX - centerX) * 0.14f * smoothProx * dropletProgress
-                                translationY = -with(density) { 2.5.dp.toPx() } * smoothProx * dropletProgress
-                            }
+                            modifier = Modifier
+                                .size(20.dp)
+                                .graphicsLayer {
+                                    val geometry = calculateLiquidDockGeometry(
+                                        dockWidthPx = dockWidthPx.toFloat(),
+                                        rowWidthPx = rowWidthPx.toFloat(),
+                                        dockHeightPx = dockHeightPx,
+                                        requestedBaseHeightPx = baseIndicatorHeightPx,
+                                        horizontalInsetPx = horizontalInsetPx,
+                                        requestedCenterX = indicatorCenterX.value,
+                                        progress = dropletProgressState.value,
+                                        velocityStretch = velocityStretchState.value
+                                    )
+                                    val tabCenter = horizontalInsetPx +
+                                        geometry.slotWidthPx * (index + 0.5f)
+                                    val proximity = (
+                                        1f - kotlin.math.abs(geometry.centerX - tabCenter) /
+                                            (geometry.slotWidthPx * 0.95f).coerceAtLeast(1f)
+                                    ).coerceIn(0f, 1f)
+                                    val smoothProximity = proximity * proximity *
+                                        (3f - 2f * proximity)
+                                    val progress = dropletProgressState.value
+
+                                    val uniformScale = 1f +
+                                        0.35f * smoothProximity * progress
+                                    scaleX = uniformScale
+                                    scaleY = uniformScale
+                                    alpha = 0.45f + 0.55f * smoothProximity
+                                    translationX = (geometry.centerX - tabCenter) *
+                                        0.14f * smoothProximity * progress
+                                    translationY = -with(density) { 2.5.dp.toPx() } *
+                                        smoothProximity * progress
+                                }
                         )
+
                         Spacer(Modifier.height(2.dp))
+
                         Text(
                             item.second,
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
+                            overflow = TextOverflow.Clip,
                             modifier = Modifier.graphicsLayer {
-                                val slot = rowWidthPx / items.size.toFloat()
-                                val baseHeight = with(density) { (if (compact) 36.dp else 44.dp).toPx() }
-                                val baseWidth = minOf(
-                                    maxOf(baseHeight * 1.58f, slot * 0.78f),
-                                    slot * 0.88f
+                                val geometry = calculateLiquidDockGeometry(
+                                    dockWidthPx = dockWidthPx.toFloat(),
+                                    rowWidthPx = rowWidthPx.toFloat(),
+                                    dockHeightPx = dockHeightPx,
+                                    requestedBaseHeightPx = baseIndicatorHeightPx,
+                                    horizontalInsetPx = horizontalInsetPx,
+                                    requestedCenterX = indicatorCenterX.value,
+                                    progress = dropletProgressState.value,
+                                    velocityStretch = velocityStretchState.value
                                 )
-                                val width = minOf(
-                                    baseWidth * (1f + (0.10f + smoothedVelocityStretch) * dropletProgress),
-                                    slot * 0.96f
-                                )
-                                val minCenter = horizontalInsetPx + width / 2f
-                                val maxCenter = dockWidthPx - horizontalInsetPx - width / 2f
-                                val drawCenterX = indicatorCenterX.value.coerceIn(minCenter, maxCenter)
-                                val centerX = horizontalInsetPx + slot * (index + 0.5f)
-                                val prox = (1f - kotlin.math.abs(drawCenterX - centerX) /
-                                    (slot * 0.95f).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                                val smoothProx = prox * prox * (3f - 2f * prox)
-                                scaleX = 1f + 0.14f * smoothProx * dropletProgress
-                                scaleY = scaleX
-                                alpha = if (index == nearestTabIndex(drawCenterX)) 1f else 0.45f
-                                translationX = (drawCenterX - centerX) * 0.14f * smoothProx * dropletProgress
-                                translationY = -with(density) { 2.5.dp.toPx() } * smoothProx * dropletProgress
+                                val tabCenter = horizontalInsetPx +
+                                    geometry.slotWidthPx * (index + 0.5f)
+                                val proximity = (
+                                    1f - kotlin.math.abs(geometry.centerX - tabCenter) /
+                                        (geometry.slotWidthPx * 0.95f).coerceAtLeast(1f)
+                                ).coerceIn(0f, 1f)
+                                val smoothProximity = proximity * proximity *
+                                    (3f - 2f * proximity)
+                                val progress = dropletProgressState.value
+
+                                val uniformScale = 1f +
+                                    0.14f * smoothProximity * progress
+                                scaleX = uniformScale
+                                scaleY = uniformScale
+                                alpha = 0.45f + 0.55f * smoothProximity
+                                translationX = (geometry.centerX - tabCenter) *
+                                    0.14f * smoothProximity * progress
+                                translationY = -with(density) { 2.5.dp.toPx() } *
+                                    smoothProximity * progress
                             }
                         )
                     }
