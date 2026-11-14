@@ -723,10 +723,12 @@ fun MedVaultBottomBar(
         motionCommands.receiveAsFlow().collectLatest { command ->
             when (command) {
                 is DockMotionCommand.DragTo -> {
-                    indicatorCenterX.animateTo(command.centerX, spring(dampingRatio = 0.88f, stiffness = 850f))
+                    indicatorCenterX.snapTo(command.centerX)
                 }
                 is DockMotionCommand.Release -> {
                     try {
+                        // Keep the lens locked to the final pointer coordinate before settling.
+                        indicatorCenterX.snapTo(command.releaseCenterX)
                         indicatorCenterX.animateTo(
                             command.targetCenterX,
                             animationSpec = spring(dampingRatio = 0.96f, stiffness = 420f)
