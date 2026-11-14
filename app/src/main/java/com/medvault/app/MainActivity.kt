@@ -45,8 +45,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
@@ -3635,7 +3635,7 @@ private fun VideoScreen(
     var speed by remember(player) { mutableFloatStateOf(player.playbackParameters.speed) }
     var controlsVisible by remember(player) { mutableStateOf(true) }
     var settingsExpanded by remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
+    val hapticView = LocalView.current
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -3823,7 +3823,7 @@ private fun VideoScreen(
                                 iconSize = 25.dp
                             ) {
                                 player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.LIGHT)
                                 controlsVisible = true
                             }
                             PlayerGlassCircleButton(
