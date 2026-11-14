@@ -2,7 +2,6 @@ package com.medvault.app
 
 import androidx.compose.ui.graphics.asAndroidPath
 
-import androidx.compose.ui.graphics.drawscope.drawPath
 
 import androidx.compose.ui.graphics.Path
 
@@ -1099,7 +1098,7 @@ fun MedVaultBottomBar(
                                     horizontalInsetPx = horizontalInsetPx,
                                     requestedCenterX = indicatorCenterX.value,
                                     progress = dropletProgressState.value,
-                                    velocityStretch = velocityMotionState.value
+                                    velocityX = velocityMotionState.value
                                 )
                                 val tabCenter = horizontalInsetPx +
                                     geometry.slotWidthPx * (index + 0.5f)
