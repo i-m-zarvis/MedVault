@@ -689,6 +689,7 @@ fun MedVaultBottomBar(
     val latestActions by rememberUpdatedState(actions)
 
     val hapticView = LocalView.current
+    val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     val activity = remember(context) { context.findActivity() }
     var backdropBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -708,6 +709,7 @@ fun MedVaultBottomBar(
             backdropBitmap = null
         }
     }
+    val latestBackdropRect by rememberUpdatedState(backdropRect)
     val backdropShader = remember(backdropBitmap) {
         backdropBitmap?.let {
             BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
@@ -793,10 +795,15 @@ fun MedVaultBottomBar(
     }
 
     // Keep animation State objects, and read their values only in draw/layer scopes.
-    val dropletTarget = when {
-        isPressed || isDragging -> 1f
-        isIndicatorAnimating || indicatorCenterX.isRunning -> 0.65f
-        else -> 0f
+    val dockPhase = resolveDockPhase(
+        isPressed = isPressed,
+        isDragging = isDragging,
+        isAnimating = isIndicatorAnimating || indicatorCenterX.isRunning
+    )
+    val dropletTarget = when (dockPhase) {
+        DockPhase.Pressed, DockPhase.Dragging -> 1f
+        DockPhase.Travelling, DockPhase.Settling -> 0.65f
+        DockPhase.Idle -> 0f
     }
     val dropletProgressState = animateFloatAsState(
         targetValue = dropletTarget,
@@ -1094,7 +1101,7 @@ fun MedVaultBottomBar(
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            backdropRect?.let { backdropCapture?.capture(it) }
+                            latestBackdropRect?.let { backdropCapture?.capture(it) }
                             val tracker = VelocityTracker()
                             tracker.resetTracking()
                             tracker.addPosition(down.uptimeMillis, down.position)
