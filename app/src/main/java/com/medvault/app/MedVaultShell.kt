@@ -10,6 +10,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -562,8 +565,15 @@ fun MedVaultBottomBar(
     val actions = listOf(onHome, onVideos, onQBank, onOffline, onProfile)
     val accents = listOf(HomeBlue, LiquidViolet, LiquidTeal, Color(0xFFF4C34F), HomeBlue)
     val hapticView = LocalView.current
+    val latestActions by rememberUpdatedState(actions)
+    val latestSelected by rememberUpdatedState(selected)
+    val selectedIndex = items.indexOfFirst { it.first == selected }.coerceAtLeast(0)
+    val indicatorIndex by animateFloatAsState(
+        targetValue = selectedIndex.toFloat(),
+        animationSpec = spring(dampingRatio = 0.92f, stiffness = 680f),
+        label = "dock_indicator_position"
+    )
 
-    // Lightweight outlined dock inspired by the reference: no heavy selected capsule.
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -578,74 +588,131 @@ fun MedVaultBottomBar(
             border = null,
             shadowElevation = 4.dp
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 7.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth().height(72.dp)
             ) {
-                items.forEachIndexed { index, item ->
-                    val isSelected = selected == item.first
-                    val accent = accents[index]
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val pressScale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.94f else 1f,
-                        animationSpec = LiquidMotion.Touch,
-                        label = "dockPress"
-                    )
-                    val iconScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.08f else 1f,
-                        animationSpec = LiquidMotion.Navigation,
-                        label = "dockSelection"
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .graphicsLayer {
-                                scaleX = pressScale
-                                scaleY = pressScale
-                            }
-                            .clip(RoundedCornerShape(22.dp))
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null,
-                                onClick = {
-                                    if (!isSelected) {
+                val cellWidth = maxWidth / items.size
+                // The indicator is drawn behind the tabs and glides to the
+                // externally selected destination after each live drag update.
+                Box(
+                    modifier = Modifier
+                        .offset(x = cellWidth * indicatorIndex)
+                        .padding(horizontal = 2.dp, vertical = 5.dp)
+                        .width(cellWidth - 4.dp)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(25.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.105f),
+                                    accents[selectedIndex].copy(alpha = 0.075f),
+                                    Color.White.copy(alpha = 0.025f)
+                                )
+                            )
+                        )
+                        .border(
+                            0.7.dp,
+                            Color.White.copy(alpha = 0.10f),
+                            RoundedCornerShape(25.dp)
+                        )
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 7.dp, vertical = 5.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { start ->
+                                    val width = size.width.toFloat().coerceAtLeast(1f)
+                                    var lastIndex = ((start.x / width) * items.size)
+                                        .toInt().coerceIn(items.indices)
+                                    // Begin tracking from the tab under the finger.
+                                    if (items[lastIndex].first != latestSelected) {
                                         MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
+                                        latestActions[lastIndex]()
                                     }
-                                    actions[index]()
+                                },
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    val width = size.width.toFloat().coerceAtLeast(1f)
+                                    val nextIndex = ((change.position.x / width) * items.size)
+                                        .toInt().coerceIn(items.indices)
+                                    val currentKey = items[nextIndex].first
+                                    if (currentKey != latestSelected) {
+                                        MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
+                                        latestActions[nextIndex]()
+                                    }
                                 }
                             )
-                            .padding(top = 5.dp, bottom = 2.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            item.third,
-                            contentDescription = item.second,
-                            tint = if (isSelected) accent else HomeMuted.copy(alpha = 0.82f),
+                        },
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items.forEachIndexed { index, item ->
+                        val isSelected = selected == item.first
+                        val accent = accents[index]
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val pressScale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.96f else 1f,
+                            animationSpec = LiquidMotion.Touch,
+                            label = "dockPress"
+                        )
+                        val iconScale by animateFloatAsState(
+                            targetValue = if (isSelected) 1.07f else 1f,
+                            animationSpec = LiquidMotion.Navigation,
+                            label = "dockSelection"
+                        )
+                        Column(
                             modifier = Modifier
-                                .size(22.dp)
+                                .weight(1f)
+                                .fillMaxHeight()
                                 .graphicsLayer {
-                                    scaleX = iconScale
-                                    scaleY = iconScale
+                                    scaleX = pressScale
+                                    scaleY = pressScale
                                 }
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            item.second,
-                            color = if (isSelected) accent else HomeMuted,
-                            fontSize = 9.sp,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                            maxLines = 1
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Box(
-                            Modifier
-                                .size(4.dp)
-                                .background(if (isSelected) accent else Color.Transparent, RoundedCornerShape(50))
-                        )
+                                .clip(RoundedCornerShape(22.dp))
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = {
+                                        if (!isSelected) {
+                                            MedVaultHaptics.perform(hapticView, MedVaultHaptics.Kind.SELECTION)
+                                        }
+                                        actions[index]()
+                                    }
+                                )
+                                .padding(top = 5.dp, bottom = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                item.third,
+                                contentDescription = item.second,
+                                tint = if (isSelected) accent else HomeMuted.copy(alpha = 0.82f),
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .graphicsLayer {
+                                        scaleX = iconScale
+                                        scaleY = iconScale
+                                    }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                item.second,
+                                color = if (isSelected) accent else HomeMuted,
+                                fontSize = 9.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Box(
+                                Modifier
+                                    .size(4.dp)
+                                    .background(if (isSelected) accent else Color.Transparent, RoundedCornerShape(50))
+                            )
+                        }
                     }
                 }
             }
