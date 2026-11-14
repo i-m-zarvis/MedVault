@@ -563,8 +563,7 @@ fun MedVaultBottomBarHost(
     onHome: () -> Unit,
     onVideos: () -> Unit,
     onQBank: () -> Unit,
-    onOffline: () -> Unit,
-    onProfile: () -> Unit
+    onOffline: () -> Unit
 ) {
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current

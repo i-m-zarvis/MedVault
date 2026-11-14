@@ -1924,8 +1924,14 @@ private fun MedVaultRoot(
         // WindowInsets.isImeVisible is shared here so every searchable screen gets
         // the same behaviour without per-field keyboard workarounds.
         if (screen in mainTabs && !pipMode && !showBrandSplash && !WindowInsets.isImeVisible) {
-            MedVaultBottomBarHost(selected = if (screen == "settings") "profile" else screen, compact = dockCompact, onHome = onHome, onVideos = onOpenTelegramLibrary,
-                onQBank = onOpenQBank, onOffline = onOpenOffline, onProfile = onSettings)
+            MedVaultBottomBarHost(
+                selected = if (screen == "settings") "home" else screen,
+                compact = dockCompact,
+                onHome = onHome,
+                onVideos = onOpenTelegramLibrary,
+                onQBank = onOpenQBank,
+                onOffline = onOpenOffline
+            )
         }
     }
 }
